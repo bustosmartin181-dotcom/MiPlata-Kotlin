@@ -55,14 +55,14 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             Text(pesosCentavos(c.quedaHoy), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
             LinearProgressIndicator(progress = { fraccion }, modifier = Modifier.fillMaxWidth().height(8.dp),
                 color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
-            Text("Presupuesto ${pesos(presupuesto)} · gastaste ${pesos(c.gastoHoy)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
+            Text("Presupuesto ${pesos(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${pesos(-c.gastoHoy)}" else "gastaste ${pesos(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
             c.manana?.let { Text("Mañana tendrás ${pesos(it)}", color = sobreHero, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
             if (c.fondo.activo && c.fondo.hoySuma > 0)
                 Text("Lo que no gastes hoy va a tu fondo: ${pesos(c.fondo.hoySuma)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
         }
 
         /* Dos números de un vistazo */
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (c.fondo.activo) {
                 Mini("Disponible", pesos(c.fondo.disponible), Modifier.weight(1f))
                 Mini("Fondo de ahorro", pesos(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), Modifier.weight(1f),
@@ -95,7 +95,7 @@ fun formatoTasa(t: Double): String = if (t % 1.0 == 0.0) t.toLong().toString() e
 @Composable
 fun Mini(titulo: String, valor: String, modifier: Modifier = Modifier, extra: String? = null) {
     val k = LocalColores.current
-    Column(modifier.background(k.tarjeta, RoundedCornerShape(18.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier.fillMaxHeight().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(titulo, fontSize = 13.sp, color = k.suave)
         Text(valor, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
         extra?.let { Text(it, fontSize = 12.sp, color = k.verde, fontWeight = FontWeight.SemiBold) }
