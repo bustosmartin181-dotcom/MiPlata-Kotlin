@@ -23,8 +23,8 @@ la prueba `NucleoContraOriginalTest` exige que Kotlin dé exactamente lo mismo. 
 
 ## Estado
 - ✅ Etapa 1: motor de cálculo verificado (1.552 casos inventados + copias reales, todos iguales al original).
-- ⏳ Etapa 2: pantallas Hoy, Plan, Días y Ajustes.
-- ⏳ Etapa 3: guardar, anotar gastos, copias de seguridad.
+- ✅ Etapa 2: diseño Renovado — Hoy, ventanita para anotar (gasto, entrada, me lo devuelven, dictado por voz), Días, Plan (tildar pagados) y copias de seguridad.
+- ⏳ Etapa 3: editar gastos importantes e ingresos, período nuevo, fondo de ahorro, cuentas, metas, avisos.
 - ⏳ Etapa 4: widget y ventanita flotante.
 
 Autor: Martín Bustos
