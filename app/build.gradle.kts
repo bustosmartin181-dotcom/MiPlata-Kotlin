@@ -24,27 +24,25 @@ android {
     // La clave NO está en el repo: GitHub Actions la arma desde los secretos MIPLATA_KEYSTORE y MIPLATA_CLAVE.
     val rutaClave = System.getenv("MIPLATA_KEYSTORE")
     val contrasena = System.getenv("MIPLATA_CLAVE")
+    val hayClaveFija = !rutaClave.isNullOrEmpty() && !contrasena.isNullOrEmpty()
     signingConfigs {
-        create("fija") {
-            if (rutaClave != null && contrasena != null) {
-                storeFile = file(rutaClave)
-                storePassword = contrasena
-                keyAlias = "miplata"
-                keyPassword = contrasena
-            } else {
-                // Sin secretos: clave de prueba de la máquina (sirve para compilar, no para actualizar encima)
-                initWith(getByName("debug"))
-            }
+        if (hayClaveFija) create("fija") {
+            storeFile = file(rutaClave!!)
+            storePassword = contrasena
+            keyAlias = "miplata"
+            keyPassword = contrasena
         }
     }
 
     buildTypes {
+        // Sin clave fija se usa la clave de prueba (sirve para probar; puede pedir desinstalar al actualizar)
+        val firma = if (hayClaveFija) signingConfigs.getByName("fija") else signingConfigs.getByName("debug")
         getByName("release") {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("fija")
+            signingConfig = firma
         }
         getByName("debug") {
-            signingConfig = signingConfigs.getByName("fija")
+            signingConfig = firma
         }
     }
 

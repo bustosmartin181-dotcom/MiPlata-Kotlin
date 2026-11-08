@@ -30,7 +30,8 @@ jobs:
         env:
           CLAVE_B64: ${{ secrets.MIPLATA_KEYSTORE }}
         run: |
-          if [ -z "$CLAVE_B64" ]; then echo "::error::Falta el secreto MIPLATA_KEYSTORE"; exit 1; fi
+          # Sin el secreto se firma con una clave de prueba (puede pedir desinstalar al actualizar)
+          if [ -z "$CLAVE_B64" ]; then echo "::warning::Sin clave fija: se firma con clave de prueba"; exit 0; fi
           echo "$CLAVE_B64" | base64 -d > "$RUNNER_TEMP/miplata.keystore"
           echo "MIPLATA_KEYSTORE=$RUNNER_TEMP/miplata.keystore" >> "$GITHUB_ENV"
 
