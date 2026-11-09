@@ -3,6 +3,7 @@ package com.miplata.kotlin.datos
 import android.content.Context
 import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Fechas
+import com.miplata.kotlin.nucleo.num
 import kotlinx.serialization.json.*
 import java.io.File
 
@@ -157,5 +158,50 @@ class Almacen(carpeta: File) {
         var terminadas = emptyList<String>()
         cambiarTodo { o -> val r = com.miplata.kotlin.nucleo.Periodo.iniciar(o, Fechas.hoy(), previo, inicio, fin); terminadas = r.terminadas; r.estado }
         return terminadas
+    }
+
+    private fun lista(o: JsonObject, clave: String) = (o[clave] as? JsonArray)?.toMutableList() ?: mutableListOf()
+
+    /** Sacar plata del fondo. para = "hoy" (suma al límite de hoy) o "cubre" (cubre gastos ya hechos). */
+    fun usarFondo(monto: Double, nota: String, para: String) = cambiarTodo { o ->
+        val l = lista(o, "fondoUsos")
+        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()),
+            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy")))
+        JsonObject(o + ("fondoUsos" to JsonArray(l)))
+    }
+    fun quitarUsoFondo(i: Int) = cambiarTodo { o -> val l = lista(o, "fondoUsos"); if (i in l.indices) l.removeAt(i); JsonObject(o + ("fondoUsos" to JsonArray(l))) }
+
+    /** "Ya lo pasé a la reserva". */
+    fun sumarPasado(monto: Double) = cambiarTodo { o ->
+        JsonObject(o + ("resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + monto))))
+    }
+
+    data class CuentaEditable(val n: String, val m: Double, val cuenta: Boolean)
+    fun guardarCuentas(l: List<CuentaEditable>) = cambiarCampo("cuentas", JsonArray(l.map { c ->
+        JsonObject(buildMap { put("n", JsonPrimitive(c.n)); put("m", com.miplata.kotlin.nucleo.num(c.m)); if (!c.cuenta) put("x", JsonPrimitive(true)) })
+    }))
+
+    /** Recomposición: la diferencia con las cuentas se reparte desde mañana (como "Ajustar con las cuentas"). */
+    fun agregarRecomposicion(monto: Double) = cambiarTodo { o ->
+        val l = lista(o, "ajustes"); val hoy = Fechas.hoy()
+        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(Fechas.manana(hoy)),
+            "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive("Recomposición")))
+        JsonObject(o + ("ajustes" to JsonArray(l)))
+    }
+    fun quitarRecomposicion(i: Int) = cambiarTodo { o -> val l = lista(o, "ajustes"); if (i in l.indices) l.removeAt(i); JsonObject(o + ("ajustes" to JsonArray(l))) }
+
+    /** Activar o apagar el fondo de ahorro (cuenta desde hoy: no toca lo que ya tenías). */
+    fun activarFondo(on: Boolean) = cambiarTodo { o ->
+        JsonObject(o + mapOf("modoFondo" to JsonPrimitive(on)) + (if (on) mapOf("fondoDesde" to JsonPrimitive(Fechas.hoy())) else emptyMap()))
+    }
+    fun activarRendFondo(on: Boolean) = cambiarTodo { o ->
+        var m = o + ("rendOn" to JsonPrimitive(on))
+        if (on) { m = m + mapOf("rendDesde" to JsonPrimitive(Fechas.hoy()), "rendPrev" to JsonPrimitive(0)); if (o["rendTasa"].num() == 0.0) m = m + ("rendTasa" to JsonPrimitive(19)) }
+        JsonObject(m)
+    }
+    fun activarRendDisp(on: Boolean) = cambiarTodo { o ->
+        var m = o + ("rendDispOn" to JsonPrimitive(on))
+        if (on) { m = m + ("rendDispDesde" to JsonPrimitive(Fechas.hoy())); if (o["rendTasa"].num() == 0.0) m = m + ("rendTasa" to JsonPrimitive(19)) }
+        JsonObject(m)
     }
 }

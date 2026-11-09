@@ -79,6 +79,10 @@ data class Estado(
     val rendEnMP: Boolean = false,
     val rendDispOn: Boolean = false,
     val rendDispDesde: String = "",
+    val resPasado: Double = 0.0,
+    val resAviso: Boolean = true,
+    val resHora: String = "22:00",
+    val nombre: String = "",
     /** Todo el JSON original: lo que esta versión todavía no usa se conserva al guardar. */
     val crudo: JsonObject = JsonObject(emptyMap()),
 ) {
@@ -144,6 +148,10 @@ data class Estado(
             rendEnMP = o["rendEnMP"].verdadero(),
             rendDispOn = o["rendDispOn"].verdadero(),
             rendDispDesde = o["rendDispDesde"].texto() ?: "",
+            resPasado = o["resPasado"].num(),
+            resAviso = (o["resAviso"] as? JsonPrimitive)?.booleanOrNull != false,
+            resHora = o["resHora"].texto()?.takeIf { Regex("""\d{1,2}:\d{2}""").matches(it) } ?: "22:00",
+            nombre = o["nombre"].texto() ?: "",
             crudo = o,
         )
     }

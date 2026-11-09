@@ -70,6 +70,27 @@ class AlmacenTest {
         assertTrue(terminadas.isEmpty())
     }
 
+    @Test fun fondoReservaYCuentas() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.activarFondo(true)
+        assertTrue(a.estado!!.modoFondo); assertEquals(hoy, a.estado!!.fondoDesde)
+        val c0 = Nucleo.calcular(a.estado!!, hoy)
+        a.usarFondo(3000.0, "kiosco", "hoy")
+        val c1 = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(c0.quedaHoy + 3000, c1.quedaHoy, 1e-6)          // "para hoy" suma al límite de hoy
+        assertEquals(c0.fondo.total - 3000, c1.fondo.total, 1e-6)
+        a.quitarUsoFondo(0)
+        assertEquals(c0.quedaHoy, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)
+        a.sumarPasado(1234.5); a.sumarPasado(100.0)
+        assertEquals(1334.5, a.estado!!.resPasado, 1e-9)
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100.0, true), Almacen.CuentaEditable("Reserva", 999.0, false)))
+        val cc = Nucleo.conciliar(a.estado!!, Nucleo.calcular(a.estado!!, hoy))
+        assertEquals(100.0, cc.total, 1e-9)
+        a.agregarRecomposicion(cc.diferencia)
+        assertEquals(1, a.estado!!.ajustes.size); assertEquals(Fechas.manana(hoy), a.estado!!.ajustes[0].desde)
+        a.activarRendDisp(true); assertEquals(19.0, a.estado!!.rendTasa, 1e-9)
+    }
+
     @Test fun dictado() {
         assertEquals("2800" to "Tortas", interpretarDictado("2800 tortas"))
         assertEquals("2500" to "Nafta", interpretarDictado("2500 pesos en nafta"))

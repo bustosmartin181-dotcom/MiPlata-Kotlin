@@ -22,7 +22,8 @@ import com.miplata.kotlin.nucleo.*
 import java.time.LocalTime
 
 @Composable
-fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit) {
+fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
+                alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -64,17 +65,50 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         /* Dos números de un vistazo */
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (c.fondo.activo) {
-                Mini("Disponible", pesos(c.fondo.disponible), Modifier.weight(1f))
-                Mini("Fondo de ahorro", pesos(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), Modifier.weight(1f),
+                Mini("Disponible", pesos(c.fondo.disponible), Modifier.weight(1f).clickable(onClick = alAbrirCuentas))
+                Mini("Fondo de ahorro", pesos(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), Modifier.weight(1f).clickable(onClick = alAbrirFondo),
                     extra = if (S.rendOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
             } else {
-                Mini("Saldo del período", pesos(c.saldo), Modifier.weight(1f),
+                Mini("Saldo del período", pesos(c.saldo), Modifier.weight(1f).clickable(onClick = alAbrirCuentas),
                     extra = if (S.rendDispOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
                 Mini("Días que faltan", c.faltan.toString(), Modifier.weight(1f))
             }
         }
         Text("Faltan ${c.faltan} días (con hoy) · base del día ${pesos(c.baseHoy)}", fontSize = 13.sp, color = k.suave,
             modifier = Modifier.padding(horizontal = 4.dp))
+
+        /* Para pasar a tu reserva (fondo de ahorro) */
+        if (c.fondo.activo) {
+            val pendiente = c.fondo.total - S.resPasado
+            if (pendiente >= 1 || c.fondo.hoySuma >= 1 || pendiente <= -1) Tarjeta(color = k.verdeClaro) {
+                Text("Para pasar a tu reserva", color = k.verde, fontWeight = FontWeight.SemiBold)
+                if (pendiente >= 1) {
+                    Text(pesos(pendiente), fontSize = 28.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.texto)
+                    Text("Es lo que fue al fondo y todavía no pasaste." + (if (c.fondo.hoySuma >= 1) " Esta noche se suman ${pesos(c.fondo.hoySuma)} de hoy." else ""),
+                        fontSize = 13.sp, color = k.suave)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = alAbrirMP, Modifier.weight(1f)) { Text("Abrir Mercado Pago") }
+                        Button(onClick = { alYaPase(pendiente) }, Modifier.weight(1f)) { Text("Ya lo pasé") }
+                    }
+                } else if (pendiente <= -1) Text("Sacaste del fondo más de lo que tenías sin pasar: retirá ${pesos(-pendiente)} de la reserva para que coincida.",
+                    fontSize = 14.sp, color = k.naranja)
+                else Text("Esta noche vas a tener ${pesos(c.fondo.hoySuma)} para pasar (lo que te sobra de hoy).", fontSize = 14.sp, color = k.texto)
+            }
+        }
+
+        /* Comparar con las cuentas */
+        val cc = Nucleo.conciliar(S, c)
+        Row(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(18.dp)).clickable(onClick = alAbrirCuentas).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Mis cuentas", fontWeight = FontWeight.SemiBold, color = k.texto)
+                Text(if (cc.hayCuentas) "En cuentas: ${pesos(cc.total)}" else "Cargá tu saldo de Mercado Pago para comparar", fontSize = 13.sp, color = k.suave)
+            }
+            if (cc.hayCuentas) {
+                val ok = Math.abs(cc.diferencia) < 1
+                Text(if (ok) "Coincide" else pesos(cc.diferencia), fontWeight = FontWeight.Bold, color = if (ok) k.verde else k.naranja)
+            }
+        }
 
         /* Movimientos de hoy */
         val deHoy = S.spent.filter { it.date == hoy && !it.esMeta }.sortedByDescending { it.id }

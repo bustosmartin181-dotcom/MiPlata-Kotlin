@@ -25,7 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miplata.kotlin.aviso.AvisoReserva
 import com.miplata.kotlin.datos.Almacen
+import com.miplata.kotlin.nucleo.Nucleo
+import com.miplata.kotlin.nucleo.num
+import kotlinx.serialization.json.JsonPrimitive
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Movimiento
 import com.miplata.kotlin.nucleo.texto
@@ -56,7 +60,22 @@ fun App(almacen: Almacen, version: String) {
     var pestana by rememberSaveable { mutableStateOf(Pestana.HOY) }
     var hojaAbierta by remember { mutableStateOf(false) }
     var editando by remember { mutableStateOf<Movimiento?>(null) }
+    var hojaHoy by remember { mutableStateOf("") }          // "fondo", "cuentas", "pase"
+    var pendientePase by remember { mutableDoubleStateOf(0.0) }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
+
+    /* Cada vez que cambian los datos se reprograma el aviso de la noche */
+    LaunchedEffect(vuelta) { runCatching { AvisoReserva.programar(ctx) } }
+    val pedirNotis = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (!ok) aviso("Sin permiso de notificaciones no te puedo avisar. Activalo en Ajustes del teléfono → Apps → Mi plata K.")
+        vuelta++
+    }
+    fun asegurarNotis() { if (!AvisoReserva.hayPermiso(ctx) && android.os.Build.VERSION.SDK_INT >= 33) pedirNotis.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+    fun campo(clave: String, valor: kotlinx.serialization.json.JsonElement) { almacen.cambiarCampo(clave, valor); vuelta++ }
+    fun abrirMP() {
+        val i = ctx.packageManager.getLaunchIntentForPackage("com.mercadopago.wallet")
+        if (i != null) ctx.startActivity(i) else aviso("No encontré la app de Mercado Pago")
+    }
 
     val importar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -81,12 +100,47 @@ fun App(almacen: Almacen, version: String) {
             else {
                 val tocar: (Movimiento) -> Unit = { editando = it; hojaAbierta = true }
                 when (pestana) {
-                    Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar)
+                    Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
+                        alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
+                        alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP)
                     Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso)
                     Pestana.DIAS -> PantallaDias(estado, tocar)
-                    Pestana.AJUSTES -> PantallaAjustes(version, abrirImportar, abrirExportar)
+                    Pestana.AJUSTES -> PantallaAjustes(estado, version, AccionesAjustes(
+                        importar = abrirImportar, exportar = abrirExportar,
+                        nombre = { campo("nombre", JsonPrimitive(it)); aviso("Guardado") },
+                        aviso = { campo("aviso", num(it)) },
+                        fondo = { on -> almacen.activarFondo(on); vuelta++; if (on) asegurarNotis() },
+                        excesoAparte = { campo("fondoExceso", JsonPrimitive(if (it) "aparte" else "siguiente")) },
+                        fondoPrev = { campo("fondoPrev", num(it)) },
+                        avisoReserva = { on -> campo("resAviso", JsonPrimitive(on)); if (on) asegurarNotis() },
+                        horaReserva = { campo("resHora", JsonPrimitive(it)); aviso("Te aviso todas las noches a las $it") },
+                        probarAviso = { if (!AvisoReserva.hayPermiso(ctx)) asegurarNotis() else { AvisoReserva.probar(ctx) } },
+                        pasado = { campo("resPasado", num(it)); aviso("Montos guardados") },
+                        rendDisp = { almacen.activarRendDisp(it); vuelta++ },
+                        rendFondo = { almacen.activarRendFondo(it); vuelta++ },
+                        tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
+                        rendEnMP = { campo("rendEnMP", JsonPrimitive(it)) },
+                        estadoAviso = {
+                            (if (AvisoReserva.hayPermiso(ctx)) "Permiso de notificaciones: concedido." else "Falta el permiso de notificaciones: tocá \"Probar aviso\" para darlo.") +
+                            (if (!AvisoReserva.alarmasExactas(ctx)) " El aviso puede llegar unos minutos tarde (Android ahorra batería)." else "")
+                        },
+                    ))
                 }
             }
+        }
+    }
+
+    if (estado != null) {
+        val c = remember(vuelta) { Nucleo.calcular(estado, Fechas.hoy()) }
+        when (hojaHoy) {
+            "fondo" -> if (c.fondo.activo) HojaFondo(estado, c, { hojaHoy = "" },
+                alSacar = { m, n, p -> almacen.usarFondo(m, n, p); vuelta++; hojaHoy = ""; aviso("Listo: sacaste ${pesos(m)} del fondo") },
+                alQuitarUso = { almacen.quitarUsoFondo(it); vuelta++ }) else LaunchedEffect(Unit) { hojaHoy = "" }
+            "cuentas" -> HojaCuentas(estado, c, { hojaHoy = "" },
+                alGuardar = { almacen.guardarCuentas(it); vuelta++; aviso("Saldos guardados") },
+                alAjustar = { almacen.agregarRecomposicion(it); vuelta++; hojaHoy = ""; aviso("Recomposición anotada") },
+                alQuitarAjuste = { almacen.quitarRecomposicion(it); vuelta++ })
+            "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
     }
 
