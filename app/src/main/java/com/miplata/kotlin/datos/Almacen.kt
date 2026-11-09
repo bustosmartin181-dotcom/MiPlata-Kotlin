@@ -275,4 +275,16 @@ class Almacen(carpeta: File) {
         if (archivo.exists()) archivo.copyTo(respaldo, overwrite = true)
         archivo.delete(); crudo = null
     }
+
+    /** Empezar de cero sin copia (como la introducción de Mi plata). */
+    fun empezarDeCero(nombre: String, sueldo: Double, inicio: String, fin: String, gastos: List<Pair<String, Double>>) {
+        val items = gastos.filter { it.first.isNotBlank() || it.second > 0 }.map { (n, a) ->
+            JsonObject(mapOf("n" to JsonPrimitive(n), "a" to num(a), "p" to JsonPrimitive(false), "f" to JsonPrimitive(true), "v" to JsonPrimitive(false))) }
+        guardar(JsonObject(mapOf(
+            "sueldo" to num(sueldo), "previo" to JsonPrimitive(0), "bienvenida" to JsonPrimitive(true),
+            "ingresos" to JsonArray(listOf(JsonObject(mapOf("cat" to JsonPrimitive("Sueldo"), "a" to num(sueldo))))),
+            "start" to JsonPrimitive(inicio), "end" to JsonPrimitive(fin), "items" to JsonArray(items), "spent" to JsonArray(emptyList()),
+            "recal" to JsonNull, "nombre" to JsonPrimitive(nombre), "ipcMig" to JsonPrimitive(1), "tema" to JsonPrimitive("auto"), "color" to JsonPrimitive("verde"),
+        )))
+    }
 }

@@ -24,7 +24,7 @@ import java.time.LocalTime
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
-                alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}) {
+                alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -59,6 +59,17 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 Text("Cuando cobres, empezá el período nuevo.", fontSize = 13.sp, color = k.suave)
             }
             Button(onClick = alPeriodoNuevo) { Text("Empezar") }
+        }
+
+        /* Aviso de IPC: toca actualizar un gasto (por ejemplo, el pago a Alejandro) */
+        S.items.filter { it -> Ipc.de(it)?.let { d -> Ipc.toca(d, hoy) } == true }.forEach { it ->
+            Row(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("📈 Toca actualizar: ${it.n}", fontWeight = FontWeight.Bold, color = k.naranja)
+                    Text("Desde ${mesYAnio(Ipc.de(it)!!.prox)} el monto se actualiza por IPC del INDEC.", fontSize = 13.sp, color = k.suave)
+                }
+                TextButton(onClick = alIrAPlan) { Text("Ver") }
+            }
         }
 
         /* Lo principal: cuánto te queda hoy */

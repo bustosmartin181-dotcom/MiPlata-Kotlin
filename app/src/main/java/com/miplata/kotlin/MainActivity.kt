@@ -158,7 +158,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         if (estado != null) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
-            if (estado == null) Bienvenida(abrirImportar)
+            if (estado == null) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
+                almacen.empezarDeCero(n, sueldo, ini, fin, gastos); vuelta++; aviso("¡Bienvenido a Mi plata!") }
             else {
                 val tocar: (Movimiento) -> Unit = { editando = it; hojaAbierta = true }
                 when (pestana) {
@@ -167,7 +168,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
-                        alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN })
+                        alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN },
+                        alIrAPlan = { pestana = Pestana.PLAN })
                     Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso, ::pagarMP, irAPeriodoNuevo) { irAPeriodoNuevo = false }
                     Pestana.DIAS -> PantallaDias(estado, tocar,
                         alObjetivo = { n -> almacen.aplicarObjetivo(n); vuelta++; aviso(if (n > 0) "Listo: tu límite de hoy ahora es ${pesos(n)}" else "Volviste a tu límite normal") },
@@ -286,15 +288,3 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
     }
 }
 
-@Composable
-fun Bienvenida(alImportar: () -> Unit) {
-    val k = LocalColores.current
-    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Mi plata K", fontSize = 34.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.verde)
-        Spacer(Modifier.height(10.dp))
-        Text("Para empezar, traé tus datos desde una copia de seguridad (.json) de tu Mi plata de siempre.",
-            textAlign = TextAlign.Center, color = k.suave)
-        Spacer(Modifier.height(24.dp))
-        Button(onClick = alImportar, Modifier.fillMaxWidth().height(52.dp)) { Text("Importar copia de seguridad", fontSize = 16.sp) }
-    }
-}

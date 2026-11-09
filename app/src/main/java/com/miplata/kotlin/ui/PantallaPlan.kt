@@ -24,6 +24,7 @@ private sealed interface HojaPlan {
     data object Nuevo : HojaPlan
     data class UnaMeta(val m: Meta?) : HojaPlan
     data class Detalle(val k: Int) : HojaPlan
+    data class IPC(val k: Int) : HojaPlan
 }
 
 @Composable
@@ -60,7 +61,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
         TarjetaPagarAlCobrar(S,
             alPagado = { i, v -> almacen.marcarPagado(i, v); alCambiar() },
             alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
-            alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) })
+            alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) },
+            alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) })
+
+        TarjetaCuotas(S)
 
         TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
 
@@ -113,6 +117,12 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
                 alPagado = { v -> almacen.marcarPagado(h.k, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") },
                 alEditar = { hoja = HojaPlan.Gasto(h.k, false) },
                 alCopiar = { titulo, valor -> MercadoPago.copiar(ctx, titulo, valor); aviso("Copiado: $valor") })
+        }
+        is HojaPlan.IPC -> S.items.getOrNull(h.k)?.let { item ->
+            HojaIPC(item, { hoja = null }) { cada, factor ->
+                almacen.cambiarTodo { Ipc.aplicar(it, h.k, cada, factor) }; alCambiar(); hoja = null
+                aviso("Nuevo: ${pesos(cada)}" + (if ((Ipc.de(item)?.partes ?: 1) > 1) " cada uno" else "") + " desde ${mesYAnio(Ipc.de(item)!!.prox)}")
+            }
         }
         is HojaPlan.UnaMeta -> HojaMeta(S, h.m, { hoja = null },
             alGuardar = { n, t, g0, f -> almacen.guardarMeta(h.m?.id, n, t, g0, f); alCambiar(); hoja = null; aviso("Meta guardada") },

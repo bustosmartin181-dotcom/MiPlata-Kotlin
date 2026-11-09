@@ -33,7 +33,8 @@ fun etiquetas(it: Item): List<String> = listOfNotNull(
 
 /** "Pagar al cobrar": lo primero que se paga cuando cobrás. */
 @Composable
-fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles: (Int) -> Unit, alAgregar: () -> Unit) {
+fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles: (Int) -> Unit, alAgregar: () -> Unit,
+                         alPagarMP: (Int) -> Unit = {}, alIPC: (Int) -> Unit = {}) {
     val k = LocalColores.current
     var filtro by remember { mutableIntStateOf(if (S.items.any { !it.p && it.a > 0 }) 0 else 1) }   // 0 pendientes, 1 pagados, 2 todos
     val visibles = S.items.withIndex().filter { (_, it) -> it.n.isNotBlank() || it.a != 0.0 }
@@ -70,10 +71,45 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
                 Text(pesos(it.a), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (it.p) k.verde else k.texto)
                 val et = etiquetas(it)
                 if (et.isNotEmpty()) Text(et.joinToString(" · "), fontSize = 13.sp, color = k.suave)
+                Ipc.de(it)?.let { d ->
+                    val toca = Ipc.toca(d, Fechas.hoy())
+                    Text("📈 Se actualiza por IPC cada ${d.cada} meses · próxima: ${mesYAnio(d.prox)}" +
+                        (if (d.partes > 1) "\nTotal ${pesos(it.a * d.partes)} entre ${d.partes} (${pesos(it.a)} cada uno)" else "") +
+                        (d.pend?.let { (m, desde) -> "\n✅ Ya calculado: ${pesos(m)}${if (d.partes > 1) " cada uno" else ""} desde ${mesYAnio(desde)}" } ?: ""),
+                        fontSize = 12.sp, color = k.suave)
+                    OutlinedButton(onClick = { alIPC(i) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = if (toca) k.naranja else k.verde)) {
+                        Text(if (toca) "⚠️ Toca actualizar" else "Calcular actualización", fontSize = 13.sp) }
+                }
+                if (!it.p && it.a > 0) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth()) { alPagarMP(i) }
                 OutlinedButton(onClick = { alDetalles(i) }, Modifier.fillMaxWidth()) { Text("Detalles") }
             }
         }
         OutlinedButton(onClick = alAgregar, Modifier.fillMaxWidth()) { Text("+ Agregar gasto importante") }
+    }
+}
+
+/** Resumen de cuotas: cuántas te quedan y cuánto falta pagar. */
+@Composable
+fun TarjetaCuotas(S: Estado) {
+    val k = LocalColores.current
+    val cuotas = S.items.filter { it.q != null && it.q.total > 1 }
+    if (cuotas.isEmpty()) return
+    Tarjeta {
+        Titulo("🧾 Cuotas")
+        cuotas.forEach { it ->
+            val q = it.q!!; val restan = maxOf(0, q.total - q.actual)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(it.n.ifBlank { "Gasto en cuotas" }, color = k.texto, fontWeight = FontWeight.SemiBold)
+                    Text("Cuota ${q.actual} de ${q.total} · " + (if (restan == 0) "es la última 🎉" else "te quedan $restan"), fontSize = 12.sp, color = k.suave)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(pesos(it.a) + " por mes", fontSize = 13.sp, color = k.texto)
+                    if (restan > 0) Text("Falta ${pesos(it.a * restan)}", fontSize = 12.sp, color = k.suave)
+                }
+            }
+        }
+        Renglon("Total que falta en cuotas", pesos(cuotas.sumOf { it.a * maxOf(0, it.q!!.total - it.q.actual) }))
     }
 }
 
