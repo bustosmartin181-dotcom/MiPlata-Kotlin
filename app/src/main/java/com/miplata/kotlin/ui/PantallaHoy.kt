@@ -137,29 +137,29 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         /* Mi fondo de ahorro, con cómo fue creciendo */
         if (c.fondo.activo) TarjetaFondo(S, c, alAbrirFondo)
 
-        /* Para pasar a tu reserva (fondo de ahorro), justo abajo del fondo, como en Mi plata */
+        /* Para pasar a tu reserva (fondo de ahorro), justo abajo del fondo, como en Mi plata.
+           "Ya lo pasé" se puede tocar también a la noche, cuando pasás lo de hoy (antes de que cierre el día). */
         if (c.fondo.activo) {
-            val pendiente = c.fondo.total - S.resPasado
-            if (pendiente >= 1 || c.fondo.hoySuma >= 1 || pendiente <= -1) Column(Modifier.fillMaxWidth()
+            val anteriores = c.fondo.total - S.resPasado          // de días ya cerrados, sin pasar
+            val conHoy = anteriores + c.fondo.hoySuma               // + lo que sobra hoy
+            if (conHoy >= 1 || conHoy <= -1) Column(Modifier.fillMaxWidth()
                 .border(1.5.dp, k.verde, RoundedCornerShape(22.dp)).background(k.tarjeta, RoundedCornerShape(22.dp)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🏦 Para pasar a tu reserva", color = k.suave, fontSize = 16.sp)
-                if (pendiente >= 1) {
-                    Text(dinero(pendiente), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
-                    Text("Es lo que fue al fondo y todavía no pasaste a tu reserva." + (if (c.fondo.hoySuma >= 1) " Esta noche se suman ${dinero(c.fondo.hoySuma)} de hoy." else ""),
-                        fontSize = 14.sp, color = k.suave)
+                if (conHoy >= 1) {
+                    Text(dinero(conHoy), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
+                    Text(when {
+                        anteriores >= 1 && c.fondo.hoySuma >= 1 -> "${dinero(anteriores)} de días anteriores + ${dinero(c.fondo.hoySuma)} que te sobran hoy."
+                        anteriores >= 1 -> "Es lo que fue al fondo y todavía no pasaste a tu reserva."
+                        anteriores <= -1 -> "Ya pasaste una parte de lo de hoy. Te falta esto."
+                        else -> "Es lo que te sobra hoy. Pasalo a la noche, cuando ya no vayas a gastar."
+                    }, fontSize = 14.sp, color = k.suave)
                     BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
-                    Button(onClick = { alYaPase(pendiente) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
-                } else if (pendiente <= -1) Text("Sacaste del fondo más de lo que tenías sin pasar: retirá ${dinero(-pendiente)} de la reserva para que coincida.",
+                    Button(onClick = { alYaPase(conHoy) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
+                } else Text("Pasaste a la reserva ${dinero(-conHoy)} de más (o sacaste del fondo). Retirá esa plata de la reserva para que coincida.",
                     fontSize = 14.sp, color = k.naranja)
-                else {
-                    Text(dinero(c.fondo.hoySuma), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
-                    Text("Ya pasaste todo lo de días anteriores. Esta noche vas a tener esto para pasar (lo que te sobra de hoy).", fontSize = 14.sp, color = k.suave)
-                    BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
-                }
             }
         }
-
 
         /* Gastos y entradas del período */
         TarjetaGastosYEntradas(S, alTocarMovimiento)
