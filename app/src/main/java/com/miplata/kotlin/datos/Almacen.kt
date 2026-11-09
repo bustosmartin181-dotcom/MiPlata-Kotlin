@@ -4,6 +4,7 @@ import android.content.Context
 import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.num
+import com.miplata.kotlin.nucleo.texto
 import kotlinx.serialization.json.*
 import java.io.File
 
@@ -204,4 +205,68 @@ class Almacen(carpeta: File) {
         if (on) { m = m + ("rendDispDesde" to JsonPrimitive(Fechas.hoy())); if (o["rendTasa"].num() == 0.0) m = m + ("rendTasa" to JsonPrimitive(19)) }
         JsonObject(m)
     }
+
+    /* ---- Objetivo por día y recalibrar (igual que aplicarObjetivo / recalibrar) ---- */
+    fun aplicarObjetivo(valor: Double) = cambiarTodo { o ->
+        val n = Math.max(0.0, Math.round(valor).toDouble()); val hoy = Fechas.hoy()
+        val e = Estado.desdeJson(o); val c = com.miplata.kotlin.nucleo.Nucleo.calcular(e, hoy)
+        if (n > 0 && n == e.objetivo && e.recal?.obj == true) return@cambiarTodo o
+        val m = o.toMutableMap(); m["objetivo"] = num(n)
+        if (n > 0) { m["objetivoDesde"] = JsonPrimitive(hoy)
+            m["recal"] = JsonObject(mapOf("day" to JsonPrimitive(c.hoyIdx), "base" to num(n), "obj" to JsonPrimitive(true))) }
+        else { m["objetivoDesde"] = JsonPrimitive(""); if (e.recal?.obj == true) m["recal"] = JsonNull }
+        JsonObject(m)
+    }
+    fun recalibrar() = cambiarTodo { o ->
+        val c = com.miplata.kotlin.nucleo.Nucleo.calcular(Estado.desdeJson(o), Fechas.hoy())
+        JsonObject(o + mapOf("objetivo" to JsonPrimitive(0), "objetivoDesde" to JsonPrimitive(""),
+            "recal" to JsonObject(mapOf("day" to JsonPrimitive(c.hoyIdx), "base" to num((c.disp - c.gastadoAntesDeHoy) / c.faltan)))))
+    }
+    fun quitarRecalibracion() = cambiarTodo { o -> JsonObject(o + mapOf("recal" to JsonNull, "objetivo" to JsonPrimitive(0), "objetivoDesde" to JsonPrimitive(""))) }
+
+    /* ---- Metas ---- */
+    fun guardarMeta(id: Long?, n: String, t: Double, g0: Double, f: String) = cambiarTodo { o ->
+        val l = lista(o, "metas")
+        val nueva = JsonObject(mapOf("id" to JsonPrimitive(id ?: System.currentTimeMillis()), "n" to JsonPrimitive(n), "t" to num(t), "g0" to num(g0), "f" to JsonPrimitive(f)))
+        val i = l.indexOfFirst { (it as? JsonObject)?.get("id").num().toLong() == id }
+        if (id != null && i >= 0) l[i] = JsonObject((l[i] as JsonObject) + nueva) else l += nueva
+        JsonObject(o + ("metas" to JsonArray(l)))
+    }
+    fun quitarMeta(id: Long) = cambiarTodo { o ->
+        JsonObject(o + ("metas" to JsonArray(lista(o, "metas").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
+    }
+    fun aportar(id: Long, nombre: String, monto: Double) = cambiarTodo { o ->
+        val l = lista(o, "spent")
+        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()), "amt" to num(monto),
+            "note" to JsonPrimitive("🎯 $nombre"), "meta" to JsonPrimitive(id)))
+        JsonObject(o + ("spent" to JsonArray(l)))
+    }
+
+    /* ---- Me deben ---- */
+    /** Cobrado. `previo` = viene del período anterior: la plata entra hoy como una entrada. */
+    fun cobrado(id: Long, previo: Boolean) {
+        if (!previo) { marcarDevuelto(id); return }
+        cambiarTodo { o ->
+            val x = lista(o, "meDeben").firstOrNull { (it as? JsonObject)?.get("id").num().toLong() == id } as? JsonObject ?: return@cambiarTodo o
+            val sp = lista(o, "spent")
+            sp += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()),
+                "amt" to num(-Math.abs(x["amt"].num())), "note" to JsonPrimitive("Me devolvieron: " + (x["note"].texto() ?: ""))))
+            JsonObject(o + mapOf("spent" to JsonArray(sp),
+                "meDeben" to JsonArray(lista(o, "meDeben").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
+        }
+    }
+    /** No me lo van a pagar: pasa a ser un gasto propio. */
+    fun noPagaron(id: Long, previo: Boolean) = cambiarTodo { o ->
+        if (previo) JsonObject(o + ("meDeben" to JsonArray(lista(o, "meDeben").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
+        else JsonObject(o + ("spent" to JsonArray(lista(o, "spent").map { e ->
+            val x = e as? JsonObject ?: return@map e
+            if (x["id"].num().toLong() == id) JsonObject(x - "dev" - "cob") else x
+        })))
+    }
+
+    /* ---- PIN ---- */
+    fun pinCorrecto(pin: String): Boolean { val e = estado ?: return false; return e.pin.isNotEmpty() && Seguridad.hashPin(pin, e.salt) == e.pin }
+    fun ponerPin(pin: String) = cambiarTodo { o -> val sal = Seguridad.nuevaSal()
+        JsonObject(o + mapOf("salt" to JsonPrimitive(sal), "pin" to JsonPrimitive(Seguridad.hashPin(pin, sal)))) }
+    fun quitarPin() = cambiarTodo { o -> JsonObject(o - "pin" - "salt") }
 }

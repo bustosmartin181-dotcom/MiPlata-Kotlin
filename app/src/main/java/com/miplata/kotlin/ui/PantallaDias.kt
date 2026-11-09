@@ -17,13 +17,14 @@ import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.*
 
 @Composable
-fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit) {
+fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
+                 alObjetivo: (Double) -> Unit = {}, alRecalibrar: () -> Unit = {}, alQuitarRecal: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
     val dias = Nucleo.diasDelPeriodo(S, hoy, c)
     var abierto by remember { mutableStateOf(c.hoyIdx) }
-    val lista = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, c.hoyIdx - 2))
+    val lista = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, c.hoyIdx))
 
     LazyColumn(state = lista, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -33,6 +34,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit) {
                 Text("Del ${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)} · lo que sobra pasa al día siguiente", fontSize = 13.sp, color = k.suave)
             }
         }
+        item { TarjetaObjetivo(S, alObjetivo, alRecalibrar, alQuitarRecal) }
         items(dias, key = { it.iso }) { d ->
             val futuro = d.i > c.hoyIdx
             val esHoy = d.i == c.hoyIdx

@@ -91,6 +91,36 @@ class AlmacenTest {
         a.activarRendDisp(true); assertEquals(19.0, a.estado!!.rendTasa, 1e-9)
     }
 
+    @Test fun pinIgualQueLaAppOriginal() {
+        // Valores calculados con el mismo código de la app web (crypto.subtle)
+        assertEquals("585b70dd3e3f912b04898edebfed4ccb628c9831412f0f89dd6d0f7020959e0a", Seguridad.hashPin("1234", "a1b2c3d4e5f6a1b2c3d4e5f6"))
+        assertEquals("f2a81796a71bc2adaa1f70b1529eac08806d9c35fdee4f274df7170325fec2db", Seguridad.hashPin("1234", ""))
+        val a = nuevo(); a.ponerPin("4321")
+        assertTrue(a.pinCorrecto("4321")); assertFalse(a.pinCorrecto("1111"))
+        a.quitarPin(); assertFalse(a.pinCorrecto("4321"))
+    }
+
+    @Test fun objetivoRecalibrarMetasYMeDeben() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.aplicarObjetivo(9000.0)
+        var c = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(9000.0, c.baseHoy, 1e-9); assertEquals(hoy, a.estado!!.objetivoDesde)
+        a.aplicarObjetivo(0.0); assertNull(a.estado!!.recal)
+        a.anotar(5000.0, "x", null, false, false)
+        a.recalibrar(); c = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals((c.disp - c.gastadoAntesDeHoy) / c.faltan, c.baseHoy, 1e-6)
+        a.quitarRecalibracion(); assertNull(a.estado!!.recal)
+        a.guardarMeta(null, "Vacaciones", 300000.0, 10000.0, "")
+        val m = a.estado!!.metas.single()
+        val antes = Nucleo.calcular(a.estado!!, hoy).saldo
+        a.aportar(m.id, m.n, 20000.0)
+        assertEquals(30000.0, Nucleo.juntadoEnMeta(a.estado!!, a.estado!!.metas.single()), 1e-9)
+        assertEquals(antes - 20000, Nucleo.calcular(a.estado!!, hoy).disp - a.estado!!.spent.filter { it.cuentaEnSaldo }.sumOf { it.amt }, 1e-6)
+        a.anotar(4000.0, "desayuno", null, false, true)
+        val id = a.estado!!.spent.first { it.dev == 1 }.id
+        a.noPagaron(id, false); assertEquals(0, a.estado!!.spent.first { it.id == id }.dev)
+    }
+
     @Test fun dictado() {
         assertEquals("2800" to "Tortas", interpretarDictado("2800 tortas"))
         assertEquals("2500" to "Nafta", interpretarDictado("2500 pesos en nafta"))

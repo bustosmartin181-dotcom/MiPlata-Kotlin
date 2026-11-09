@@ -22,6 +22,7 @@ private sealed interface HojaPlan {
     data object Proximos : HojaPlan
     data object Actual : HojaPlan
     data object Nuevo : HojaPlan
+    data class UnaMeta(val m: Meta?) : HojaPlan
 }
 
 @Composable
@@ -77,6 +78,8 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             }
         }
 
+        TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
+
         Tarjeta(Modifier.clickable { hoja = HojaPlan.Proximos }) {
             Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Para el próximo período"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
             if (S.proximos.isEmpty()) Subtitulo("Anotá gastos que ya sabés que vas a tener cuando cobres.")
@@ -119,6 +122,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             alCambiar(); hoja = null
             aviso(if (terminadas.isEmpty()) "¡Período nuevo! Revisá tus gastos importantes." else "Período nuevo. Terminaste de pagar: " + terminadas.joinToString(", "))
         }
+        is HojaPlan.UnaMeta -> HojaMeta(S, h.m, { hoja = null },
+            alGuardar = { n, t, g0, f -> almacen.guardarMeta(h.m?.id, n, t, g0, f); alCambiar(); hoja = null; aviso("Meta guardada") },
+            alAportar = { monto -> h.m?.let { almacen.aportar(it.id, it.n, monto) }; alCambiar(); hoja = null; aviso("Apartaste ${pesos(monto)}") },
+            alQuitar = { h.m?.let { almacen.quitarMeta(it.id) }; alCambiar(); hoja = null; aviso("Meta borrada") })
         null -> {}
     }
 }

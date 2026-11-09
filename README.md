@@ -26,7 +26,7 @@ la prueba `NucleoContraOriginalTest` exige que Kotlin dé exactamente lo mismo. 
 - ✅ Etapa 2: diseño Renovado — Hoy, ventanita para anotar (gasto, entrada, me lo devuelven, dictado por voz), Días, Plan (tildar pagados) y copias de seguridad.
 - ✅ Etapa 3a: Plan completo — agregar/editar/quitar gastos importantes (se repite, monto variable, cuotas, monto del próximo período, alias de MP), ingresos, fechas del período, gastos para el próximo período y **empezar período nuevo** (verificado contra el original con 300 casos).
 - ✅ Etapa 3b: fondo de ahorro (activar, sacar plata, "Para pasar a tu reserva", "Ya lo pasé"), aviso nocturno con el monto real del momento, rendimientos de Mercado Pago, cuentas con diferencia y recomposiciones.
-- ⏳ Etapa 3c: metas, objetivo por día, recalibrar, "Me deben", PIN.
+- ✅ Etapa 3c: metas, objetivo por día (con escenarios), recalibrar, lista "Me deben" y PIN (compatible con el de Mi plata).
 - ⏳ Etapa 4: widget y ventanita flotante.
 - ⏳ Etapa 4: widget y ventanita flotante.
 

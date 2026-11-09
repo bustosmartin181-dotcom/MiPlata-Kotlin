@@ -19,6 +19,7 @@ class AccionesAjustes(
     val avisoReserva: (Boolean) -> Unit, val horaReserva: (String) -> Unit, val probarAviso: () -> Unit, val pasado: (Double) -> Unit,
     val rendDisp: (Boolean) -> Unit, val rendFondo: (Boolean) -> Unit, val tasa: (Double) -> Unit, val rendEnMP: (Boolean) -> Unit,
     val estadoAviso: () -> String,
+    val abrirPin: () -> Unit, val pinAlAbrir: (Boolean) -> Unit,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +77,13 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
             if (S.rendOn && S.modoFondo) Interruptor("Mi fondo ya está en Mercado Pago", S.rendEnMP, a.rendEnMP,
                 "Así el rendimiento del fondo cuenta al comparar con tus cuentas")
+        }
+
+        Tarjeta {
+            Titulo("Seguridad")
+            Subtitulo(if (S.pin.isNotEmpty()) "Tenés un PIN puesto." else "Poné un PIN para que nadie vea tu plata si agarra el teléfono.")
+            OutlinedButton(onClick = a.abrirPin, Modifier.fillMaxWidth()) { Text(if (S.pin.isNotEmpty()) "Cambiar o quitar PIN" else "Poner PIN") }
+            if (S.pin.isNotEmpty()) Interruptor("Pedir el PIN al abrir la app", S.pinApp, a.pinAlAbrir)
         }
 
         Tarjeta {

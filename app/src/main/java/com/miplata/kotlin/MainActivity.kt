@@ -36,12 +36,25 @@ import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.*
 
 class MainActivity : ComponentActivity() {
+    private lateinit var almacen: Almacen
+    private var enSegundoPlanDesde = 0L
+    /** Bloqueada con PIN: al abrir, y si estuvo más de un minuto en segundo plano. */
+    val bloqueada = mutableStateOf(false)
+
+    private fun pidePin() = almacen.estado?.let { it.pin.isNotEmpty() && it.pinApp } ?: false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val almacen = Almacen(applicationContext)
+        almacen = Almacen(applicationContext)
+        bloqueada.value = pidePin()
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-        setContent { TemaMiPlata { App(almacen, version) } }
+        setContent { TemaMiPlata { App(almacen, version, bloqueada) } }
+    }
+    override fun onStop() { super.onStop(); enSegundoPlanDesde = System.currentTimeMillis() }
+    override fun onStart() {
+        super.onStart()
+        if (enSegundoPlanDesde > 0 && System.currentTimeMillis() - enSegundoPlanDesde > 60_000 && pidePin()) bloqueada.value = true
     }
 }
 
@@ -51,7 +64,7 @@ enum class Pestana(val titulo: String, val icono: ImageVector) {
 }
 
 @Composable
-fun App(almacen: Almacen, version: String) {
+fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
     val ctx = LocalContext.current
     val k = LocalColores.current
     var vuelta by remember { mutableIntStateOf(0) }          // sube cada vez que cambian los datos
@@ -60,7 +73,8 @@ fun App(almacen: Almacen, version: String) {
     var pestana by rememberSaveable { mutableStateOf(Pestana.HOY) }
     var hojaAbierta by remember { mutableStateOf(false) }
     var editando by remember { mutableStateOf<Movimiento?>(null) }
-    var hojaHoy by remember { mutableStateOf("") }          // "fondo", "cuentas", "pase"
+    var hojaHoy by remember { mutableStateOf("") }          // "fondo", "cuentas", "pase", "pin"
+    var errorPin by remember { mutableStateOf<String?>(null) }
     var pendientePase by remember { mutableDoubleStateOf(0.0) }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
@@ -92,6 +106,18 @@ fun App(almacen: Almacen, version: String) {
     val abrirImportar = { importar.launch(arrayOf("application/json", "text/plain", "*/*")) }
     val abrirExportar = { exportar.launch("mi-plata-copia-${Fechas.hoy()}.json") }
 
+    if (bloqueada.value && estado != null) {
+        PantallaBloqueo(errorPin) { pin ->
+            val espera = com.miplata.kotlin.datos.Seguridad.segundosDeEspera(ctx)
+            when {
+                espera > 0 -> errorPin = "Esperá $espera segundos."
+                almacen.pinCorrecto(pin) -> { com.miplata.kotlin.datos.Seguridad.limpiarFallos(ctx); errorPin = null; bloqueada.value = false }
+                else -> { com.miplata.kotlin.datos.Seguridad.registrarFallo(ctx); errorPin = "PIN incorrecto." }
+            }
+        }
+        return
+    }
+
     Scaffold(containerColor = k.fondo, bottomBar = {
         if (estado != null) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
     }) { relleno ->
@@ -102,9 +128,14 @@ fun App(almacen: Almacen, version: String) {
                 when (pestana) {
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
-                        alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP)
+                        alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
+                        alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
+                        alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") })
                     Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso)
-                    Pestana.DIAS -> PantallaDias(estado, tocar)
+                    Pestana.DIAS -> PantallaDias(estado, tocar,
+                        alObjetivo = { n -> almacen.aplicarObjetivo(n); vuelta++; aviso(if (n > 0) "Listo: tu límite de hoy ahora es ${pesos(n)}" else "Volviste a tu límite normal") },
+                        alRecalibrar = { almacen.recalibrar(); vuelta++; aviso("Recalibrado desde hoy") },
+                        alQuitarRecal = { almacen.quitarRecalibracion(); vuelta++ })
                     Pestana.AJUSTES -> PantallaAjustes(estado, version, AccionesAjustes(
                         importar = abrirImportar, exportar = abrirExportar,
                         nombre = { campo("nombre", JsonPrimitive(it)); aviso("Guardado") },
@@ -120,6 +151,8 @@ fun App(almacen: Almacen, version: String) {
                         rendFondo = { almacen.activarRendFondo(it); vuelta++ },
                         tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
                         rendEnMP = { campo("rendEnMP", JsonPrimitive(it)) },
+                        abrirPin = { hojaHoy = "pin" },
+                        pinAlAbrir = { campo("pinApp", JsonPrimitive(it)) },
                         estadoAviso = {
                             (if (AvisoReserva.hayPermiso(ctx)) "Permiso de notificaciones: concedido." else "Falta el permiso de notificaciones: tocá \"Probar aviso\" para darlo.") +
                             (if (!AvisoReserva.alarmasExactas(ctx)) " El aviso puede llegar unos minutos tarde (Android ahorra batería)." else "")
@@ -140,6 +173,15 @@ fun App(almacen: Almacen, version: String) {
                 alGuardar = { almacen.guardarCuentas(it); vuelta++; aviso("Saldos guardados") },
                 alAjustar = { almacen.agregarRecomposicion(it); vuelta++; hojaHoy = ""; aviso("Recomposición anotada") },
                 alQuitarAjuste = { almacen.quitarRecomposicion(it); vuelta++ })
+            "pin" -> HojaPin(estado.pin.isNotEmpty(), { hojaHoy = "" },
+                alGuardar = { actual, nuevo ->
+                    if (estado.pin.isNotEmpty() && !almacen.pinCorrecto(actual)) "El PIN actual no es correcto."
+                    else { almacen.ponerPin(nuevo); vuelta++; hojaHoy = ""; aviso("PIN guardado"); null }
+                },
+                alQuitar = { actual ->
+                    if (!almacen.pinCorrecto(actual)) "Escribí el PIN actual para quitarlo."
+                    else { almacen.quitarPin(); vuelta++; hojaHoy = ""; aviso("PIN quitado"); null }
+                })
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
     }

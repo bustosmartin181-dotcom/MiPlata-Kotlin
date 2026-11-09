@@ -48,6 +48,8 @@ data class Ingreso(val cat: String, val a: Double)
 
 data class Proximo(val n: String, val a: Double)
 
+data class Debe(val id: Long, val date: String, val amt: Double, val note: String)
+
 data class Meta(val id: Long, val n: String, val t: Double, val g0: Double, val f: String)
 
 data class Estado(
@@ -83,6 +85,10 @@ data class Estado(
     val resAviso: Boolean = true,
     val resHora: String = "22:00",
     val nombre: String = "",
+    val meDeben: List<Debe> = emptyList(),
+    val pin: String = "",
+    val salt: String = "",
+    val pinApp: Boolean = true,
     /** Todo el JSON original: lo que esta versión todavía no usa se conserva al guardar. */
     val crudo: JsonObject = JsonObject(emptyMap()),
 ) {
@@ -152,6 +158,10 @@ data class Estado(
             resAviso = (o["resAviso"] as? JsonPrimitive)?.booleanOrNull != false,
             resHora = o["resHora"].texto()?.takeIf { Regex("""\d{1,2}:\d{2}""").matches(it) } ?: "22:00",
             nombre = o["nombre"].texto() ?: "",
+            meDeben = o.lista("meDeben").map { Debe(it["id"].num().toLong(), it["date"].texto() ?: "", it["amt"].num(), it["note"].texto() ?: "") },
+            pin = o["pin"].texto() ?: "",
+            salt = o["salt"].texto() ?: "",
+            pinApp = (o["pinApp"] as? JsonPrimitive)?.booleanOrNull != false,
             crudo = o,
         )
     }

@@ -23,7 +23,8 @@ import java.time.LocalTime
 
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
-                alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {}) {
+                alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
+                alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -109,6 +110,10 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 Text(if (ok) "Coincide" else pesos(cc.diferencia), fontWeight = FontWeight.Bold, color = if (ok) k.verde else k.naranja)
             }
         }
+
+        /* Me deben */
+        val debo = deudas(S)
+        if (debo.isNotEmpty()) TarjetaMeDeben(debo, alCobrar, alNoPagaron)
 
         /* Movimientos de hoy */
         val deHoy = S.spent.filter { it.date == hoy && !it.esMeta }.sortedByDescending { it.id }
