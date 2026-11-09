@@ -22,3 +22,10 @@ class IpcTest {
         println("factor=$factor total=$total cada=$cada")
     }
 }
+
+class IpcLeerTest {
+    @Test fun leeLaSerieDeArgentinaDatos() {
+        val m = Ipc.leer("""[{"fecha":"2026-08-31","valor":1.7},{"fecha":"2026-09-30","valor":1.9},{"fecha":"mal"}]""")
+        assertEquals(1.7, m["2026-08"]!!, 0.0); assertEquals(1.9, m["2026-09"]!!, 0.0)
+    }
+}

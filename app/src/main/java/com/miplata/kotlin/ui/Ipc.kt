@@ -18,6 +18,34 @@ object Ipc {
     val INDEC = mapOf("2026-01" to 2.9, "2026-02" to 2.9, "2026-03" to 3.4, "2026-04" to 2.6, "2026-05" to 2.1, "2026-06" to 1.9,
         "2026-07" to 2.1, "2026-08" to 1.7, "2026-09" to 1.9)
 
+    /* ---- Bajar la inflación de internet: ArgentinaDatos publica la serie del INDEC (gratis, sin cuenta) ---- */
+    private const val URL_IPC = "https://api.argentinadatos.com/v1/finanzas/indices/inflacion"
+
+    /** Lo bajado la última vez (se guarda en el teléfono, así funciona sin internet). */
+    fun guardados(ctx: android.content.Context): Map<String, Double> {
+        val t = ctx.getSharedPreferences("ipc", android.content.Context.MODE_PRIVATE).getString("datos", null) ?: return emptyMap()
+        return runCatching { leer(t) }.getOrDefault(emptyMap())
+    }
+    /** Todos los meses conocidos: los de la app + los bajados de internet. */
+    fun conocidos(ctx: android.content.Context) = INDEC + guardados(ctx)
+
+    fun leer(json: String): Map<String, Double> = Json.parseToJsonElement(json).jsonArray.mapNotNull { e ->
+        val o = e as? JsonObject ?: return@mapNotNull null
+        val f = o["fecha"].texto() ?: return@mapNotNull null
+        f.take(7) to (o["valor"] as? JsonPrimitive)?.doubleOrNull.let { it ?: return@mapNotNull null }
+    }.toMap()
+
+    /** Baja la serie de internet. Llamar fuera del hilo principal. Devuelve null si no hay conexión. */
+    fun bajar(ctx: android.content.Context): Map<String, Double>? = runCatching {
+        val c = (java.net.URL(URL_IPC).openConnection() as java.net.HttpURLConnection).apply {
+            connectTimeout = 10_000; readTimeout = 15_000; setRequestProperty("Accept", "application/json") }
+        val texto = c.inputStream.bufferedReader().use { it.readText() }
+        val datos = leer(texto)
+        if (datos.isNotEmpty()) ctx.getSharedPreferences("ipc", android.content.Context.MODE_PRIVATE).edit()
+            .putString("datos", texto).putLong("cuando", System.currentTimeMillis()).apply()
+        datos
+    }.getOrNull()
+
     fun sumarMeses(am: String, n: Int): String { val (a, m) = am.split("-").map { it.toInt() }; val t = a * 12 + (m - 1) + n
         return "${Math.floorDiv(t, 12)}-${"%02d".format(Math.floorMod(t, 12) + 1)}" }
     data class Datos(val prox: String, val cada: Int, val partes: Int, val pend: Pair<Double, String>?)
@@ -50,9 +78,19 @@ object Ipc {
 @Composable
 fun HojaIPC(item: Item, alCerrar: () -> Unit, alGuardar: (cadaUno: Double, factor: Double) -> Unit) {
     val k = LocalColores.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val d = Ipc.de(item) ?: return
     val meses = Ipc.meses(d)
-    val valores = remember { mutableStateListOf(*meses.map { Ipc.INDEC[it]?.let { v -> v.toString().replace('.', ',') } ?: "" }.toTypedArray()) }
+    val texto = { v: Double -> v.toString().replace('.', ',').removeSuffix(",0") }
+    val valores = remember { mutableStateListOf(*meses.map { Ipc.conocidos(ctx)[it]?.let(texto) ?: "" }.toTypedArray()) }
+    var estado by remember { mutableStateOf("Buscando la inflación en internet…") }
+    LaunchedEffect(Unit) {
+        val bajados = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Ipc.bajar(ctx) }
+        if (bajados == null) { estado = "Sin conexión: uso los datos que ya tenía."; return@LaunchedEffect }
+        meses.forEachIndexed { n, am -> if (valores[n].isBlank()) bajados[am]?.let { valores[n] = texto(it) } }
+        val ultimo = bajados.keys.maxOrNull()
+        estado = "✅ Actualizado desde internet (INDEC, vía ArgentinaDatos). Último dato publicado: ${ultimo?.let { mesYAnio(it) } ?: "-"}."
+    }
     var confirmar by remember { mutableStateOf(false) }
     val factor = valores.fold(1.0) { f, v -> f * (1 + aNumero(v) / 100) }
     val faltan = valores.count { it.isBlank() }
@@ -60,8 +98,9 @@ fun HojaIPC(item: Item, alCerrar: () -> Unit, alGuardar: (cadaUno: Double, facto
     val total = Math.round(totalAct * factor).toDouble()
     val cada = Math.round(total / d.partes).toDouble()
     Hoja(alCerrar, "📈 Actualizar ${item.n}") {
-        Text("Inflación mensual del INDEC (%). Los que ya salieron vienen cargados; los que faltan, completalos cuando el INDEC los publique (sale a mitad de cada mes).",
+        Text("Inflación mensual del INDEC (%). La app la busca sola en internet cada vez que abrís esta ventana. Los meses que todavía no salieron quedan vacíos: el INDEC publica a mitad del mes siguiente.",
             fontSize = 13.sp, color = k.suave)
+        Text(estado, fontSize = 13.sp, color = k.verde)
         meses.forEachIndexed { n, am ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(mesYAnio(am), Modifier.weight(1f), color = k.texto)
@@ -73,7 +112,7 @@ fun HojaIPC(item: Item, alCerrar: () -> Unit, alGuardar: (cadaUno: Double, facto
         Renglon("Aumento acumulado", "%.2f%%".format((factor - 1) * 100).replace('.', ','))
         Renglon(if (d.partes > 1) "Total nuevo" else "Monto nuevo", pesos(total))
         if (d.partes > 1) Renglon("Cada uno pone", pesos(cada), colorDer = k.verde)
-        if (faltan > 0) Text("Faltan $faltan ${if (faltan == 1) "mes" else "meses"}: es una estimación, no lo guardes todavía.", color = k.naranja, fontSize = 13.sp)
+        if (faltan > 0) Text("Faltan $faltan ${if (faltan == 1) "mes" else "meses"} que el INDEC todavía no publicó: es una estimación, no lo guardes todavía. Volvé a abrir esta ventana más adelante y se completan solos.", color = k.naranja, fontSize = 13.sp)
         Text("Rige desde ${mesYAnio(d.prox)}.", fontSize = 13.sp, color = k.suave)
         Button(onClick = { if (faltan > 0) confirmar = true else alGuardar(cada, factor) }, Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar monto nuevo") }
     }
