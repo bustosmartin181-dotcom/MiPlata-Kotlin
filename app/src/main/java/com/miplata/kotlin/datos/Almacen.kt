@@ -269,4 +269,10 @@ class Almacen(carpeta: File) {
     fun ponerPin(pin: String) = cambiarTodo { o -> val sal = Seguridad.nuevaSal()
         JsonObject(o + mapOf("salt" to JsonPrimitive(sal), "pin" to JsonPrimitive(Seguridad.hashPin(pin, sal)))) }
     fun quitarPin() = cambiarTodo { o -> JsonObject(o - "pin" - "salt") }
+
+    /** Borra todos los datos de la app (deja una copia de respaldo interna por si fue sin querer). */
+    fun borrarTodo() {
+        if (archivo.exists()) archivo.copyTo(respaldo, overwrite = true)
+        archivo.delete(); crudo = null
+    }
 }

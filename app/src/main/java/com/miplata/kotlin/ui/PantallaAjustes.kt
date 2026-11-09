@@ -25,6 +25,7 @@ class AccionesAjustes(
     val tema: (String) -> Unit, val color: (String) -> Unit,
     val copiaElegir: () -> Unit, val copiaDesactivar: () -> Unit, val copiaEstado: () -> String?,
     val copiarAlias: () -> Unit = {}, val abrirMP: () -> Unit = {},
+    val borrarTodo: (pin: String) -> String? = { null },
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,6 +119,26 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             Text("Las copias son compatibles con tu Mi plata de siempre: podés pasar datos de una a otra.", fontSize = 12.sp, color = k.suave)
         }
         TarjetaColabora(a.copiarAlias, a.abrirMP)
+
+        var borrando by remember { mutableStateOf(false) }
+        var pinBorrar by remember { mutableStateOf("") }
+        var errorBorrar by remember { mutableStateOf<String?>(null) }
+        Tarjeta {
+            Titulo("Borrar todo")
+            Subtitulo("Deja la app vacía, como recién instalada. Antes guardá una copia por si la necesitás.")
+            OutlinedButton(onClick = { borrando = true }, Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = k.rojo)) { Text("Borrar todos mis datos") }
+        }
+        if (borrando) AlertDialog(onDismissRequest = { borrando = false; pinBorrar = ""; errorBorrar = null },
+            title = { Text("¿Borrar todo?") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Se borran tus gastos, el plan, el fondo y los ajustes de este teléfono. No se puede deshacer (salvo con una copia).")
+                if (S.pin.isNotEmpty()) CampoPin(pinBorrar, { pinBorrar = it }, "Tu PIN")
+                errorBorrar?.let { Text(it, color = k.rojo) }
+            } },
+            confirmButton = { TextButton(onClick = { errorBorrar = a.borrarTodo(pinBorrar); if (errorBorrar == null) borrando = false },
+                colors = ButtonDefaults.textButtonColors(contentColor = k.rojo)) { Text("Borrar todo") } },
+            dismissButton = { TextButton(onClick = { borrando = false; pinBorrar = ""; errorBorrar = null }) { Text("Cancelar") } })
 
         Tarjeta {
             Titulo("Acerca de")

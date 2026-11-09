@@ -191,6 +191,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         abrirPin = { hojaHoy = "pin" },
                         copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
                         abrirMP = ::abrirMP,
+                        borrarTodo = { pin ->
+                            if (estado.pin.isNotEmpty() && !almacen.pinCorrecto(pin)) "PIN incorrecto."
+                            else { almacen.borrarTodo(); vuelta++; pestana = Pestana.HOY; aviso("Listo: la app quedó vacía"); null }
+                        },
                         tema = { campo("tema", JsonPrimitive(it)) },
                         color = { campo("color", JsonPrimitive(it)) },
                         copiaElegir = { elegirCopia.launch("mi-plata-copia-automatica.json") },
