@@ -73,12 +73,15 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
                 alAjustar: (Double) -> Unit, alQuitarAjuste: (Int) -> Unit) {
     val k = LocalColores.current
     val filas = remember { mutableStateListOf(*S.cuentas.map { Triple(it.n, textoMonto(it.m), !it.excluida) }
-        .ifEmpty { listOf(Triple("Mercado Pago", "", true)) }.toTypedArray()) }
+        .ifEmpty { listOf(Triple("Mercado Pago", "", true)) + (if (c.fondo.activo) listOf(Triple("Reserva (fondo de ahorro)", "", true)) else emptyList()) }
+        .toTypedArray()) }
     var confirmar by remember { mutableStateOf<Double?>(null) }
     val prueba = S.copy(cuentas = filas.map { Cuenta(it.first, aNumero(it.second), !it.third) })
     val cc = Nucleo.conciliar(prueba, c)
     Hoja(alCerrar, "Mis cuentas") {
-        Text("Cargá lo que tenés hoy en tus cuentas. Las tildadas cuentan; destildá, por ejemplo, la reserva del fondo.", color = k.suave, fontSize = 14.sp)
+        Text("Cargá lo que tenés hoy en tus cuentas. Las tildadas cuentan." +
+            (if (c.fondo.activo) " Sumá también la reserva de Mercado Pago donde guardás el fondo de ahorro." else " Destildá la plata que no es del día a día."),
+            color = k.suave, fontSize = 14.sp)
         filas.forEachIndexed { i, (n, m, cuenta) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Checkbox(cuenta, { filas[i] = Triple(n, m, it) })
@@ -97,12 +100,15 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
             Renglon("Total en cuentas", pesos(cc.total))
             val ok = Math.abs(cc.diferencia) < 1
             Renglon("Diferencia con la app", if (ok) "Coincide" else pesos(cc.diferencia), colorDer = if (ok) k.verde else k.naranja)
-            if (!ok) Text(if (cc.diferencia < 0) "Tenés menos de lo que dice la app: seguro hay gastos sin anotar." else "Tenés más de lo que dice la app: puede faltar anotar una entrada.",
+            val faltaReserva = c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1
+            if (faltaReserva) Text("La diferencia es justo tu fondo de ahorro: agregá la cuenta de la reserva con ${pesos(c.fondo.total)} y va a coincidir. No toques \"Ajustar\".",
+                fontSize = 13.sp, color = k.naranja)
+            else if (!ok) Text(if (cc.diferencia < 0) "Tenés menos de lo que dice la app: seguro hay gastos sin anotar." else "Tenés más de lo que dice la app: puede faltar anotar una entrada.",
                 fontSize = 13.sp, color = k.suave)
         }
         Button(onClick = { alGuardar(filas.map { Almacen.CuentaEditable(it.first.trim(), aNumero(it.second), it.third) }) },
             Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar saldos") }
-        if (cc.hayCuentas && Math.abs(cc.diferencia) >= 1)
+        if (cc.hayCuentas && Math.abs(cc.diferencia) >= 1 && !(c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1))
             OutlinedButton(onClick = { confirmar = cc.diferencia }, Modifier.fillMaxWidth()) { Text("Ajustar la app con las cuentas") }
         if (S.ajustes.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
