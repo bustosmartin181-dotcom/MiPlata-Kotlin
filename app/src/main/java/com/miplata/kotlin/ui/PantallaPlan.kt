@@ -23,6 +23,7 @@ private sealed interface HojaPlan {
     data object Actual : HojaPlan
     data object Nuevo : HojaPlan
     data class UnaMeta(val m: Meta?) : HojaPlan
+    data class Detalle(val k: Int) : HojaPlan
 }
 
 @Composable
@@ -31,7 +32,6 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
     val c = Nucleo.calcular(S, Fechas.hoy())
     var hoja by remember { mutableStateOf<HojaPlan?>(if (abrirPeriodoNuevo) HojaPlan.Nuevo else null) }
     LaunchedEffect(abrirPeriodoNuevo) { if (abrirPeriodoNuevo) { hoja = HojaPlan.Nuevo; alAbrirPeriodo() } }
-    var filtro by rememberSaveable { mutableIntStateOf(0) }   // 0 todos, 1 pendientes, 2 pagados
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -57,35 +57,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             if (S.ingresos.size > 1) Renglon("Total", pesos(S.sueldo))
         }
 
-        Tarjeta {
-            Titulo("Gastos importantes")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Todos", "Pendientes", "Pagados").forEachIndexed { i, t -> FilterChip(filtro == i, { filtro = i }, label = { Text(t) }) }
-            }
-            S.items.forEachIndexed { i, it ->
-                if (filtro == 1 && it.p || filtro == 2 && !it.p) return@forEachIndexed
-                Row(Modifier.fillMaxWidth().clickable { hoja = HojaPlan.Gasto(i, false) }, verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(it.p, { v -> almacen.marcarPagado(i, v); alCambiar() })
-                    Column(Modifier.weight(1f)) {
-                        Text(it.n.ifBlank { "Sin nombre" }, color = k.texto, textDecoration = if (it.p) TextDecoration.LineThrough else null)
-                        val marcas = listOfNotNull(
-                            if (it.f != false) (if (it.v == true) "se repite · monto variable" else "se repite") else null,
-                            it.q?.takeIf { q -> q.total > 1 }?.let { q -> "cuota ${q.actual} de ${q.total}" },
-                            it.d?.let { d -> "desde el ${Fechas.diaYMes(d)}" })
-                        if (marcas.isNotEmpty()) Text(marcas.joinToString(" · "), fontSize = 12.sp, color = k.suave)
-                    }
-                    Text(pesos(it.a), fontWeight = FontWeight.SemiBold, color = if (it.p) k.suave else k.texto)
-                }
-                if (!it.p && it.a > 0) Row(Modifier.padding(start = 48.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BotonMP("Pagar en Mercado Pago ↗") { alPagarMP(i) }
-                    val dato = it.extra["mp"].texto() ?: it.extra["cod"].texto()
-                    if (dato != null) Text("  copia " + dato.take(18), fontSize = 12.sp, color = k.suave)
-                }
-            }
-            OutlinedButton(onClick = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) }, Modifier.fillMaxWidth()) {
-                Text("+ Agregar gasto importante")
-            }
-        }
+        TarjetaPagarAlCobrar(S,
+            alPagado = { i, v -> almacen.marcarPagado(i, v); alCambiar() },
+            alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
+            alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) })
 
         TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
 
@@ -130,6 +105,14 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             val terminadas = almacen.periodoNuevo(previo, ini, fin)
             alCambiar(); hoja = null
             aviso(if (terminadas.isEmpty()) "¡Período nuevo! Revisá tus gastos importantes." else "Período nuevo. Terminaste de pagar: " + terminadas.joinToString(", "))
+        }
+        is HojaPlan.Detalle -> S.items.getOrNull(h.k)?.let { item ->
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            HojaDetalleGasto(item, { hoja = null },
+                alPagarMP = { hoja = null; alPagarMP(h.k) },
+                alPagado = { v -> almacen.marcarPagado(h.k, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") },
+                alEditar = { hoja = HojaPlan.Gasto(h.k, false) },
+                alCopiar = { titulo, valor -> MercadoPago.copiar(ctx, titulo, valor); aviso("Copiado: $valor") })
         }
         is HojaPlan.UnaMeta -> HojaMeta(S, h.m, { hoja = null },
             alGuardar = { n, t, g0, f -> almacen.guardarMeta(h.m?.id, n, t, g0, f); alCambiar(); hoja = null; aviso("Meta guardada") },

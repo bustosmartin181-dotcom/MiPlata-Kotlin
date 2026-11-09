@@ -126,13 +126,11 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         val debo = deudas(S)
         if (debo.isNotEmpty()) TarjetaMeDeben(debo, alCobrar, alNoPagaron)
 
-        /* Movimientos de hoy */
-        val deHoy = S.spent.filter { it.date == hoy && !it.esMeta }.sortedByDescending { it.id }
-        Tarjeta {
-            Titulo("Hoy")
-            if (deHoy.isEmpty()) Text("Sin movimientos todavía. Tocá + para anotar.", color = k.suave, fontSize = 14.sp)
-            deHoy.forEach { e -> FilaMovimiento(e) { alTocarMovimiento(e) } }
-        }
+        /* Mi fondo de ahorro, con cómo fue creciendo */
+        if (c.fondo.activo) TarjetaFondo(S, c, alAbrirFondo)
+
+        /* Gastos y entradas del período */
+        TarjetaGastosYEntradas(S, alTocarMovimiento)
 
         Text("“${fraseDelDia(hoy)}”", fontStyle = FontStyle.Italic, color = k.suave, fontSize = 14.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))

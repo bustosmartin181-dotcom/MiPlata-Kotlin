@@ -1,0 +1,114 @@
+package com.miplata.kotlin.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.miplata.kotlin.nucleo.*
+
+private val MESES = listOf("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+fun mesYAnio(aaaaMm: String): String = runCatching {
+    val (a, m) = aaaaMm.split("-"); "${MESES[m.toInt() - 1]} $a" }.getOrDefault(aaaaMm)
+
+/** Etiquetas de un gasto: se repite, monto variable, cuotas, alias, IPC, desde. */
+fun etiquetas(it: Item): List<String> = listOfNotNull(
+    if (it.f != false) "🔁 se repite" else null,
+    if (it.f != false && it.v == true) "✏️ monto variable" else null,
+    it.q?.takeIf { q -> q.total > 1 }?.let { q -> "🧾 cuota ${q.actual} de ${q.total}" },
+    it.extra["mp"].texto()?.let { a -> "🏷️ $a" },
+    (it.extra["ipc"] as? kotlinx.serialization.json.JsonObject)?.get("prox").texto()?.let { p -> "📈 IPC: ${mesYAnio(p)}" },
+    it.d?.let { d -> "desde el ${Fechas.diaYMes(d)}" },
+)
+
+/** "Pagar al cobrar": lo primero que se paga cuando cobrás. */
+@Composable
+fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles: (Int) -> Unit, alAgregar: () -> Unit) {
+    val k = LocalColores.current
+    var filtro by remember { mutableIntStateOf(if (S.items.any { !it.p && it.a > 0 }) 0 else 1) }   // 0 pendientes, 1 pagados, 2 todos
+    val visibles = S.items.withIndex().filter { (_, it) -> it.n.isNotBlank() || it.a != 0.0 }
+    val pendientes = visibles.count { !it.value.p }; val pagados = visibles.count { it.value.p }
+    val totalPendiente = visibles.filter { !it.value.p }.sumOf { it.value.a }
+    Tarjeta {
+        Text("🧾 Pagar al cobrar · ${visibles.size} gastos", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        Subtitulo("Lo primero que se paga cuando cobrás. Marcá 🔁 en los fijos de todos los meses; si el monto cambia (luz, gas), marcá también ✏️ y el mes que viene aparecen con el monto vacío.")
+        Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF00A6E8), Color(0xFF0B6FB8))), RoundedCornerShape(20.dp)).padding(18.dp)) {
+            Text("Total pendiente este mes", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp)
+            Text(pesos(totalPendiente), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+        }
+        Row(Modifier.fillMaxWidth().background(k.fondo, RoundedCornerShape(50)).padding(4.dp)) {
+            listOf("Pendientes ($pendientes)", "Ya pagados ($pagados)", "Todos (${visibles.size})").forEachIndexed { i, t ->
+                Box(Modifier.weight(1f).background(if (filtro == i) k.tarjeta else Color.Transparent, RoundedCornerShape(50))
+                    .clickable { filtro = i }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    Text(t, fontSize = 13.sp, fontWeight = if (filtro == i) FontWeight.Bold else FontWeight.Normal,
+                        color = if (filtro == i) k.texto else k.suave, textAlign = TextAlign.Center)
+                }
+            }
+        }
+        val lista = visibles.filter { filtro == 2 || (filtro == 0 && !it.value.p) || (filtro == 1 && it.value.p) }
+        if (lista.isEmpty()) Text(if (filtro == 0) "¡Todo pagado! 🎉" else "Nada por acá.", color = k.suave, modifier = Modifier.padding(8.dp))
+        lista.forEach { (i, it) ->
+            Column(Modifier.fillMaxWidth().border(1.dp, k.linea, RoundedCornerShape(20.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(it.n.ifBlank { "Sin nombre" }, Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = k.texto)
+                    Box(Modifier.border(1.5.dp, if (it.p) k.verde else k.suave, RoundedCornerShape(50))
+                        .background(if (it.p) k.verdeClaro else Color.Transparent, RoundedCornerShape(50))
+                        .clickable { alPagado(i, !it.p) }.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        Text(if (it.p) "✅ Pagado" else "⬜ Pendiente", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (it.p) k.verde else k.suave)
+                    }
+                }
+                Text(pesos(it.a), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (it.p) k.verde else k.texto)
+                val et = etiquetas(it)
+                if (et.isNotEmpty()) Text(et.joinToString(" · "), fontSize = 13.sp, color = k.suave)
+                OutlinedButton(onClick = { alDetalles(i) }, Modifier.fillMaxWidth()) { Text("Detalles") }
+            }
+        }
+        OutlinedButton(onClick = alAgregar, Modifier.fillMaxWidth()) { Text("+ Agregar gasto importante") }
+    }
+}
+
+/** Detalles de un gasto, estilo Mercado Pago: total, estado, código y alias para copiar. */
+@Composable
+fun HojaDetalleGasto(it: Item, alCerrar: () -> Unit, alPagarMP: () -> Unit, alPagado: (Boolean) -> Unit, alEditar: () -> Unit, alCopiar: (String, String) -> Unit) {
+    val k = LocalColores.current
+    Hoja(alCerrar, "") {
+        Box(Modifier.background(MercadoPago.AZUL.copy(alpha = 0.12f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+            Text("● MERCADO PAGO", color = MercadoPago.AZUL, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        }
+        Text(it.n.ifBlank { "Gasto" }, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        Column(Modifier.fillMaxWidth().background(k.fondo, RoundedCornerShape(20.dp)).padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("TOTAL A PAGAR", fontSize = 13.sp, color = k.suave, letterSpacing = 2.sp)
+            Text(pesos(it.a), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = k.verde)
+            Text(if (it.p) "✅ Pagado" else "⏳ Pendiente", fontWeight = FontWeight.SemiBold, color = if (it.p) k.verde else k.naranja)
+        }
+        @Composable fun Dato(titulo: String, valor: String) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(titulo, fontSize = 13.sp, color = k.suave)
+                    Text(valor, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
+                }
+                OutlinedButton(onClick = { alCopiar(titulo, valor) }) { Text("📋 Copiar") }
+            }
+        }
+        it.extra["cod"].texto()?.let { Dato("Código de barras / factura", it) }
+        it.extra["mp"].texto()?.let { Dato("Alias / CVU / CBU", it) }
+        if (!it.p) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth(), alPagarMP)
+        OutlinedButton(onClick = { alPagado(!it.p) }, Modifier.fillMaxWidth()) { Text(if (it.p) "↩️ Marcar como pendiente" else "✅ Marcar como pagado") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = alEditar) { Text("✏️ Editar datos") }
+            Text("🛡️ Seguro: no se conecta a tu cuenta", fontSize = 13.sp, color = k.suave)
+        }
+        Text("Para buscar facturas de luz, gas o internet con tu DNI o número de cliente, usá \"Pagar servicios\" adentro de Mercado Pago.",
+            fontSize = 12.sp, color = k.suave)
+    }
+}
