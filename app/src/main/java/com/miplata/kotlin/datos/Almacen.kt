@@ -5,6 +5,7 @@ import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.num
 import com.miplata.kotlin.nucleo.texto
+import com.miplata.kotlin.nucleo.verdadero
 import kotlinx.serialization.json.*
 import java.io.File
 
@@ -168,13 +169,32 @@ class Almacen(private val carpeta: File) {
         val l = lista(o, "fondoUsos")
         l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()),
             "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy")))
-        JsonObject(o + ("fondoUsos" to JsonArray(l)))
+        moverEnCuentas(JsonObject(o + ("fondoUsos" to JsonArray(l))), -monto)     // la plata sale de la reserva y vuelve a Mercado Pago
     }
-    fun quitarUsoFondo(i: Int) = cambiarTodo { o -> val l = lista(o, "fondoUsos"); if (i in l.indices) l.removeAt(i); JsonObject(o + ("fondoUsos" to JsonArray(l))) }
+    fun quitarUsoFondo(i: Int) = cambiarTodo { o -> val l = lista(o, "fondoUsos")
+        if (i !in l.indices) return@cambiarTodo o
+        val monto = (l.removeAt(i) as? JsonObject)?.get("amt").num()
+        moverEnCuentas(JsonObject(o + ("fondoUsos" to JsonArray(l))), monto)                // se deshace: vuelve a la reserva
+    }
 
-    /** "Ya lo pasé a la reserva". */
+    /** "Ya lo pasé a la reserva": además, en Mis cuentas, la plata pasa de Mercado Pago a la Reserva. */
     fun sumarPasado(monto: Double) = cambiarTodo { o ->
-        JsonObject(o + ("resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + monto))))
+        moverEnCuentas(JsonObject(o + ("resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + monto)))), monto)
+    }
+
+    /** Mueve plata entre las cuentas cargadas: positivo = de Mercado Pago a la Reserva; negativo = de la Reserva a Mercado Pago.
+        La reserva es la cuenta cuyo nombre dice "reserva"; Mercado Pago, la que dice "mercado" (o la primera tildada que no sea la reserva).
+        Si no hay las dos cuentas cargadas, no toca nada. */
+    private fun moverEnCuentas(o: JsonObject, monto: Double): JsonObject {
+        val l = (o["cuentas"] as? JsonArray)?.map { it as? JsonObject ?: JsonObject(emptyMap()) }?.toMutableList() ?: return o
+        fun nombre(c: JsonObject) = (c["n"].texto() ?: "").lowercase()
+        val iRes = l.indexOfFirst { nombre(it).contains("reserva") }
+        val iMp = l.indices.firstOrNull { it != iRes && nombre(l[it]).contains("mercado") }
+            ?: l.indices.firstOrNull { it != iRes && !l[it]["x"].verdadero() } ?: -1
+        if (iRes < 0 || iMp < 0) return o
+        fun sumar(i: Int, v: Double) { l[i] = JsonObject(l[i] + ("m" to num(com.miplata.kotlin.nucleo.redondear2(l[i]["m"].num() + v)))) }
+        sumar(iRes, monto); sumar(iMp, -monto)
+        return JsonObject(o + ("cuentas" to JsonArray(l)))
     }
 
     data class CuentaEditable(val n: String, val m: Double, val cuenta: Boolean)

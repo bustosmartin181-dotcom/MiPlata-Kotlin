@@ -83,6 +83,12 @@ class AlmacenTest {
         assertEquals(c0.quedaHoy, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)
         a.sumarPasado(1234.5); a.sumarPasado(100.0)
         assertEquals(1334.5, a.estado!!.resPasado, 1e-9)
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 561395.49, true), Almacen.CuentaEditable("Reserva MP", 63450.0, true)))
+        a.sumarPasado(19059.0)                                   // "Ya lo pasé": de Mercado Pago a la Reserva
+        assertEquals(542336.49, a.estado!!.cuentas[0].m, 1e-6); assertEquals(82509.0, a.estado!!.cuentas[1].m, 1e-6)
+        a.usarFondo(2000.0, "", "hoy")                           // sacar del fondo: de la Reserva a Mercado Pago
+        assertEquals(544336.49, a.estado!!.cuentas[0].m, 1e-6); assertEquals(80509.0, a.estado!!.cuentas[1].m, 1e-6)
+        a.quitarUsoFondo(0)
         a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100.0, true), Almacen.CuentaEditable("Reserva", 999.0, false)))
         val cc = Nucleo.conciliar(a.estado!!, Nucleo.calcular(a.estado!!, hoy))
         assertEquals(100.0, cc.total, 1e-9)
