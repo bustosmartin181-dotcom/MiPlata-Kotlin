@@ -45,6 +45,8 @@ object AvisoReserva {
         val am = ctx.getSystemService(AlarmManager::class.java)
         val pi = pendiente(ctx, "com.miplata.kotlin.AVISO_RESERVA")
         am.cancel(pi)
+        val prefs = ctx.getSharedPreferences("aviso", Context.MODE_PRIVATE)
+        prefs.edit().remove("proximo").apply()
         val S = Almacen(ctx).estado ?: return
         if (!S.modoFondo || !S.resAviso) return
         val (hh, mm) = S.resHora.split(":").map { it.toIntOrNull() ?: 0 }
@@ -55,7 +57,11 @@ object AvisoReserva {
         if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms())
             am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi)
         else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi)
+        prefs.edit().putLong("proximo", cuando).apply()
     }
+
+    /** Cuándo suena el próximo aviso (0 = ninguno). */
+    fun proximo(ctx: Context): Long = ctx.getSharedPreferences("aviso", Context.MODE_PRIVATE).getLong("proximo", 0)
 
     fun alarmasExactas(ctx: Context) = Build.VERSION.SDK_INT < 31 || ctx.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 

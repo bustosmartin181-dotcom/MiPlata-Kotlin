@@ -97,6 +97,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         vuelta++
     }
     fun asegurarNotis() { if (!AvisoReserva.hayPermiso(ctx) && android.os.Build.VERSION.SDK_INT >= 33) pedirNotis.launch(android.Manifest.permission.POST_NOTIFICATIONS) }
+    /* Al abrir: si el aviso de la noche está activo y falta el permiso, pedirlo (si no, el aviso queda mudo) */
+    LaunchedEffect(Unit) { if (estado?.modoFondo == true && estado.resAviso) asegurarNotis() }
     fun campo(clave: String, valor: kotlinx.serialization.json.JsonElement) { almacen.cambiarCampo(clave, valor); vuelta++ }
     fun abrirMP() {
         val i = ctx.packageManager.getLaunchIntentForPackage("com.mercadopago.wallet")
@@ -177,7 +179,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         pinAlAbrir = { campo("pinApp", JsonPrimitive(it)) },
                         estadoAviso = {
                             (if (AvisoReserva.hayPermiso(ctx)) "Permiso de notificaciones: concedido." else "Falta el permiso de notificaciones: tocá \"Probar aviso\" para darlo.") +
-                            (if (!AvisoReserva.alarmasExactas(ctx)) " El aviso puede llegar unos minutos tarde (Android ahorra batería)." else "")
+                            (AvisoReserva.proximo(ctx).takeIf { it > 0 }?.let { t -> " Próximo aviso: " +
+                                java.text.SimpleDateFormat("EEEE d 'a las' HH:mm", java.util.Locale("es", "AR")).format(java.util.Date(t)) + "." } ?: " No hay aviso programado.") +
+                            (if (!AvisoReserva.alarmasExactas(ctx)) " Puede llegar tarde (Android ahorra batería)." else "")
                         },
                     ))
                 }
