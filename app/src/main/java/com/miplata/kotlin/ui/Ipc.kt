@@ -54,7 +54,30 @@ object Ipc {
         return Datos(x["prox"].texto() ?: return null, x["cada"].num().toInt().takeIf { it > 0 } ?: 6, x["partes"].num().toInt().takeIf { it > 0 } ?: 1,
             p?.let { it["monto"].num() to (it["desde"].texto() ?: "") }) }
     fun meses(d: Datos) = (0 until d.cada).map { sumarMeses(d.prox, -d.cada - 1 + it) }
-    fun toca(d: Datos, hoy: String) = hoy.take(7) >= d.prox
+    /** Los 6 meses que se usan, con su valor y si es real (INDEC) o estimado.
+        Estimado = promedio de los últimos 3 meses publicados (redondeado a un decimal). */
+    data class Mes(val am: String, val valor: Double, val real: Boolean)
+    fun completar(d: Datos, conocidos: Map<String, Double>): List<Mes> {
+        val publicados = conocidos.keys.sorted()
+        val ult3 = publicados.takeLast(3).mapNotNull { conocidos[it] }
+        val estimado = if (ult3.isEmpty()) 0.0 else Math.round(ult3.average() * 10) / 10.0
+        return meses(d).map { am -> conocidos[am]?.let { Mes(am, it, true) } ?: Mes(am, estimado, false) }
+    }
+    data class Resultado(val factor: Double, val total: Double, val cadaUno: Double, val estimados: Int)
+    fun calcular(montoCadaUno: Double, partes: Int, valores: List<Double>, estimados: Int): Resultado {
+        val factor = valores.fold(1.0) { f, v -> f * (1 + v / 100) }
+        val total = Math.round(montoCadaUno * partes * factor).toDouble()
+        return Resultado(factor, total, Math.round(total / partes).toDouble(), estimados)
+    }
+    fun estimacion(i: Item, conocidos: Map<String, Double>): Resultado? {
+        val d = de(i) ?: return null
+        val m = completar(d, conocidos)
+        return calcular(i.a, d.partes, m.map { it.valor }, m.count { !it.real })
+    }
+    /** Toca actualizar: cuando el INDEC ya publicó los 6 meses (sea el día que sea), o si ya llegó el mes en que rige.
+        Si ya está calculado (queda pendiente para el período que viene), no avisa. */
+    fun toca(d: Datos, hoy: String, conocidos: Map<String, Double> = INDEC): Boolean =
+        d.pend == null && (meses(d).all { conocidos.containsKey(it) } || hoy.take(7) >= d.prox)
 
     /** Guarda la actualización en el JSON del gasto (igual que la app original). */
     fun aplicar(o: JsonObject, k: Int, nuevoCadaUno: Double, factor: Double): JsonObject {
@@ -82,37 +105,42 @@ fun HojaIPC(item: Item, alCerrar: () -> Unit, alGuardar: (cadaUno: Double, facto
     val d = Ipc.de(item) ?: return
     val meses = Ipc.meses(d)
     val texto = { v: Double -> v.toString().replace('.', ',').removeSuffix(",0") }
-    val valores = remember { mutableStateListOf(*meses.map { Ipc.conocidos(ctx)[it]?.let(texto) ?: "" }.toTypedArray()) }
+    val inicial = Ipc.completar(d, Ipc.conocidos(ctx))
+    val valores = remember { mutableStateListOf(*inicial.map { texto(it.valor) }.toTypedArray()) }
+    val reales = remember { mutableStateListOf(*inicial.map { it.real }.toTypedArray()) }
     var estado by remember { mutableStateOf("Buscando la inflación en internet…") }
     LaunchedEffect(Unit) {
         val bajados = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Ipc.bajar(ctx) }
         if (bajados == null) { estado = "Sin conexión: uso los datos que ya tenía."; return@LaunchedEffect }
-        meses.forEachIndexed { n, am -> if (valores[n].isBlank()) bajados[am]?.let { valores[n] = texto(it) } }
+        Ipc.completar(d, Ipc.INDEC + bajados).forEachIndexed { n, m -> if (!reales[n]) { valores[n] = texto(m.valor); reales[n] = m.real } }
         val ultimo = bajados.keys.maxOrNull()
         estado = "✅ Actualizado desde internet (INDEC, vía ArgentinaDatos). Último dato publicado: ${ultimo?.let { mesYAnio(it) } ?: "-"}."
     }
     var confirmar by remember { mutableStateOf(false) }
     val factor = valores.fold(1.0) { f, v -> f * (1 + aNumero(v) / 100) }
-    val faltan = valores.count { it.isBlank() }
+    val faltan = reales.count { !it }
     val totalAct = item.a * d.partes
     val total = Math.round(totalAct * factor).toDouble()
     val cada = Math.round(total / d.partes).toDouble()
     Hoja(alCerrar, "📈 Actualizar ${item.n}") {
-        Text("Inflación mensual del INDEC (%). La app la busca sola en internet cada vez que abrís esta ventana. Los meses que todavía no salieron quedan vacíos: el INDEC publica a mitad del mes siguiente.",
+        Text("Inflación mensual del INDEC (%). La app la busca sola en internet. Los meses que todavía no salieron se estiman con el promedio de los últimos 3 publicados; el INDEC publica a mediados del mes siguiente.",
             fontSize = 13.sp, color = k.suave)
         Text(estado, fontSize = 13.sp, color = k.verde)
         meses.forEachIndexed { n, am ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(mesYAnio(am), Modifier.weight(1f), color = k.texto)
+                Column(Modifier.weight(1f)) {
+                    Text(mesYAnio(am), color = k.texto)
+                    Text(if (reales[n]) "INDEC ✅" else "estimado", fontSize = 12.sp, color = if (reales[n]) k.verde else k.naranja)
+                }
                 OutlinedTextField(valores[n], { valores[n] = it.filter { c -> c.isDigit() || c == ',' || c == '.' } }, Modifier.width(110.dp),
                     singleLine = true, suffix = { Text("%") })
             }
         }
         HorizontalDivider(color = k.linea)
         Renglon("Aumento acumulado", "%.2f%%".format((factor - 1) * 100).replace('.', ','))
-        Renglon(if (d.partes > 1) "Total nuevo" else "Monto nuevo", pesos(total))
+        Renglon(if (d.partes > 1) (if (faltan > 0) "Total estimado" else "Total nuevo") else (if (faltan > 0) "Monto estimado" else "Monto nuevo"), pesos(total))
         if (d.partes > 1) Renglon("Cada uno pone", pesos(cada), colorDer = k.verde)
-        if (faltan > 0) Text("Faltan $faltan ${if (faltan == 1) "mes" else "meses"} que el INDEC todavía no publicó: es una estimación, no lo guardes todavía. Volvé a abrir esta ventana más adelante y se completan solos.", color = k.naranja, fontSize = 13.sp)
+        if (faltan > 0) Text("$faltan ${if (faltan == 1) "mes es estimado" else "meses son estimados"} (promedio de los últimos 3 publicados): es una estimación, no lo guardes todavía. Cuando el INDEC los publique se reemplazan solos y te aparece el aviso.", color = k.naranja, fontSize = 13.sp)
         Text("Rige desde ${mesYAnio(d.prox)}.", fontSize = 13.sp, color = k.suave)
         Button(onClick = { if (faltan > 0) confirmar = true else alGuardar(cada, factor) }, Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar monto nuevo") }
     }

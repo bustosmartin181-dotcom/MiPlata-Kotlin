@@ -24,6 +24,20 @@ class IpcTest {
 }
 
 class IpcLeerTest {
+    @Test fun estimaYAvisaCuandoEstanLosSeisMeses() {
+        val d = Ipc.Datos("2027-03", 6, 2, null)
+        val m = Ipc.completar(d, Ipc.INDEC)
+        assertEquals(listOf(true, true, false, false, false, false), m.map { it.real })
+        assertEquals(1.9, m[2].valor, 1e-9)                                          // promedio de jul 2,1, ago 1,7 y sep 1,9
+        val r = Ipc.calcular(138310.0, 2, m.map { it.valor }, 4)
+        assertEquals(309083.0, r.total, 0.0); assertEquals(154542.0, r.cadaUno, 0.0)
+        assertEquals(false, Ipc.toca(d, "2027-02-10", Ipc.INDEC))
+        val todos = Ipc.INDEC + mapOf("2026-10" to 2.0, "2026-11" to 2.0, "2026-12" to 2.0, "2027-01" to 2.0)
+        assertEquals(true, Ipc.toca(d, "2027-02-10", todos))                         // ya publicaron los 6: avisa, sea el día que sea
+        assertEquals(true, Ipc.toca(d, "2027-03-02", Ipc.INDEC))                     // llegó marzo: avisa igual
+        assertEquals(false, Ipc.toca(d.copy(pend = 150000.0 to "2027-03"), "2027-03-02", todos))   // ya calculado
+    }
+
     @Test fun leeLaSerieDeArgentinaDatos() {
         val m = Ipc.leer("""[{"fecha":"2026-08-31","valor":1.7},{"fecha":"2026-09-30","valor":1.9},{"fecha":"mal"}]""")
         assertEquals(1.7, m["2026-08"]!!, 0.0); assertEquals(1.9, m["2026-09"]!!, 0.0)

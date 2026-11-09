@@ -72,7 +72,15 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
                 val et = etiquetas(it)
                 if (et.isNotEmpty()) Text(et.joinToString(" · "), fontSize = 13.sp, color = k.suave)
                 Ipc.de(it)?.let { d ->
-                    val toca = Ipc.toca(d, Fechas.hoy())
+                    val conocidos = Ipc.conocidos(androidx.compose.ui.platform.LocalContext.current)
+                    val toca = Ipc.toca(d, Fechas.hoy(), conocidos)
+                    if (d.pend == null) Ipc.estimacion(it, conocidos)?.let { r ->
+                        Text((if (r.estimados > 0) "📊 Estimado para ${mesYAnio(d.prox)}: " else "📊 Para ${mesYAnio(d.prox)}: ") +
+                            dinero(r.cadaUno) + (if (d.partes > 1) " cada uno (${dinero(r.total)} total)" else "") +
+                            " · +${"%.1f".format((r.factor - 1) * 100).replace('.', ',')}%" +
+                            (if (r.estimados > 0) "\n${6 - r.estimados} de 6 meses ya publicados por el INDEC" else ""),
+                            fontSize = 13.sp, color = k.texto, fontWeight = FontWeight.SemiBold)
+                    }
                     Text("📈 Se actualiza por IPC cada ${d.cada} meses · próxima: ${mesYAnio(d.prox)}" +
                         (if (d.partes > 1) "\nTotal ${dinero(it.a * d.partes)} entre ${d.partes} (${dinero(it.a)} cada uno)" else "") +
                         (d.pend?.let { (m, desde) -> "\n✅ Ya calculado: ${dinero(m)}${if (d.partes > 1) " cada uno" else ""} desde ${mesYAnio(desde)}" } ?: ""),

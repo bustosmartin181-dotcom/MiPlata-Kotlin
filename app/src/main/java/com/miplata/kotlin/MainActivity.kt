@@ -91,6 +91,12 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     }
     /* Al abrir: cierre nocturno de los días que quedaron sin cerrar (si la app estaba cerrada a medianoche) */
     LaunchedEffect(Unit) { if (almacen.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.congelarDias(it, Fechas.hoy()) }) vuelta++ }
+    LaunchedEffect(Unit) {
+        val hayIpc = estado?.items?.any { Ipc.de(it) != null } == true
+        val cuando = ctx.getSharedPreferences("ipc", android.content.Context.MODE_PRIVATE).getLong("cuando", 0)
+        if (hayIpc && System.currentTimeMillis() - cuando > 2 * 86_400_000L) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Ipc.bajar(ctx) }; vuelta++ }
+    }
     LaunchedEffect(estado?.ocultar) { Privacidad.ocultar = estado?.ocultar == true; Privacidad.mostrando = false }
     val prefsCopia = remember { ctx.getSharedPreferences("aviso_copia", android.content.Context.MODE_PRIVATE) }
     var avisoCopiaVersion by remember { mutableIntStateOf(0) }

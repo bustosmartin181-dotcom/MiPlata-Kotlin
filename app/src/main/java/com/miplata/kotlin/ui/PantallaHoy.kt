@@ -78,11 +78,12 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         }
 
         /* Aviso de IPC: toca actualizar un gasto (por ejemplo, el pago a Alejandro) */
-        S.items.filter { it -> Ipc.de(it)?.let { d -> Ipc.toca(d, hoy) } == true }.forEach { it ->
+        val ipcConocidos = Ipc.conocidos(androidx.compose.ui.platform.LocalContext.current)
+        S.items.filter { it -> Ipc.de(it)?.let { d -> Ipc.toca(d, hoy, ipcConocidos) } == true }.forEach { it ->
             Row(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("📈 Toca actualizar: ${it.n}", fontWeight = FontWeight.Bold, color = k.naranja)
-                    Text("Desde ${mesYAnio(Ipc.de(it)!!.prox)} el monto se actualiza por IPC del INDEC.", fontSize = 13.sp, color = k.suave)
+                    Text("Ya salió la inflación que se usa. Calculá el monto nuevo para pagar desde ${mesYAnio(Ipc.de(it)!!.prox)}.", fontSize = 13.sp, color = k.suave)
                 }
                 TextButton(onClick = alIrAPlan) { Text("Ver") }
             }
