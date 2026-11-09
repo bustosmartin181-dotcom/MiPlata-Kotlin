@@ -143,7 +143,12 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
            "Ya lo pasé" se puede tocar también a la noche, cuando pasás lo de hoy (antes de que cierre el día). */
         if (c.fondo.activo) {
             val anteriores = c.fondo.total - S.resPasado          // de días ya cerrados, sin pasar
-            val conHoy = anteriores + c.fondo.hoySuma               // + lo que sobra hoy
+            /* Lo de hoy se suma recién desde 2 horas antes del aviso de la noche (con aviso a las 22, desde las 20):
+               a la mañana o a la madrugada todavía es tu plata para gastar en el día. */
+            val (hAviso, mAviso) = S.resHora.split(":").map { it.toIntOrNull() ?: 0 }
+            val ahora = LocalTime.now()
+            val esDeNoche = ahora >= LocalTime.of(hAviso, mAviso).minusHours(2) && ahora.hour >= 12
+            val conHoy = anteriores + (if (esDeNoche) c.fondo.hoySuma else 0.0)
             if (conHoy >= 1 || conHoy <= -1) Column(Modifier.fillMaxWidth()
                 .border(1.5.dp, k.verde, RoundedCornerShape(22.dp)).background(k.tarjeta, RoundedCornerShape(22.dp)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
