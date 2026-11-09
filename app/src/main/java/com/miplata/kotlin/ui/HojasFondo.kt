@@ -24,14 +24,14 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
     var para by remember { mutableStateOf("hoy") }
     var quitar by remember { mutableStateOf<Int?>(null) }
     Hoja(alCerrar, "Mi fondo de ahorro") {
-        Text(pesos(f.totalConRend), fontSize = 38.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
+        Text(dinero(f.totalConRend), fontSize = 38.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
         if (S.rendOn && S.rendTasa > 0) Text("↑ Rinde ${formatoTasa(S.rendTasa)}%", color = k.verde, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Renglon("Este período", pesos(f.ahorroPeriodo), negrita = false)
-        if (f.fondoPrev != 0.0) Renglon("De antes", pesos(f.fondoPrev), negrita = false)
+        Renglon("Este período", dinero(f.ahorroPeriodo), negrita = false)
+        if (f.fondoPrev != 0.0) Renglon("De antes", dinero(f.fondoPrev), negrita = false)
         val retirado = f.acumulado - f.total
-        if (retirado > 0) Renglon("Retiraste", pesos(retirado), negrita = false)
-        if (f.rend > 0.005) Renglon("Rendimiento estimado", pesos(f.rend), negrita = false)
-        if (f.hoySuma >= 1) Text("Esta noche se suman ${pesos(f.hoySuma)} de hoy (si no gastás más).", fontSize = 13.sp, color = k.suave)
+        if (retirado > 0) Renglon("Retiraste", dinero(retirado), negrita = false)
+        if (f.rend > 0.005) Renglon("Rendimiento estimado", dinero(f.rend), negrita = false)
+        if (f.hoySuma >= 1) Text("Esta noche se suman ${dinero(f.hoySuma)} de hoy (si no gastás más).", fontSize = 13.sp, color = k.suave)
         BotonMP("Abrir Mercado Pago (Reservas)", Modifier.fillMaxWidth(), alAbrirMP)
         if (S.fondoUsos.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
@@ -42,7 +42,7 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
                         Text("${Fechas.diaYMes(u.date)} ${u.note.ifBlank { "Uso del fondo" }}", color = k.texto)
                         Text(if (u.para == "cubre") "Cubrió gastos ya hechos" else "Para gastar ese día", fontSize = 12.sp, color = k.suave)
                     }
-                    Text("-" + pesos(u.amt), fontWeight = FontWeight.SemiBold, color = k.texto)
+                    Text("-" + dinero(u.amt), fontWeight = FontWeight.SemiBold, color = k.texto)
                     IconButton(onClick = { quitar = i }) { Icon(Icons.Outlined.Close, "Quitar retiro") }
                 }
             }
@@ -94,15 +94,15 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
         TextButton(onClick = { filas += Triple("", "", true) }) { Text("+ Agregar cuenta") }
         HorizontalDivider(color = k.linea)
         if (c.fondo.activo) {
-            Renglon("Disponible para gastar", pesos(c.fondo.disponible), negrita = false)
-            Renglon("Fondo de ahorro", pesos(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), negrita = false)
-        } else Renglon("Saldo según la app", pesos(c.saldo), negrita = false)
+            Renglon("Disponible para gastar", dinero(c.fondo.disponible), negrita = false)
+            Renglon("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), negrita = false)
+        } else Renglon("Saldo según la app", dinero(c.saldo), negrita = false)
         if (cc.hayCuentas) {
-            Renglon("Total en cuentas", pesos(cc.total))
+            Renglon("Total en cuentas", dinero(cc.total))
             val ok = Math.abs(cc.diferencia) < 1
-            Renglon("Diferencia con la app", if (ok) "Coincide" else pesos(cc.diferencia), colorDer = if (ok) k.verde else k.naranja)
+            Renglon("Diferencia con la app", if (ok) "Coincide" else dinero(cc.diferencia), colorDer = if (ok) k.verde else k.naranja)
             val faltaReserva = c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1
-            if (faltaReserva) Text("La diferencia es justo tu fondo de ahorro: agregá la cuenta de la reserva con ${pesos(c.fondo.total)} y va a coincidir. No toques \"Ajustar\".",
+            if (faltaReserva) Text("La diferencia es justo tu fondo de ahorro: agregá la cuenta de la reserva con ${dinero(c.fondo.total)} y va a coincidir. No toques \"Ajustar\".",
                 fontSize = 13.sp, color = k.naranja)
             else if (!ok) Text(if (cc.diferencia < 0) "Tenés menos de lo que dice la app: seguro hay gastos sin anotar." else "Tenés más de lo que dice la app: puede faltar anotar una entrada.",
                 fontSize = 13.sp, color = k.suave)
@@ -117,14 +117,14 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
             S.ajustes.forEachIndexed { i, a ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${a.date?.let { Fechas.diaYMes(it) } ?: ""} ${a.note}", Modifier.weight(1f), color = k.texto)
-                    Text(pesos(a.amt), fontWeight = FontWeight.SemiBold, color = k.texto)
+                    Text(dinero(a.amt), fontWeight = FontWeight.SemiBold, color = k.texto)
                     IconButton(onClick = { alQuitarAjuste(i) }) { Icon(Icons.Outlined.Close, "Quitar") }
                 }
             }
         }
     }
     confirmar?.let { d -> AlertDialog(onDismissRequest = { confirmar = null },
-        title = { Text("¿Ajustar ${pesos(d)}?") },
+        title = { Text("¿Ajustar ${dinero(d)}?") },
         text = { Text("La diferencia se reparte desde mañana entre los días que faltan. Lo mejor es primero anotar los gastos que te olvidaste; usá esto si no los recordás.") },
         confirmButton = { TextButton(onClick = { confirmar = null; alGuardar(filas.map { Almacen.CuentaEditable(it.first.trim(), aNumero(it.second), it.third) }); alAjustar(d) }) { Text("Ajustar") } },
         dismissButton = { TextButton(onClick = { confirmar = null }) { Text("Cancelar") } }) }

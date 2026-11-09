@@ -85,8 +85,30 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
     LaunchedEffect(vuelta) {
         runCatching { AvisoReserva.programar(ctx) }
+        runCatching { AvisoReserva.programarRecordatorio(ctx) }
         com.miplata.kotlin.widget.Widget.actualizar(ctx)
         if (vuelta > 0) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.miplata.kotlin.datos.CopiaAutomatica.guardar(ctx) }
+    }
+    /* Al abrir: cierre nocturno de los días que quedaron sin cerrar (si la app estaba cerrada a medianoche) */
+    LaunchedEffect(Unit) { if (almacen.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.congelarDias(it, Fechas.hoy()) }) vuelta++ }
+    LaunchedEffect(estado?.ocultar) { Privacidad.ocultar = estado?.ocultar == true; Privacidad.mostrando = false }
+    val prefsCopia = remember { ctx.getSharedPreferences("aviso_copia", android.content.Context.MODE_PRIVATE) }
+    var avisoCopiaVersion by remember { mutableIntStateOf(0) }
+    fun copiaHecha() { prefsCopia.edit().putLong("ultima", System.currentTimeMillis()).apply(); avisoCopiaVersion++ }
+    val exportarExcel = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
+        if (uri != null && estado != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { com.miplata.kotlin.exportar.Exportar.xlsx(com.miplata.kotlin.exportar.Exportar.datos(estado, Fechas.hoy()), it) } }
+            .onSuccess { aviso("Excel guardado") }.onFailure { aviso("No pude guardar el Excel") }
+    }
+    val exportarPdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null && estado != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { com.miplata.kotlin.exportar.Exportar.pdf(com.miplata.kotlin.exportar.Exportar.datos(estado, Fechas.hoy()), "Mi plata K v$version", it) } }
+            .onSuccess { aviso("PDF guardado") }.onFailure { aviso("No pude guardar el PDF") }
+    }
+    var pidiendoPinOjo by remember { mutableStateOf(false) }
+    fun compartirTexto(t: String, paquete: String? = null) {
+        val i = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, t)
+        if (paquete != null) i.setPackage(paquete)
+        runCatching { ctx.startActivity(if (paquete == null) android.content.Intent.createChooser(i, "Compartir resumen") else i) }
+            .onFailure { if (paquete != null) compartirTexto(t) }
     }
     LaunchedEffect(estado?.color, estado?.tema) { estado?.let { alCambiarTema(it.color to it.tema) } }
     val elegirCopia = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -136,7 +158,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     val exportar = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri != null) runCatching {
             ctx.contentResolver.openOutputStream(uri)!!.bufferedWriter().use { it.write(almacen.exportar()) }
-        }.onSuccess { aviso("Copia guardada") }.onFailure { aviso("No pude guardar la copia") }
+        }.onSuccess { aviso("Copia guardada"); ctx.getSharedPreferences("aviso_copia", android.content.Context.MODE_PRIVATE).edit().putLong("ultima", System.currentTimeMillis()).apply() }
+            .onFailure { aviso("No pude guardar la copia") }
     }
     val abrirImportar = { importar.launch(arrayOf("application/json", "text/plain", "*/*")) }
     val abrirExportar = { exportar.launch("mi-plata-copia-${Fechas.hoy()}.json") }
@@ -169,7 +192,21 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
                         alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN },
-                        alIrAPlan = { pestana = Pestana.PLAN })
+                        alIrAPlan = { pestana = Pestana.PLAN },
+                        alOjo = { if (Privacidad.mostrando || estado.pin.isEmpty()) Privacidad.mostrando = !Privacidad.mostrando else pidiendoPinOjo = true },
+                        alCompartir = { hojaHoy = "resumen" },
+                        alSalirDemo = { almacen.salirDemo(); vuelta++; aviso("Volviste a tus datos") },
+                        avisoCopia = run {
+                            val auto = com.miplata.kotlin.datos.CopiaAutomatica.uri(ctx) != null
+                            val ultima = maxOf(prefsCopia.getLong("ultima", 0), com.miplata.kotlin.datos.CopiaAutomatica.ultima(ctx))
+                            val dias = if (ultima > 0) ((System.currentTimeMillis() - ultima) / 86_400_000L).toInt() else null
+                            val pospuesto = System.currentTimeMillis() < prefsCopia.getLong("posponer", 0)
+                            avisoCopiaVersion.let { }
+                            if (!auto && !pospuesto && !estado.demo && (if (dias == null) estado.spent.size >= 3 else dias >= 7)) ({
+                                TarjetaAvisoCopia(dias, alGuardar = { abrirExportar() }, alAutomatica = { elegirCopia.launch("mi-plata-copia-automatica.json") },
+                                    alMasTarde = { prefsCopia.edit().putLong("posponer", System.currentTimeMillis() + 3 * 86_400_000L).apply(); avisoCopiaVersion++ })
+                            }) else null
+                        })
                     Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso, ::pagarMP, irAPeriodoNuevo) { irAPeriodoNuevo = false }
                     Pestana.DIAS -> PantallaDias(estado, tocar,
                         alObjetivo = { n -> almacen.aplicarObjetivo(n); vuelta++; aviso(if (n > 0) "Listo: tu límite de hoy ahora es ${pesos(n)}" else "Volviste a tu límite normal") },
@@ -193,6 +230,15 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         abrirPin = { hojaHoy = "pin" },
                         copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
                         abrirMP = ::abrirMP,
+                        ocultar = { campo("ocultar", JsonPrimitive(it)) },
+                        recordatorio = { on -> campo("recOn", JsonPrimitive(on)); if (on) { asegurarNotis(); aviso("Te recuerdo todos los días a las ${estado.recHora}") } },
+                        horaRecordatorio = { campo("recHora", JsonPrimitive(it)); aviso("Te recuerdo a las $it") },
+                        excel = { exportarExcel.launch("mi-plata-${Fechas.hoy()}.xlsx") },
+                        pdf = { exportarPdf.launch("mi-plata-${Fechas.hoy()}.pdf") },
+                        copias = (estado.crudo["copias"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonObject)?.get("iso").texto() } ?: emptyList(),
+                        restaurarCierre = { i -> if (almacen.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.restaurarCierre(it, i) }) { vuelta++; aviso("Restaurado") } },
+                        demo = { on -> if (on) { almacen.entrarDemo(estadoDemo(almacen.crudo)); pestana = Pestana.HOY; aviso("Modo demo: tus datos quedaron guardados aparte") }
+                                       else { almacen.salirDemo(); aviso("Volviste a tus datos") }; vuelta++ },
                         borrarTodo = { pin ->
                             if (estado.pin.isNotEmpty() && !almacen.pinCorrecto(pin)) "PIN incorrecto."
                             else { almacen.borrarTodo(); vuelta++; pestana = Pestana.HOY; aviso("Listo: la app quedó vacía"); null }
@@ -238,8 +284,20 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                     if (!almacen.pinCorrecto(actual)) "Escribí el PIN actual para quitarlo."
                     else { almacen.quitarPin(); vuelta++; hojaHoy = ""; aviso("PIN quitado"); null }
                 })
+            "resumen" -> HojaResumen(com.miplata.kotlin.exportar.Exportar.resumenTexto(estado, Fechas.hoy()), { hojaHoy = "" },
+                alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
+                alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
+    }
+
+    if (pidiendoPinOjo) {
+        var pin by remember { mutableStateOf("") }
+        var err by remember { mutableStateOf<String?>(null) }
+        AlertDialog(onDismissRequest = { pidiendoPinOjo = false }, title = { Text("Ingresá tu PIN") },
+            text = { Column { CampoPin(pin, { pin = it }, "PIN"); err?.let { Text(it, color = k.rojo) } } },
+            confirmButton = { TextButton(onClick = { if (almacen.pinCorrecto(pin)) { Privacidad.mostrando = true; pidiendoPinOjo = false } else err = "PIN incorrecto." }) { Text("Mostrar") } },
+            dismissButton = { TextButton(onClick = { pidiendoPinOjo = false }) { Text("Cancelar") } })
     }
 
     preguntarPago?.let { (i, n) ->

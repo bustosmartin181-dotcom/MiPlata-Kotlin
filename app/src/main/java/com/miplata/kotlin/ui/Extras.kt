@@ -31,7 +31,7 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (
     Tarjeta {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Titulo("Me deben"); Spacer(Modifier.weight(1f))
-            Text(pesos(lista.sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
+            Text(dinero(lista.sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
         }
         lista.forEach { d ->
             Column(Modifier.padding(vertical = 4.dp)) {
@@ -40,7 +40,7 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (
                         Text(d.nota.ifBlank { "Compra para otros" }, color = k.texto)
                         Text(Fechas.diaYMes(d.fecha) + if (d.previo) " · del período anterior" else "", fontSize = 12.sp, color = k.suave)
                     }
-                    Text(pesos(d.monto), fontWeight = FontWeight.SemiBold, color = k.texto)
+                    Text(dinero(d.monto), fontWeight = FontWeight.SemiBold, color = k.texto)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { alCobrar(d) }) { Text("Me lo pagaron") }
@@ -71,16 +71,16 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
             Button(onClick = { alPoner(aNumero(valor)) }) { Text("Usar") }
         }
         if (o != null) {
-            Renglon("Podrías gastar parejo", pesos(o.promedio) + " por día", negrita = false)
-            Renglon("Al final te sobraría", pesos(o.proyectado), colorDer = if (o.proyectado >= 0) k.verde else k.rojo)
-            if (o.diasPrevios > 0) Renglon("Ahorrado vs. objetivo", pesos(o.ahorradoAntes), colorDer = if (o.ahorradoAntes >= 0) k.verde else k.rojo)
+            Renglon("Podrías gastar parejo", dinero(o.promedio) + " por día", negrita = false)
+            Renglon("Al final te sobraría", dinero(o.proyectado), colorDer = if (o.proyectado >= 0) k.verde else k.rojo)
+            if (o.diasPrevios > 0) Renglon("Ahorrado vs. objetivo", dinero(o.ahorradoAntes), colorDer = if (o.ahorradoAntes >= 0) k.verde else k.rojo)
             Text("Si gastaras por día…", fontSize = 13.sp, color = k.suave)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 o.escenarios.forEach { e ->
                     Column(Modifier.weight(1f).background(if (e.actual) k.verdeClaro else k.fondo, RoundedCornerShape(12.dp)).padding(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(pesos(e.o), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
-                        Text("sobra " + pesos(e.sobra), fontSize = 11.sp, color = if (e.sobra >= 0) k.verde else k.rojo, textAlign = TextAlign.Center)
+                        Text(dinero(e.o), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
+                        Text("sobra " + dinero(e.sobra), fontSize = 11.sp, color = if (e.sobra >= 0) k.verde else k.rojo, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -88,7 +88,7 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
         } else {
             HorizontalDivider(color = k.linea)
             if (S.recal != null && !S.recal.obj) {
-                Text("Recalibrado: cada día vale ${pesos(S.recal.base)}.", color = k.texto, fontSize = 14.sp)
+                Text("Recalibrado: cada día vale ${dinero(S.recal.base)}.", color = k.texto, fontSize = 14.sp)
                 TextButton(onClick = alQuitarRecal) { Text("Quitar recalibración") }
             } else {
                 Text("¿Te desordenaste? Recalibrar reparte lo que te queda en partes iguales entre los días que faltan.", fontSize = 13.sp, color = k.suave)
@@ -114,11 +114,11 @@ fun TarjetaMetas(S: Estado, alAbrir: (Meta?) -> Unit) {
             val juntado = Nucleo.juntadoEnMeta(S, m)
             Column(Modifier.fillMaxWidth().clickable { alAbrir(m) }.padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row { Text(m.n.ifBlank { "Meta" }, Modifier.weight(1f), color = k.texto, fontWeight = FontWeight.SemiBold)
-                    Text("${pesos(juntado)} de ${pesos(m.t)}", color = k.texto) }
+                    Text("${dinero(juntado)} de ${dinero(m.t)}", color = k.texto) }
                 if (m.t > 0) LinearProgressIndicator(progress = { (juntado / m.t).coerceIn(0.0, 1.0).toFloat() }, Modifier.fillMaxWidth().height(6.dp),
                     color = k.verde, trackColor = k.linea, gapSize = 0.dp, drawStopIndicator = {})
                 val sug = Nucleo.aporteMensualSugerido(S, m, Fechas.hoy())
-                if (sug > 0) Text("Para llegar al ${Fechas.diaYMes(m.f)}: ${pesos(sug)} por mes", fontSize = 12.sp, color = k.suave)
+                if (sug > 0) Text("Para llegar al ${Fechas.diaYMes(m.f)}: ${dinero(sug)} por mes", fontSize = 12.sp, color = k.suave)
             }
         }
         OutlinedButton(onClick = { alAbrir(null) }, Modifier.fillMaxWidth()) { Text("+ Nueva meta") }
@@ -137,7 +137,7 @@ fun HojaMeta(S: Estado, meta: Meta?, alCerrar: () -> Unit, alGuardar: (String, D
     var borrar by remember { mutableStateOf(false) }
     Hoja(alCerrar, if (meta == null) "Meta nueva" else "Meta") {
         if (meta != null) {
-            Text("Juntaste ${pesos(Nucleo.juntadoEnMeta(S, meta))}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.verde)
+            Text("Juntaste ${dinero(Nucleo.juntadoEnMeta(S, meta))}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.verde)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CampoMonto(aporte, { aporte = it }, "Apartar hoy", Modifier.weight(1f))
                 Button(onClick = { val n = aNumero(aporte); if (n > 0) alAportar(n) }) { Text("Apartar") }

@@ -102,6 +102,8 @@ class WidgetHoy : GlanceAppWidget() {
 class ReceptorWidgetHoy : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = WidgetHoy()
     override fun onReceive(context: Context, intent: Intent) {
+        /* Cierre nocturno: al pasar la medianoche se congela el día que terminó y se guarda una copia interna */
+        runCatching { val a = Almacen(context); a.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.congelarDias(it, Fechas.hoy()) } }
         super.onReceive(context, intent)
         Widget.programarMedianoche(context)
     }

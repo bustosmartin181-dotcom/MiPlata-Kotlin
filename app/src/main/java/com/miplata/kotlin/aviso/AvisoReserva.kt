@@ -19,6 +19,7 @@ import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.ui.pesos
 import java.util.Calendar
+import kotlinx.serialization.json.booleanOrNull
 
 /* Aviso de la reserva: cada noche, a la hora elegida, una notificación con lo que te sobró del día
    para que lo pases a tu reserva de Mercado Pago. A diferencia de la versión web, el monto se calcula
@@ -77,17 +78,42 @@ object AvisoReserva {
             (if (total - sobra >= 1) " (en total, ${pesos(total)})." else ".")
     }
 
-    fun mostrar(ctx: Context, cuerpo: String, prueba: Boolean = false) {
+    /* ---- Recordatorio diario: "¿Anotaste tus gastos de hoy?" ---- */
+    fun programarRecordatorio(ctx: Context) {
+        val am = ctx.getSystemService(AlarmManager::class.java)
+        val pi = PendingIntent.getBroadcast(ctx, 3, Intent(ctx, ReceptorAviso::class.java).setAction("com.miplata.kotlin.RECORDATORIO"),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        am.cancel(pi)
+        val S = Almacen(ctx).estado ?: return
+        if (!S.crudo["recOn"].let { it is kotlinx.serialization.json.JsonPrimitive && it.booleanOrNull == true }) return
+        val hora = (S.crudo["recHora"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.takeIf { Regex("""\d{1,2}:\d{2}""").matches(it) } ?: "21:00"
+        val (hh, mm) = hora.split(":").map { it.toInt() }
+        val cuando = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hh); set(Calendar.MINUTE, mm); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            if (timeInMillis <= System.currentTimeMillis() + 5_000) add(Calendar.DAY_OF_YEAR, 1)
+        }.timeInMillis
+        if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi)
+        else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pi)
+    }
+
+    fun textoRecordatorio(ctx: Context): String? {
+        val S = Almacen(ctx).estado ?: return null
+        val c = Nucleo.calcular(S, Fechas.hoy())
+        return if (c.gastoHoy == 0.0) "¿Anotaste tus gastos de hoy? Todavía no cargaste nada. Te quedan ${pesos(c.quedaHoy)}."
+        else "¿Anotaste todo lo de hoy? Llevás ${pesos(c.gastoHoy)} y te quedan ${pesos(c.quedaHoy)}."
+    }
+
+    fun mostrar(ctx: Context, cuerpo: String, prueba: Boolean = false, recordatorio: Boolean = false) {
         if (!hayPermiso(ctx)) return
         canal(ctx)
         val abrir = PendingIntent.getActivity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(ctx, CANAL)
             .setSmallIcon(R.drawable.ic_noti)
-            .setContentTitle(if (prueba) "Mi plata · Prueba de aviso" else "Mi plata · A tu reserva")
+            .setContentTitle(if (prueba) "Mi plata · Prueba de aviso" else if (recordatorio) "Mi plata · Recordatorio" else "Mi plata · A tu reserva")
             .setContentText(cuerpo).setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
             .setContentIntent(abrir).setAutoCancel(true).build()
-        ctx.getSystemService(NotificationManager::class.java).notify(if (prueba) ID_PRUEBA else ID_NOTI, n)
+        ctx.getSystemService(NotificationManager::class.java).notify(if (prueba) ID_PRUEBA else if (recordatorio) 7001 else ID_NOTI, n)
     }
 
     fun probar(ctx: Context) {
@@ -101,7 +127,9 @@ class ReceptorAviso : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
             "com.miplata.kotlin.AVISO_RESERVA" -> AvisoReserva.texto(ctx)?.let { AvisoReserva.mostrar(ctx, it) }
+            "com.miplata.kotlin.RECORDATORIO" -> AvisoReserva.textoRecordatorio(ctx)?.let { AvisoReserva.mostrar(ctx, it, recordatorio = true) }
         }
-        AvisoReserva.programar(ctx)   // el de mañana (y vuelve a programar al prender el teléfono)
+        AvisoReserva.programar(ctx)   // los de mañana (y vuelve a programar al prender el teléfono)
+        AvisoReserva.programarRecordatorio(ctx)
     }
 }

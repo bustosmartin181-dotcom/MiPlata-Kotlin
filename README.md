@@ -11,6 +11,11 @@ Versión nueva de "Mi plata", hecha desde cero en Kotlin + Jetpack Compose.
 - Widget y ventanita para anotar gastos sin abrir la app.
 - Importa la copia de seguridad (JSON) de la versión anterior.
 
+## También tiene
+- Temas (claro/oscuro, colores, Argentina), copia automática, exportar a Excel y PDF, resumen para compartir.
+- Recordatorio diario, ocultar montos, cierre nocturno con 14 copias internas, modo demo, novedades.
+- IPC cada 6 meses, cuotas, "Pagar al cobrar" con Mercado Pago, bienvenida para empezar de cero.
+
 ## Cómo se compila
 El APK se arma solo con GitHub Actions al subir cambios a `main`.
 Se descarga desde la pestaña **Actions** → última ejecución → **Artifacts** → `MiPlataK-APK`.

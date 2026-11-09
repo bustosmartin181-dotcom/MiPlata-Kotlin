@@ -26,6 +26,9 @@ class AccionesAjustes(
     val copiaElegir: () -> Unit, val copiaDesactivar: () -> Unit, val copiaEstado: () -> String?,
     val copiarAlias: () -> Unit = {}, val abrirMP: () -> Unit = {},
     val borrarTodo: (pin: String) -> String? = { null },
+    val ocultar: (Boolean) -> Unit = {}, val recordatorio: (Boolean) -> Unit = {}, val horaRecordatorio: (String) -> Unit = {},
+    val excel: () -> Unit = {}, val pdf: () -> Unit = {}, val copias: List<String> = emptyList(), val restaurarCierre: (Int) -> Unit = {},
+    val demo: (Boolean) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,6 +63,21 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
             Text("Color", color = k.suave, fontSize = 13.sp)
             SelectorColor(S.color, a.color)
+        }
+
+        var eligiendoHoraRec by remember { mutableStateOf(false) }
+        Tarjeta {
+            Titulo("Recordatorio y privacidad")
+            Interruptor("Recordarme anotar los gastos", S.recOn, a.recordatorio, "Una notificación cada día a la hora que elijas")
+            if (S.recOn) OutlinedButton(onClick = { eligiendoHoraRec = true }, Modifier.fillMaxWidth()) { Text("Hora del recordatorio: ${S.recHora}") }
+            Interruptor("Ocultar los montos al abrir", S.ocultar, a.ocultar, "Se ven como $ •••• hasta que tocás el ojito en Hoy")
+        }
+        if (eligiendoHoraRec) {
+            val (h, m) = S.recHora.split(":").map { it.toIntOrNull() ?: 0 }
+            val est = rememberTimePickerState(h, m, is24Hour = true)
+            AlertDialog(onDismissRequest = { eligiendoHoraRec = false }, title = { Text("Hora del recordatorio") }, text = { TimePicker(est) },
+                confirmButton = { TextButton(onClick = { a.horaRecordatorio("%02d:%02d".format(est.hour, est.minute)); eligiendoHoraRec = false }) { Text("Listo") } },
+                dismissButton = { TextButton(onClick = { eligiendoHoraRec = false }) { Text("Cancelar") } })
         }
 
         Tarjeta {
@@ -118,6 +136,26 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             OutlinedButton(onClick = a.importar, Modifier.fillMaxWidth()) { Text("Recuperar desde una copia") }
             Text("Las copias son compatibles con tu Mi plata de siempre: podés pasar datos de una a otra.", fontSize = 12.sp, color = k.suave)
         }
+        Tarjeta {
+            Titulo("Exportar")
+            Subtitulo("Resumen, día por día, gastos anotados y gastos importantes.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = a.excel, Modifier.weight(1f)) { Text("Excel") }
+                OutlinedButton(onClick = a.pdf, Modifier.weight(1f)) { Text("PDF") }
+            }
+        }
+
+        TarjetaCierres(a.copias, a.restaurarCierre)
+
+        Tarjeta {
+            Titulo("Modo demo")
+            Subtitulo(if (S.demo) "Estás viendo datos de ejemplo. Tus datos reales están guardados aparte." else "Muestra datos de ejemplo para grabar un video o sacar capturas sin mostrar tu plata. Tus datos quedan guardados aparte.")
+            if (S.demo) Button(onClick = { a.demo(false) }, Modifier.fillMaxWidth()) { Text("Salir del modo demo") }
+            else OutlinedButton(onClick = { a.demo(true) }, Modifier.fillMaxWidth()) { Text("Activar modo demo") }
+        }
+
+        TarjetaNovedades()
+
         TarjetaColabora(a.copiarAlias, a.abrirMP)
 
         var borrando by remember { mutableStateOf(false) }

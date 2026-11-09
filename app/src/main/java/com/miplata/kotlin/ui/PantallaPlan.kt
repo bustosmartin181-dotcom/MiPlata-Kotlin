@@ -43,19 +43,19 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
 
         Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {
             Renglon("Período", "${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)}")
-            Renglon("Ingresos", pesos(S.sueldo))
-            if (S.previo != 0.0) Renglon("Saldo previo", pesos(S.previo))
-            Renglon("Gastos importantes", pesos(c.total))
-            Renglon("Falta pagar", pesos(c.porPagar), colorDer = if (c.porPagar > 0) k.naranja else k.verde)
+            Renglon("Ingresos", dinero(S.sueldo))
+            if (S.previo != 0.0) Renglon("Saldo previo", dinero(S.previo))
+            Renglon("Gastos importantes", dinero(c.total))
+            Renglon("Falta pagar", dinero(c.porPagar), colorDer = if (c.porPagar > 0) k.naranja else k.verde)
             HorizontalDivider(color = k.linea)
-            Renglon("Para el día a día", pesos(S.sueldo + S.previo - c.total))
+            Renglon("Para el día a día", dinero(S.sueldo + S.previo - c.total))
             Text("Tocá para cambiar fechas o saldo previo", fontSize = 12.sp, color = k.suave)
         }
 
         Tarjeta(Modifier.clickable { hoja = HojaPlan.Ingresos }) {
             Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Ingresos"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
-            S.ingresos.forEach { Renglon(it.cat, pesos(it.a), negrita = false) }
-            if (S.ingresos.size > 1) Renglon("Total", pesos(S.sueldo))
+            S.ingresos.forEach { Renglon(it.cat, dinero(it.a), negrita = false) }
+            if (S.ingresos.size > 1) Renglon("Total", dinero(S.sueldo))
         }
 
         TarjetaPagarAlCobrar(S,
@@ -71,9 +71,9 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
         Tarjeta(Modifier.clickable { hoja = HojaPlan.Proximos }) {
             Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Para el próximo período"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
             if (S.proximos.isEmpty()) Subtitulo("Anotá gastos que ya sabés que vas a tener cuando cobres.")
-            S.proximos.forEach { Renglon(it.n.ifBlank { "Sin nombre" }, pesos(it.a), negrita = false) }
+            S.proximos.forEach { Renglon(it.n.ifBlank { "Sin nombre" }, dinero(it.a), negrita = false) }
             S.items.filter { it.f != false && it.extra["prox"] != null }.forEach {
-                Renglon(it.n + " (próximo)", pesos(it.extra["prox"].num()), negrita = false)
+                Renglon(it.n + " (próximo)", dinero(it.extra["prox"].num()), negrita = false)
             }
         }
 
@@ -121,12 +121,12 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
         is HojaPlan.IPC -> S.items.getOrNull(h.k)?.let { item ->
             HojaIPC(item, { hoja = null }) { cada, factor ->
                 almacen.cambiarTodo { Ipc.aplicar(it, h.k, cada, factor) }; alCambiar(); hoja = null
-                aviso("Nuevo: ${pesos(cada)}" + (if ((Ipc.de(item)?.partes ?: 1) > 1) " cada uno" else "") + " desde ${mesYAnio(Ipc.de(item)!!.prox)}")
+                aviso("Nuevo: ${dinero(cada)}" + (if ((Ipc.de(item)?.partes ?: 1) > 1) " cada uno" else "") + " desde ${mesYAnio(Ipc.de(item)!!.prox)}")
             }
         }
         is HojaPlan.UnaMeta -> HojaMeta(S, h.m, { hoja = null },
             alGuardar = { n, t, g0, f -> almacen.guardarMeta(h.m?.id, n, t, g0, f); alCambiar(); hoja = null; aviso("Meta guardada") },
-            alAportar = { monto -> h.m?.let { almacen.aportar(it.id, it.n, monto) }; alCambiar(); hoja = null; aviso("Apartaste ${pesos(monto)}") },
+            alAportar = { monto -> h.m?.let { almacen.aportar(it.id, it.n, monto) }; alCambiar(); hoja = null; aviso("Apartaste ${dinero(monto)}") },
             alQuitar = { h.m?.let { almacen.quitarMeta(it.id) }; alCambiar(); hoja = null; aviso("Meta borrada") })
         null -> {}
     }

@@ -149,4 +149,31 @@ object Periodo {
         S["previo"] = num(previo); S["start"] = JsonPrimitive(inicio); S["end"] = JsonPrimitive(fin)
         return Resultado(S.obj(), terminadas)
     }
+
+    /** Cierre nocturno (congelarDias): congela los días ya cerrados y guarda una copia (las últimas 14). null = no cambió nada. */
+    fun congelarDias(o: JsonObject, hoy: String, incluirHoy: Boolean = false): JsonObject? {
+        val S = Estado.desdeJson(o)
+        val cierres = ((o["cierres"] as? JsonObject) ?: JsonObject(emptyMap())).toMutableMap()
+        var ultimo: String? = null
+        Nucleo.diasDelPeriodo(S, hoy).forEach { x ->
+            if (cierres[x.iso] == null && (x.iso < hoy || (incluirHoy && x.iso == hoy))) {
+                cierres[x.iso] = JsonObject(mapOf("b" to num(redondear2(x.presupuesto)), "g" to num(x.gasto), "l" to num(redondear2(x.sobra))))
+                ultimo = x.iso
+            }
+        }
+        val u = ultimo ?: return null
+        val resto = JsonObject(o - "copias" - "cierres")
+        val copias = ((o["copias"] as? JsonArray)?.toMutableList() ?: mutableListOf())
+        copias += JsonObject(mapOf("iso" to JsonPrimitive(u), "json" to JsonPrimitive(resto.toString())))
+        return JsonObject(o + mapOf("cierres" to JsonObject(cierres), "copias" to JsonArray(copias.takeLast(14))))
+    }
+
+    /** Volver al estado de una copia del cierre nocturno: el historial de copias y el PIN no se tocan. */
+    fun restaurarCierre(o: JsonObject, indice: Int): JsonObject? {
+        val copia = (o["copias"] as? JsonArray)?.getOrNull(indice) as? JsonObject ?: return null
+        val viejo = Json.parseToJsonElement(copia["json"].texto() ?: return null).jsonObject
+        val m = migrarEstado(viejo).toMutableMap()
+        listOf("copias", "cierres", "pin", "salt", "pinApp").forEach { k -> o[k]?.let { m[k] = it } ?: m.remove(k) }
+        return JsonObject(m)
+    }
 }

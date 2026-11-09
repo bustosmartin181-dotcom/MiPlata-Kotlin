@@ -45,7 +45,7 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
         Subtitulo("Lo primero que se paga cuando cobrás. Marcá 🔁 en los fijos de todos los meses; si el monto cambia (luz, gas), marcá también ✏️ y el mes que viene aparecen con el monto vacío.")
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF00A6E8), Color(0xFF0B6FB8))), RoundedCornerShape(20.dp)).padding(18.dp)) {
             Text("Total pendiente este mes", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp)
-            Text(pesos(totalPendiente), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(dinero(totalPendiente), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
         }
         Row(Modifier.fillMaxWidth().background(k.fondo, RoundedCornerShape(50)).padding(4.dp)) {
             listOf("Pendientes ($pendientes)", "Ya pagados ($pagados)", "Todos (${visibles.size})").forEachIndexed { i, t ->
@@ -68,14 +68,14 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
                         Text(if (it.p) "✅ Pagado" else "⬜ Pendiente", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (it.p) k.verde else k.suave)
                     }
                 }
-                Text(pesos(it.a), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (it.p) k.verde else k.texto)
+                Text(dinero(it.a), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = if (it.p) k.verde else k.texto)
                 val et = etiquetas(it)
                 if (et.isNotEmpty()) Text(et.joinToString(" · "), fontSize = 13.sp, color = k.suave)
                 Ipc.de(it)?.let { d ->
                     val toca = Ipc.toca(d, Fechas.hoy())
                     Text("📈 Se actualiza por IPC cada ${d.cada} meses · próxima: ${mesYAnio(d.prox)}" +
-                        (if (d.partes > 1) "\nTotal ${pesos(it.a * d.partes)} entre ${d.partes} (${pesos(it.a)} cada uno)" else "") +
-                        (d.pend?.let { (m, desde) -> "\n✅ Ya calculado: ${pesos(m)}${if (d.partes > 1) " cada uno" else ""} desde ${mesYAnio(desde)}" } ?: ""),
+                        (if (d.partes > 1) "\nTotal ${dinero(it.a * d.partes)} entre ${d.partes} (${dinero(it.a)} cada uno)" else "") +
+                        (d.pend?.let { (m, desde) -> "\n✅ Ya calculado: ${dinero(m)}${if (d.partes > 1) " cada uno" else ""} desde ${mesYAnio(desde)}" } ?: ""),
                         fontSize = 12.sp, color = k.suave)
                     OutlinedButton(onClick = { alIPC(i) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = if (toca) k.naranja else k.verde)) {
                         Text(if (toca) "⚠️ Toca actualizar" else "Calcular actualización", fontSize = 13.sp) }
@@ -104,12 +104,12 @@ fun TarjetaCuotas(S: Estado) {
                     Text("Cuota ${q.actual} de ${q.total} · " + (if (restan == 0) "es la última 🎉" else "te quedan $restan"), fontSize = 12.sp, color = k.suave)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(pesos(it.a) + " por mes", fontSize = 13.sp, color = k.texto)
-                    if (restan > 0) Text("Falta ${pesos(it.a * restan)}", fontSize = 12.sp, color = k.suave)
+                    Text(dinero(it.a) + " por mes", fontSize = 13.sp, color = k.texto)
+                    if (restan > 0) Text("Falta ${dinero(it.a * restan)}", fontSize = 12.sp, color = k.suave)
                 }
             }
         }
-        Renglon("Total que falta en cuotas", pesos(cuotas.sumOf { it.a * maxOf(0, it.q!!.total - it.q.actual) }))
+        Renglon("Total que falta en cuotas", dinero(cuotas.sumOf { it.a * maxOf(0, it.q!!.total - it.q.actual) }))
     }
 }
 
@@ -124,7 +124,7 @@ fun HojaDetalleGasto(it: Item, alCerrar: () -> Unit, alPagarMP: () -> Unit, alPa
         Text(it.n.ifBlank { "Gasto" }, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = k.texto)
         Column(Modifier.fillMaxWidth().background(k.fondo, RoundedCornerShape(20.dp)).padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("TOTAL A PAGAR", fontSize = 13.sp, color = k.suave, letterSpacing = 2.sp)
-            Text(pesos(it.a), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = k.verde)
+            Text(dinero(it.a), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = k.verde)
             Text(if (it.p) "✅ Pagado" else "⏳ Pendiente", fontWeight = FontWeight.SemiBold, color = if (it.p) k.verde else k.naranja)
         }
         @Composable fun Dato(titulo: String, valor: String) {

@@ -50,11 +50,11 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
                         val movsDia = S.spent.filter { it.date == d.iso && it.cuentaEnDia }
                         val gastos = movsDia.filter { it.amt > 0 }.sumOf { it.amt }
                         val entradas = -movsDia.filter { it.amt < 0 }.sumOf { it.amt }
-                        Text(if (futuro) "Base ${pesos(d.presupuesto)}"
-                            else "Tenías ${pesos(d.presupuesto)} · gastaste ${pesos(gastos)}" + (if (entradas > 0) " · entró ${pesos(entradas)}" else ""),
+                        Text(if (futuro) "Base ${dinero(d.presupuesto)}"
+                            else "Tenías ${dinero(d.presupuesto)} · gastaste ${dinero(gastos)}" + (if (entradas > 0) " · entró ${dinero(entradas)}" else ""),
                             fontSize = 13.sp, color = k.suave)
                     }
-                    if (!futuro) Text((if (d.sobra >= 0) "+" else "") + pesos(d.sobra), fontWeight = FontWeight.Bold, color = colorSobra)
+                    if (!futuro) Text((if (d.sobra >= 0) "+" else "") + dinero(d.sobra), fontWeight = FontWeight.Bold, color = colorSobra)
                 }
                 Fechas.feriado(d.iso)?.let { Text("Feriado: ${it.nombre}", fontSize = 12.sp, color = k.suave) }
                 if (abierto == d.i) {

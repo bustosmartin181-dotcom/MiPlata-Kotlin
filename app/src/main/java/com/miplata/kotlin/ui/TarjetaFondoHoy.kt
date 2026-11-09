@@ -30,9 +30,9 @@ fun TarjetaFondo(S: Estado, c: Calculo, alUsar: () -> Unit) {
     val f = c.fondo
     Tarjeta {
         Text("Mi fondo de ahorro", color = k.suave, fontSize = 15.sp)
-        Text(pesos(f.totalConRend), fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
+        Text(dinero(f.totalConRend), fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
         if (S.rendOn && S.rendTasa > 0) Text("↑ Rinde ${formatoTasa(S.rendTasa)}%", color = k.verde, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Text("Este período: ${pesos(f.ahorroPeriodo)}" + (if (f.fondoPrev != 0.0) " · De antes: ${pesos(f.fondoPrev)}" else ""), color = k.suave, fontSize = 14.sp)
+        Text("Este período: ${dinero(f.ahorroPeriodo)}" + (if (f.fondoPrev != 0.0) " · De antes: ${dinero(f.fondoPrev)}" else ""), color = k.suave, fontSize = 14.sp)
         val puntos = curvaFondo(S, c)
         if (puntos.size >= 2) {
             val color = k.verde

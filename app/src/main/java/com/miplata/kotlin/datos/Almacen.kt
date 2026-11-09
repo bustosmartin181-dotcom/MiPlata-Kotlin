@@ -11,7 +11,7 @@ import java.io.File
 /* Guarda los datos en un archivo JSON con el MISMO formato que las copias de Mi plata.
    Los cambios se hacen sobre el JSON completo, así nunca se pierde ningún dato que
    esta versión todavía no use (cuotas, IPC, alias de MP, copias, cierres…). */
-class Almacen(carpeta: File) {
+class Almacen(private val carpeta: File) {
     constructor(context: Context) : this(context.filesDir)
     private val archivo = File(carpeta, "estado.json")
     private val respaldo = File(carpeta, "estado.anterior.json")
@@ -287,4 +287,16 @@ class Almacen(carpeta: File) {
             "recal" to JsonNull, "nombre" to JsonPrimitive(nombre), "ipcMig" to JsonPrimitive(1), "tema" to JsonPrimitive("auto"), "color" to JsonPrimitive("verde"),
         )))
     }
+
+    /** Aplica un cambio solo si devuelve algo (no toca la fecha de actualización). */
+    fun cambiarSiHace(f: (JsonObject) -> JsonObject?): Boolean {
+        val nuevo = f(crudo ?: return false) ?: return false
+        guardar(nuevo); return true
+    }
+
+    /* ---- Modo demo: los datos reales se guardan aparte y vuelven al salir ---- */
+    private val real = File(carpeta, "estado.real.json")
+    val enDemo: Boolean get() = real.exists()
+    fun entrarDemo(demo: JsonObject) { if (!enDemo && archivo.exists()) archivo.copyTo(real, overwrite = true); guardar(demo) }
+    fun salirDemo() { if (real.exists()) { val o = Json.parseToJsonElement(real.readText()).jsonObject; guardar(o); real.delete() } }
 }
