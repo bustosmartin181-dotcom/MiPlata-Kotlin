@@ -82,7 +82,7 @@ fun App(almacen: Almacen, version: String) {
                 val tocar: (Movimiento) -> Unit = { editando = it; hojaAbierta = true }
                 when (pestana) {
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar)
-                    Pestana.PLAN -> PantallaPlan(estado) { i, v -> almacen.marcarPagado(i, v); vuelta++ }
+                    Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso)
                     Pestana.DIAS -> PantallaDias(estado, tocar)
                     Pestana.AJUSTES -> PantallaAjustes(version, abrirImportar, abrirExportar)
                 }

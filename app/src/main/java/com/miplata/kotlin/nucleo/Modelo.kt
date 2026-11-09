@@ -44,6 +44,10 @@ data class UsoFondo(val id: Long, val date: String, val amt: Double, val note: S
 
 data class Cuenta(val n: String, val m: Double, val excluida: Boolean = false)
 
+data class Ingreso(val cat: String, val a: Double)
+
+data class Proximo(val n: String, val a: Double)
+
 data class Meta(val id: Long, val n: String, val t: Double, val g0: Double, val f: String)
 
 data class Estado(
@@ -57,6 +61,8 @@ data class Estado(
     val ajustes: List<Ajuste> = emptyList(),
     val cuentas: List<Cuenta> = emptyList(),
     val metas: List<Meta> = emptyList(),
+    val ingresos: List<Ingreso> = emptyList(),
+    val proximos: List<Proximo> = emptyList(),
     val objetivo: Double = 0.0,
     val objetivoDesde: String = "",
     val aviso: Double? = null,
@@ -118,6 +124,8 @@ data class Estado(
             },
             cuentas = o.lista("cuentas").map { Cuenta(it["n"].texto() ?: "", it["m"].num(), it["x"].verdadero()) },
             metas = o.lista("metas").map { Meta(it["id"].num().toLong(), it["n"].texto() ?: "", it["t"].num(), it["g0"].num(), it["f"].texto() ?: "") },
+            ingresos = o.lista("ingresos").map { Ingreso(it["cat"].texto() ?: "Sueldo", it["a"].num()) },
+            proximos = o.lista("proximos").map { Proximo(it["n"].texto() ?: "", it["a"].num()) },
             objetivo = o["objetivo"].num(),
             objetivoDesde = o["objetivoDesde"].texto() ?: "",
             aviso = (o["aviso"] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.let { (it as JsonElement).num() },

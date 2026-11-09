@@ -95,3 +95,55 @@ for (const ruta of copias) {
 if (!copias.length) for (let k = 0; k < 150; k++) agregar('inventado-' + k, estadoInventado());
 fs.writeFileSync(salida, JSON.stringify(casos));
 console.log(casos.length + ' casos guardados en ' + salida);
+
+/* ---- Casos de "período nuevo" y edición de montos: estado antes → estado después (JS original) ---- */
+if (process.env.PERIODO) {
+  const G = new Function(js.slice(ini, fin) + `
+const CAMBIAR_MONTO = (S, k, v, hoy) => {
+  const it = S.items[k], antes = montoDe(it), nuevo = v;
+  if (numeroDeDia(hoy) >= numeroDeDia(S.start) && nuevo !== antes) {
+    const desde = isoDeNumero(Math.min(numeroDeDia(hoy), numeroDeDia(S.end) - 1));
+    if (antes === 0) { it.d = desde; delete it.x; }
+    else if (nuevo > antes) (it.x = it.x || []).push({ amt: redondear2(nuevo - antes), desde });
+    else { let baja = antes - nuevo;
+      while (baja > 0 && it.x && it.x.length) { const u = it.x[it.x.length - 1];
+        if (u.amt > baja) { u.amt = redondear2(u.amt - baja); baja = 0; } else { baja -= u.amt; it.x.pop(); } }
+      if (it.x && !it.x.length) delete it.x; }
+  }
+  it.a = nuevo;
+};
+return { iniciarPeriodo, migrarEstado, CAMBIAR_MONTO, numeroDeDia, isoDeNumero, mesSiguiente };`)();
+  const salidaP = [];
+  for (let k = 0; k < 300; k++) {
+    const S = estadoInventado();
+    S.items.forEach((i, j) => {
+      if (prob(0.25)) i.q = { actual: ent(1, 12), total: ent(1, 12) };
+      if (prob(0.3)) i.f = prob(0.5);
+      if (prob(0.3)) i.v = prob(0.5);
+      if (prob(0.2)) i.prox = prob(0.2) ? '' : monto(1000, 90000);
+      if (prob(0.15)) i.ipc = { prox: '2027-03', cada: 6, partes: 2, ...(prob(0.6) ? { pend: { desde: elegir(['2026-11', '2027-03', '2028-01']), monto: monto(1000, 200000) } } : {}) };
+      if (prob(0.15)) i.mp = 'alias.' + j;
+    });
+    if (prob(0.4)) S.proximos = [{ n: 'Nuevo', a: monto(1000, 50000) }, { n: '', a: 0 }, { n: '', a: '3500' }];
+    if (prob(0.3)) S.meDeben = [{ id: 9, date: S.start, amt: 1234, note: 'x' }];
+    if (prob(0.3)) S.hist = [{ start: '2026-01-01', end: '2026-02-01', sueldo: 1, previo: 0, importantes: 0, gastado: 0, quedo: 1 }];
+    if (prob(0.3)) S.fondoRetirado = monto(0, 20000);
+    S.cierres = { [S.start]: { b: 1, g: 0, l: 1 } };
+    G.migrarEstado(S);
+    const n0 = G.numeroDeDia(S.start), dias = G.numeroDeDia(S.end) - n0;
+    const hoy = G.isoDeNumero(n0 + ent(-2, dias + 2));
+    // edición de monto
+    const S1 = JSON.parse(JSON.stringify(S)), cambios = [];
+    for (let m = 0; m < 3 && S1.items.length; m++) {
+      const kk = ent(0, S1.items.length - 1), v = prob(0.2) ? 0 : monto(0, 300000);
+      G.CAMBIAR_MONTO(S1, kk, v, hoy); cambios.push([kk, v]);
+    }
+    // período nuevo
+    const S2 = JSON.parse(JSON.stringify(S));
+    const inicio = S.end, finP = G.mesSiguiente(S.end), previo = prob(0.5) ? monto(0, 90000) : 0;
+    const terminadas = G.iniciarPeriodo(S2, hoy, { previo, inicio, fin: finP });
+    salidaP.push({ hoy, antes: S, cambios, trasCambios: S1, periodo: { previo, inicio, fin: finP }, despues: S2, terminadas });
+  }
+  fs.writeFileSync(process.env.PERIODO, JSON.stringify(salidaP));
+  console.log(salidaP.length + ' casos de período en ' + process.env.PERIODO);
+}

@@ -50,6 +50,26 @@ class AlmacenTest {
         a.marcarPagado(0, true); assertTrue(a.estado!!.items[0].p)
     }
 
+    @Test fun gastoNuevoSeDescuentaDesdeHoyYPeriodoNuevo() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        val antes = Nucleo.calcular(a.estado!!, hoy)
+        val k = a.agregarItem()
+        a.cambiarItem(k, mapOf("n" to JsonPrimitive("Luz"), "f" to JsonPrimitive(true), "v" to JsonPrimitive(true)))
+        a.cambiarMontoItem(k, 25000.0)
+        val c = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(hoy, a.estado!!.items[k].d)
+        assertEquals(antes.quedaHoy - 25000.0 / antes.faltan, c.quedaHoy, 1e-6)    // repartido entre los días que faltan
+        assertEquals(antes.saldo - 25000, c.saldo, 1e-6)
+        a.guardarIngresos(listOf("Sueldo" to 300000.0, "Changas o trabajo extra" to 50000.0))
+        assertEquals(350000.0, a.estado!!.sueldo, 1e-9)
+        val fin = a.estado!!.end
+        val terminadas = a.periodoNuevo(1000.0, fin, Fechas.mesSiguiente(fin))
+        val e = a.estado!!
+        assertEquals(fin, e.start); assertEquals(0, e.spent.size); assertEquals(1000.0, e.previo, 1e-9)
+        assertEquals(0.0, e.items.first { it.n == "Luz" }.a, 1e-9)        // monto variable: arranca vacío
+        assertTrue(terminadas.isEmpty())
+    }
+
     @Test fun dictado() {
         assertEquals("2800" to "Tortas", interpretarDictado("2800 tortas"))
         assertEquals("2500" to "Nafta", interpretarDictado("2500 pesos en nafta"))
