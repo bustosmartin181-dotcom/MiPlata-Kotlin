@@ -39,6 +39,7 @@ class AlmacenTest {
         val c2 = Nucleo.calcular(a.estado!!, hoy)
         assertEquals(c.quedaHoy, c2.quedaHoy, 1e-6)            // no baja el límite del día
         assertEquals(c.saldo - 5000, c2.saldo, 1e-6)           // pero la plata salió
+        assertEquals(a.estado!!.spent.size, a.estado!!.spent.map { it.id }.toSet().size)   // ids únicos aunque se guarden en el mismo milisegundo
         val id = a.estado!!.spent.first { it.dev == 1 }.id
         a.marcarDevuelto(id)
         assertEquals(c.saldo, Nucleo.calcular(a.estado!!, hoy).saldo, 1e-6)
@@ -123,6 +124,7 @@ class AlmacenTest {
         assertEquals(30000.0, Nucleo.juntadoEnMeta(a.estado!!, a.estado!!.metas.single()), 1e-9)
         assertEquals(antes - 20000, Nucleo.calcular(a.estado!!, hoy).disp - a.estado!!.spent.filter { it.cuentaEnSaldo }.sumOf { it.amt }, 1e-6)
         a.anotar(4000.0, "desayuno", null, false, true)
+        assertEquals(a.estado!!.spent.size, a.estado!!.spent.map { it.id }.toSet().size)   // ids únicos aunque se guarden en el mismo milisegundo
         val id = a.estado!!.spent.first { it.dev == 1 }.id
         a.noPagaron(id, false); assertEquals(0, a.estado!!.spent.first { it.id == id }.dev)
     }

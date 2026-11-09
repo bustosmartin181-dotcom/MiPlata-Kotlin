@@ -46,6 +46,14 @@ class Almacen(private val carpeta: File) {
 
     fun exportar(): String = crudo?.toString() ?: "{}"
 
+    /** Id nuevo y único: la hora en milisegundos, o uno más que el mayor que ya exista (si dos se guardan en el mismo milisegundo). */
+    private fun nuevoId(o: JsonObject?): Long {
+        var max = 0L
+        listOf("spent", "fondoUsos", "ajustes", "metas", "meDeben").forEach { k ->
+            (o?.get(k) as? JsonArray)?.forEach { e -> (e as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull?.let { if (it > max) max = it } } }
+        return maxOf(System.currentTimeMillis(), max + 1)
+    }
+
     private fun cambiar(f: MutableMap<String, JsonElement>.() -> Unit) {
         val m = (crudo ?: return).toMutableMap()
         m.f()
@@ -77,7 +85,7 @@ class Almacen(private val carpeta: File) {
                 if (datos.containsKey("dev") && yaCobrado) viejo["dev"] = JsonPrimitive(2)
                 lista[i] = JsonObject(viejo)
             } else {
-                lista += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis())) + datos)
+                lista += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(crudo))) + datos)
             }
             this["spent"] = JsonArray(lista)
         }
@@ -167,7 +175,7 @@ class Almacen(private val carpeta: File) {
     /** Sacar plata del fondo. para = "hoy" (suma al límite de hoy) o "cubre" (cubre gastos ya hechos). */
     fun usarFondo(monto: Double, nota: String, para: String) = cambiarTodo { o ->
         val l = lista(o, "fondoUsos")
-        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()),
+        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
             "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy")))
         moverEnCuentas(JsonObject(o + ("fondoUsos" to JsonArray(l))), -monto)     // la plata sale de la reserva y vuelve a Mercado Pago
     }
@@ -205,7 +213,7 @@ class Almacen(private val carpeta: File) {
     /** Recomposición: la diferencia con las cuentas se reparte desde mañana (como "Ajustar con las cuentas"). */
     fun agregarRecomposicion(monto: Double) = cambiarTodo { o ->
         val l = lista(o, "ajustes"); val hoy = Fechas.hoy()
-        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(Fechas.manana(hoy)),
+        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(Fechas.manana(hoy)),
             "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive("Recomposición")))
         JsonObject(o + ("ajustes" to JsonArray(l)))
     }
@@ -247,7 +255,7 @@ class Almacen(private val carpeta: File) {
     /* ---- Metas ---- */
     fun guardarMeta(id: Long?, n: String, t: Double, g0: Double, f: String) = cambiarTodo { o ->
         val l = lista(o, "metas")
-        val nueva = JsonObject(mapOf("id" to JsonPrimitive(id ?: System.currentTimeMillis()), "n" to JsonPrimitive(n), "t" to num(t), "g0" to num(g0), "f" to JsonPrimitive(f)))
+        val nueva = JsonObject(mapOf("id" to JsonPrimitive(id ?: nuevoId(o)), "n" to JsonPrimitive(n), "t" to num(t), "g0" to num(g0), "f" to JsonPrimitive(f)))
         val i = l.indexOfFirst { (it as? JsonObject)?.get("id").num().toLong() == id }
         if (id != null && i >= 0) l[i] = JsonObject((l[i] as JsonObject) + nueva) else l += nueva
         JsonObject(o + ("metas" to JsonArray(l)))
@@ -257,7 +265,7 @@ class Almacen(private val carpeta: File) {
     }
     fun aportar(id: Long, nombre: String, monto: Double) = cambiarTodo { o ->
         val l = lista(o, "spent")
-        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()), "amt" to num(monto),
+        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()), "amt" to num(monto),
             "note" to JsonPrimitive("🎯 $nombre"), "meta" to JsonPrimitive(id)))
         JsonObject(o + ("spent" to JsonArray(l)))
     }
@@ -269,7 +277,7 @@ class Almacen(private val carpeta: File) {
         cambiarTodo { o ->
             val x = lista(o, "meDeben").firstOrNull { (it as? JsonObject)?.get("id").num().toLong() == id } as? JsonObject ?: return@cambiarTodo o
             val sp = lista(o, "spent")
-            sp += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "date" to JsonPrimitive(Fechas.hoy()),
+            sp += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
                 "amt" to num(-Math.abs(x["amt"].num())), "note" to JsonPrimitive("Me devolvieron: " + (x["note"].texto() ?: ""))))
             JsonObject(o + mapOf("spent" to JsonArray(sp),
                 "meDeben" to JsonArray(lista(o, "meDeben").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
