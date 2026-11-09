@@ -1,6 +1,7 @@
 package com.miplata.kotlin.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,8 +53,11 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
         }
     }
 
-    Dialog(onDismissRequest = alCerrar, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Column(Modifier.fillMaxSize().background(k.fondo).systemBarsPadding().imePadding()) {
+    androidx.activity.compose.BackHandler(onBack = alCerrar)
+    /* Pantalla completa sobre la app (no una ventana aparte), así respeta la barra de abajo y el teclado */
+    Box(Modifier.fillMaxSize().background(k.fondo)
+        .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {}) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
             Row(Modifier.fillMaxWidth().padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("✨ Preguntale a tu plata", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
