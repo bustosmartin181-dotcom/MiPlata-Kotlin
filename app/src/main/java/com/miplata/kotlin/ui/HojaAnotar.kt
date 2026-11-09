@@ -62,6 +62,7 @@ fun HojaAnotar(
     var categoria by remember { mutableStateOf(editando?.cat) }
     var devuelven by remember { mutableStateOf(editando?.dev == 1 || editando?.dev == 2) }
     var fecha by remember { mutableStateOf(editando?.date ?: hoy) }
+    var calendario by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val foco = remember { FocusRequester() }
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -93,7 +94,7 @@ fun HojaAnotar(
                 OutlinedTextField(
                     value = monto, onValueChange = { monto = it.filter { ch -> ch.isDigit() || ch == ',' || ch == '.' }; error = null },
                     modifier = Modifier.weight(1f).focusRequester(foco),
-                    placeholder = { Text("$0", fontSize = 30.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                    placeholder = { Text("0", fontSize = 30.sp) },
                     prefix = { Text("$", fontSize = 30.sp) },
                     textStyle = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.texto),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
@@ -123,7 +124,15 @@ fun HojaAnotar(
                 Text("Día:", color = k.suave)
                 FilterChip(selected = fecha == hoy, onClick = { fecha = hoy }, label = { Text("Hoy") })
                 FilterChip(selected = fecha == ayer, onClick = { fecha = ayer }, label = { Text("Ayer") })
-                if (fecha != hoy && fecha != ayer) FilterChip(selected = true, onClick = {}, label = { Text(Fechas.diaYMes(fecha)) })
+                FilterChip(selected = fecha != hoy && fecha != ayer, onClick = { calendario = true },
+                    label = { Text(if (fecha != hoy && fecha != ayer) "📅 " + Fechas.diaYMes(fecha) else "📅 Otro día") })
+            }
+            if (calendario) {
+                val inicial = runCatching { java.time.LocalDate.parse(fecha).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull()
+                val est = rememberDatePickerState(initialSelectedDateMillis = inicial)
+                DatePickerDialog(onDismissRequest = { calendario = false },
+                    confirmButton = { TextButton(onClick = { est.selectedDateMillis?.let { fecha = Fechas.iso(it / 86_400_000L) }; calendario = false }) { Text("Listo") } },
+                    dismissButton = { TextButton(onClick = { calendario = false }) { Text("Cancelar") } }) { DatePicker(est) }
             }
             Button(onClick = {
                 val n = aNumero(monto)
