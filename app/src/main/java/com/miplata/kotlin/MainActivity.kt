@@ -40,6 +40,8 @@ class MainActivity : ComponentActivity() {
     private var enSegundoPlanDesde = 0L
     /** Bloqueada con PIN: al abrir, y si estuvo más de un minuto en segundo plano. */
     val bloqueada = mutableStateOf(false)
+    /** color y modo (claro/oscuro/auto) del tema elegido */
+    val apariencia = mutableStateOf("verde" to "auto")
 
     private fun pidePin() = almacen.estado?.let { it.pin.isNotEmpty() && it.pinApp } ?: false
 
@@ -48,8 +50,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         almacen = Almacen(applicationContext)
         bloqueada.value = pidePin()
+        almacen.estado?.let { apariencia.value = it.color to it.tema }
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-        setContent { TemaMiPlata { App(almacen, version, bloqueada) } }
+        setContent { TemaMiPlata(apariencia.value.first, apariencia.value.second) { App(almacen, version, bloqueada) { apariencia.value = it } } }
     }
     override fun onStop() { super.onStop(); enSegundoPlanDesde = System.currentTimeMillis() }
     override fun onStart() {
@@ -64,7 +67,7 @@ enum class Pestana(val titulo: String, val icono: ImageVector) {
 }
 
 @Composable
-fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
+fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alCambiarTema: (Pair<String, String>) -> Unit = {}) {
     val ctx = LocalContext.current
     val k = LocalColores.current
     var vuelta by remember { mutableIntStateOf(0) }          // sube cada vez que cambian los datos
@@ -79,7 +82,16 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
-    LaunchedEffect(vuelta) { runCatching { AvisoReserva.programar(ctx) }; com.miplata.kotlin.widget.Widget.actualizar(ctx) }
+    LaunchedEffect(vuelta) {
+        runCatching { AvisoReserva.programar(ctx) }
+        com.miplata.kotlin.widget.Widget.actualizar(ctx)
+        if (vuelta > 0) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.miplata.kotlin.datos.CopiaAutomatica.guardar(ctx) }
+    }
+    LaunchedEffect(estado?.color, estado?.tema) { estado?.let { alCambiarTema(it.color to it.tema) } }
+    val elegirCopia = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) { com.miplata.kotlin.datos.CopiaAutomatica.elegir(ctx, uri); vuelta++
+            aviso(if (com.miplata.kotlin.datos.CopiaAutomatica.error(ctx) == null) "Copia automática activada" else "No pude escribir ahí: elegí otro lugar") }
+    }
     val pedirNotis = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (!ok) aviso("Sin permiso de notificaciones no te puedo avisar. Activalo en Ajustes del teléfono → Apps → Mi plata K.")
         vuelta++
@@ -118,7 +130,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
         return
     }
 
-    Scaffold(containerColor = k.fondo, bottomBar = {
+    Box(Modifier.fillMaxSize().background(k.fondo)) { FondoArgentina() }
+    Scaffold(containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
         if (estado != null) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
@@ -152,6 +165,15 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
                         tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
                         rendEnMP = { campo("rendEnMP", JsonPrimitive(it)) },
                         abrirPin = { hojaHoy = "pin" },
+                        tema = { campo("tema", JsonPrimitive(it)) },
+                        color = { campo("color", JsonPrimitive(it)) },
+                        copiaElegir = { elegirCopia.launch("mi-plata-copia-automatica.json") },
+                        copiaDesactivar = { com.miplata.kotlin.datos.CopiaAutomatica.desactivar(ctx); vuelta++; aviso("Copia automática desactivada") },
+                        copiaEstado = {
+                            val c = com.miplata.kotlin.datos.CopiaAutomatica
+                            c.error(ctx) ?: c.nombre(ctx)?.let { n -> "Se guarda sola en \"$n\"" + (c.ultima(ctx).takeIf { it > 0 }?.let { t ->
+                                " · última: " + java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale("es", "AR")).format(java.util.Date(t)) } ?: "") }
+                        },
                         pinAlAbrir = { campo("pinApp", JsonPrimitive(it)) },
                         estadoAviso = {
                             (if (AvisoReserva.hayPermiso(ctx)) "Permiso de notificaciones: concedido." else "Falta el permiso de notificaciones: tocá \"Probar aviso\" para darlo.") +

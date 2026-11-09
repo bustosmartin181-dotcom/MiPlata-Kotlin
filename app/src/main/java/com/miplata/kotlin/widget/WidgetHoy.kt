@@ -30,7 +30,7 @@ import java.util.Calendar
    con un botón + y un micrófono que abren la ventanita para anotar sin abrir la app. */
 
 private data class Datos(val queda: Double, val fraccion: Float, val manana: Double?, val fondo: Double?, val clase: String,
-                         val gastoHoy: Double, val oculto: Boolean)
+                         val gastoHoy: Double, val oculto: Boolean, val color: String)
 
 private fun leer(ctx: Context): Datos? {
     val S = Almacen(ctx).estado ?: return null
@@ -38,7 +38,7 @@ private fun leer(ctx: Context): Datos? {
     val presupuesto = c.quedaHoy + c.gastoHoy
     return Datos(c.quedaHoy, if (presupuesto > 0) (c.quedaHoy / presupuesto).coerceIn(0.0, 1.0).toFloat() else 0f, c.manana,
         if (c.fondo.activo) c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0) else null,
-        Nucleo.semaforo(c, S).first, c.gastoHoy, S.pin.isNotEmpty() && S.pinApp)
+        Nucleo.semaforo(c, S).first, c.gastoHoy, S.pin.isNotEmpty() && S.pinApp, S.color)
 }
 
 class WidgetHoy : GlanceAppWidget() {
@@ -56,7 +56,7 @@ class WidgetHoy : GlanceAppWidget() {
         val fondo = when (d?.clase) {
             "neg" -> ColorProvider(Color(0xFFC0392B), Color(0xFF8E2A20))
             "warn" -> ColorProvider(Color(0xFFB4670E), Color(0xFF8A4E0A))
-            else -> ColorProvider(Color(0xFF1E6B47), Color(0xFF184F36))
+            else -> (com.miplata.kotlin.ui.PALETAS[d?.color ?: "verde"] ?: com.miplata.kotlin.ui.PALETAS["verde"]!!).let { ColorProvider(it.claro, it.claro) }
         }
         val blanco = ColorProvider(Color.White, Color.White)
         val suave = ColorProvider(Color(0xDDFFFFFF), Color(0xDDFFFFFF))

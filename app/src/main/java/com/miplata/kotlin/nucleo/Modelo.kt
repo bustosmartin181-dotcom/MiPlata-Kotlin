@@ -89,6 +89,8 @@ data class Estado(
     val pin: String = "",
     val salt: String = "",
     val pinApp: Boolean = true,
+    val tema: String = "auto",
+    val color: String = "verde",
     /** Todo el JSON original: lo que esta versión todavía no usa se conserva al guardar. */
     val crudo: JsonObject = JsonObject(emptyMap()),
 ) {
@@ -162,6 +164,8 @@ data class Estado(
             pin = o["pin"].texto() ?: "",
             salt = o["salt"].texto() ?: "",
             pinApp = (o["pinApp"] as? JsonPrimitive)?.booleanOrNull != false,
+            tema = o["tema"].texto()?.takeIf { it in setOf("auto", "claro", "oscuro") } ?: "auto",
+            color = o["color"].texto()?.takeIf { it.isNotEmpty() } ?: "verde",
             crudo = o,
         )
     }

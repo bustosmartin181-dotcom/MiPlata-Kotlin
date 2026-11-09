@@ -1,5 +1,7 @@
 package com.miplata.kotlin.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +22,8 @@ class AccionesAjustes(
     val rendDisp: (Boolean) -> Unit, val rendFondo: (Boolean) -> Unit, val tasa: (Double) -> Unit, val rendEnMP: (Boolean) -> Unit,
     val estadoAviso: () -> String,
     val abrirPin: () -> Unit, val pinAlAbrir: (Boolean) -> Unit,
+    val tema: (String) -> Unit, val color: (String) -> Unit,
+    val copiaElegir: () -> Unit, val copiaDesactivar: () -> Unit, val copiaEstado: () -> String?,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +47,17 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             OutlinedTextField(avisoPct, { avisoPct = it.filter(Char::isDigit).take(3) }, Modifier.fillMaxWidth(), singleLine = true,
                 label = { Text("Avisarme (naranja) cuando me quede menos de este % del día") }, suffix = { Text("%") })
             Button(onClick = { a.nombre(nombre.trim()); a.aviso((avisoPct.toDoubleOrNull() ?: 20.0).coerceIn(0.0, 100.0)) }) { Text("Guardar") }
+        }
+
+        Tarjeta {
+            Titulo("Apariencia")
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf("auto" to "Automático", "claro" to "Claro", "oscuro" to "Oscuro").forEachIndexed { i, (v, t) ->
+                    SegmentedButton(S.tema == v, { a.tema(v) }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(t, fontSize = 13.sp) }
+                }
+            }
+            Text("Color", color = k.suave, fontSize = 13.sp)
+            SelectorColor(S.color, a.color)
         }
 
         Tarjeta {
@@ -87,6 +102,14 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
         }
 
         Tarjeta {
+            Titulo("Copia automática")
+            val estadoCopia = a.copiaEstado()
+            Subtitulo(estadoCopia ?: "Elegí un archivo una sola vez (en el teléfono o en Drive) y la app lo actualiza sola cada vez que anotás algo. Siempre el mismo archivo, con todo.")
+            Button(onClick = a.copiaElegir, Modifier.fillMaxWidth()) { Text(if (estadoCopia == null) "Activar copia automática" else "Cambiar archivo") }
+            if (estadoCopia != null) TextButton(onClick = a.copiaDesactivar) { Text("Desactivar") }
+        }
+
+        Tarjeta {
             Titulo("Copias de seguridad")
             Subtitulo("Tus datos se guardan solo en este teléfono. Hacé una copia cada tanto.")
             Button(onClick = a.exportar, Modifier.fillMaxWidth()) { Text("Guardar copia (.json)") }
@@ -107,5 +130,30 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             text = { TimePicker(estado) },
             confirmButton = { TextButton(onClick = { a.horaReserva("%02d:%02d".format(estado.hour, estado.minute)); eligiendoHora = false }) { Text("Listo") } },
             dismissButton = { TextButton(onClick = { eligiendoHora = false }) { Text("Cancelar") } })
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SelectorColor(actual: String, alElegir: (String) -> Unit) {
+    val k = LocalColores.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        PALETAS.forEach { (clave, p) ->
+            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                val borde = if (clave == actual) k.texto else androidx.compose.ui.graphics.Color.Transparent
+                androidx.compose.foundation.Canvas(Modifier.size(44.dp)
+                    .border(3.dp, borde, androidx.compose.foundation.shape.CircleShape).padding(5.dp)
+                    .clickable { alElegir(clave) }) {
+                    if (clave == "argentina") {
+                        val cel = androidx.compose.ui.graphics.Color(0xFF74ACDF)
+                        drawCircle(androidx.compose.ui.graphics.Color.White)
+                        drawArc(cel, 180f + 30f, 120f, false)    // franja de arriba
+                        drawArc(cel, 30f, 120f, false)            // franja de abajo
+                        drawCircle(androidx.compose.ui.graphics.Color(0xFFF6B40E), size.minDimension * 0.14f)
+                    } else drawCircle(if (k.oscuro) p.oscuro else p.claro)
+                }
+                Text(p.nombre, fontSize = 11.sp, color = k.suave)
+            }
+        }
     }
 }

@@ -23,13 +23,15 @@ class VentanitaActivity : ComponentActivity() {
         val dictar = intent.getBooleanExtra("dictar", false)
         if (almacen.estado == null) { Toast.makeText(this, "Abrí Mi plata K e importá tu copia primero", Toast.LENGTH_LONG).show(); finish(); return }
         setContent {
-            TemaMiPlata {
+            val e = almacen.estado!!
+            TemaMiPlata(e.color, e.tema) {
                 HojaAnotar(editando = null, alCerrar = { finish() }, dictarAlAbrir = dictar,
                     alGuardar = { m ->
                         almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, null)
                         val c = Nucleo.calcular(almacen.estado!!, Fechas.hoy())
                         Toast.makeText(this, (if (m.entrada) "Entrada anotada" else "Anotado") + ". Te quedan ${pesos(c.quedaHoy)} hoy", Toast.LENGTH_LONG).show()
-                        lifecycleScope.launch { Widget.actualizar(applicationContext); runCatching { AvisoReserva.programar(applicationContext) }; finish() }
+                        lifecycleScope.launch { Widget.actualizar(applicationContext); runCatching { AvisoReserva.programar(applicationContext) }
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.miplata.kotlin.datos.CopiaAutomatica.guardar(applicationContext) }; finish() }
                     },
                     alBorrar = {}, alMarcarDevuelto = {})
             }
