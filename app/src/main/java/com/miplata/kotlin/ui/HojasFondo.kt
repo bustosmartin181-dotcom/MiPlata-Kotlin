@@ -15,7 +15,7 @@ import com.miplata.kotlin.nucleo.*
 
 /** Mi fondo de ahorro: cuánto hay, de dónde salió, y sacar plata. */
 @Composable
-fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, String, String) -> Unit, alQuitarUso: (Int) -> Unit) {
+fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, String, String) -> Unit, alQuitarUso: (Int) -> Unit, alAbrirMP: () -> Unit = {}) {
     val k = LocalColores.current
     val f = c.fondo
     var sacando by remember { mutableStateOf(false) }
@@ -32,6 +32,7 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
         if (retirado > 0) Renglon("Retiraste", pesos(retirado), negrita = false)
         if (f.rend > 0.005) Renglon("Rendimiento estimado", pesos(f.rend), negrita = false)
         if (f.hoySuma >= 1) Text("Esta noche se suman ${pesos(f.hoySuma)} de hoy (si no gastás más).", fontSize = 13.sp, color = k.suave)
+        BotonMP("Abrir Mercado Pago (Reservas)", Modifier.fillMaxWidth(), alAbrirMP)
         if (S.fondoUsos.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
             Text("Retiros de este período", fontWeight = FontWeight.SemiBold, color = k.texto)

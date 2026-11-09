@@ -88,7 +88,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                     Text("Es lo que fue al fondo y todavía no pasaste." + (if (c.fondo.hoySuma >= 1) " Esta noche se suman ${pesos(c.fondo.hoySuma)} de hoy." else ""),
                         fontSize = 13.sp, color = k.suave)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = alAbrirMP, Modifier.weight(1f)) { Text("Abrir Mercado Pago") }
+                        BotonMP("Abrir Mercado Pago", Modifier.weight(1f), alAbrirMP)
                         Button(onClick = { alYaPase(pendiente) }, Modifier.weight(1f)) { Text("Ya lo pasé") }
                     }
                 } else if (pendiente <= -1) Text("Sacaste del fondo más de lo que tenías sin pasar: retirá ${pesos(-pendiente)} de la reserva para que coincida.",

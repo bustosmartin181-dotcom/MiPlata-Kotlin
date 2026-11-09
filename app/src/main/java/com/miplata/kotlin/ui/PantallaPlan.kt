@@ -26,7 +26,7 @@ private sealed interface HojaPlan {
 }
 
 @Composable
-fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (String) -> Unit) {
+fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (String) -> Unit, alPagarMP: (Int) -> Unit = {}) {
     val k = LocalColores.current
     val c = Nucleo.calcular(S, Fechas.hoy())
     var hoja by remember { mutableStateOf<HojaPlan?>(null) }
@@ -71,6 +71,11 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
                         if (marcas.isNotEmpty()) Text(marcas.joinToString(" · "), fontSize = 12.sp, color = k.suave)
                     }
                     Text(pesos(it.a), fontWeight = FontWeight.SemiBold, color = if (it.p) k.suave else k.texto)
+                }
+                if (!it.p && it.a > 0) Row(Modifier.padding(start = 48.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BotonMP("Pagar en Mercado Pago ↗") { alPagarMP(i) }
+                    val dato = it.extra["mp"].texto() ?: it.extra["cod"].texto()
+                    if (dato != null) Text("  copia " + dato.take(18), fontSize = 12.sp, color = k.suave)
                 }
             }
             OutlinedButton(onClick = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) }, Modifier.fillMaxWidth()) {

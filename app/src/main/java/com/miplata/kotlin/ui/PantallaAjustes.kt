@@ -24,6 +24,7 @@ class AccionesAjustes(
     val abrirPin: () -> Unit, val pinAlAbrir: (Boolean) -> Unit,
     val tema: (String) -> Unit, val color: (String) -> Unit,
     val copiaElegir: () -> Unit, val copiaDesactivar: () -> Unit, val copiaEstado: () -> String?,
+    val copiarAlias: () -> Unit = {}, val abrirMP: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -116,6 +117,8 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             OutlinedButton(onClick = a.importar, Modifier.fillMaxWidth()) { Text("Recuperar desde una copia") }
             Text("Las copias son compatibles con tu Mi plata de siempre: podés pasar datos de una a otra.", fontSize = 12.sp, color = k.suave)
         }
+        TarjetaColabora(a.copiarAlias, a.abrirMP)
+
         Tarjeta {
             Titulo("Acerca de")
             Renglon("Versión", version, negrita = false)

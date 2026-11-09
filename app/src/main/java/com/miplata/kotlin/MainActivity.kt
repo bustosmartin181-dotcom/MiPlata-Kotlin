@@ -100,9 +100,29 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     /* Al abrir: si el aviso de la noche está activo y falta el permiso, pedirlo (si no, el aviso queda mudo) */
     LaunchedEffect(Unit) { if (estado?.modoFondo == true && estado.resAviso) asegurarNotis() }
     fun campo(clave: String, valor: kotlinx.serialization.json.JsonElement) { almacen.cambiarCampo(clave, valor); vuelta++ }
-    fun abrirMP() {
-        val i = ctx.packageManager.getLaunchIntentForPackage("com.mercadopago.wallet")
-        if (i != null) ctx.startActivity(i) else aviso("No encontré la app de Mercado Pago")
+    fun abrirMP() { if (!MercadoPago.abrir(ctx)) aviso("No encontré la app de Mercado Pago") }
+
+    /* Pagar un gasto importante en Mercado Pago: copia el alias o código, abre MP,
+       y al volver pregunta "¿Ya lo pagaste?" (como la app original). */
+    var pagando by remember { mutableStateOf<Triple<Int, String, Long>?>(null) }
+    var preguntarPago by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    fun pagarMP(i: Int) {
+        val it = almacen.estado?.items?.getOrNull(i) ?: return
+        val dato = it.extra["mp"].texto() ?: it.extra["cod"].texto()
+        if (dato != null) { MercadoPago.copiar(ctx, "Mercado Pago", dato); aviso((if (it.extra["mp"] != null) "Alias" else "Código") + " copiado: $dato · pegalo en Mercado Pago") }
+        pagando = Triple(i, it.n, System.currentTimeMillis())
+        abrirMP()
+    }
+    val dueño = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(dueño) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            if (ev == androidx.lifecycle.Lifecycle.Event.ON_RESUME) pagando?.let { (i, n, desde) ->
+                if (System.currentTimeMillis() - desde > 2500) { pagando = null
+                    val item = almacen.estado?.items?.getOrNull(i)
+                    if (item != null && !item.p && item.n == n) preguntarPago = i to n }
+            }
+        }
+        dueño.lifecycle.addObserver(obs); onDispose { dueño.lifecycle.removeObserver(obs) }
     }
 
     val importar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -146,7 +166,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") })
-                    Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso)
+                    Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso, ::pagarMP)
                     Pestana.DIAS -> PantallaDias(estado, tocar,
                         alObjetivo = { n -> almacen.aplicarObjetivo(n); vuelta++; aviso(if (n > 0) "Listo: tu límite de hoy ahora es ${pesos(n)}" else "Volviste a tu límite normal") },
                         alRecalibrar = { almacen.recalibrar(); vuelta++; aviso("Recalibrado desde hoy") },
@@ -167,6 +187,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
                         rendEnMP = { campo("rendEnMP", JsonPrimitive(it)) },
                         abrirPin = { hojaHoy = "pin" },
+                        copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
+                        abrirMP = ::abrirMP,
                         tema = { campo("tema", JsonPrimitive(it)) },
                         color = { campo("color", JsonPrimitive(it)) },
                         copiaElegir = { elegirCopia.launch("mi-plata-copia-automatica.json") },
@@ -194,7 +216,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         when (hojaHoy) {
             "fondo" -> if (c.fondo.activo) HojaFondo(estado, c, { hojaHoy = "" },
                 alSacar = { m, n, p -> almacen.usarFondo(m, n, p); vuelta++; hojaHoy = ""; aviso("Listo: sacaste ${pesos(m)} del fondo") },
-                alQuitarUso = { almacen.quitarUsoFondo(it); vuelta++ }) else LaunchedEffect(Unit) { hojaHoy = "" }
+                alQuitarUso = { almacen.quitarUsoFondo(it); vuelta++ }, alAbrirMP = ::abrirMP) else LaunchedEffect(Unit) { hojaHoy = "" }
             "cuentas" -> HojaCuentas(estado, c, { hojaHoy = "" },
                 alGuardar = { almacen.guardarCuentas(it); vuelta++; aviso("Saldos guardados") },
                 alAjustar = { almacen.agregarRecomposicion(it); vuelta++; hojaHoy = ""; aviso("Recomposición anotada") },
@@ -210,6 +232,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                 })
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
+    }
+
+    preguntarPago?.let { (i, n) ->
+        val item = estado?.items?.getOrNull(i)
+        AlertDialog(onDismissRequest = { preguntarPago = null }, title = { Text("¿Ya lo pagaste?") },
+            text = { Text("${n.ifBlank { "Gasto" }} · ${pesos(item?.a ?: 0.0)}") },
+            confirmButton = { TextButton(onClick = { preguntarPago = null; almacen.marcarPagado(i, true); vuelta++; aviso("Marcado como pagado ✅") }) { Text("Sí, marcar pagado") } },
+            dismissButton = { TextButton(onClick = { preguntarPago = null }) { Text("Todavía no") } })
     }
 
     if (hojaAbierta) HojaAnotar(

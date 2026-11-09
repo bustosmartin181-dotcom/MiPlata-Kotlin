@@ -46,6 +46,7 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
     var cuotaTotal by remember { mutableStateOf((item.q?.total ?: 12).toString()) }
     var prox by remember { mutableStateOf(item.extra["prox"]?.let { if (it is JsonPrimitive && it.isString && it.content == "") "" else textoMonto(it.num()) } ?: "") }
     var alias by remember { mutableStateOf(item.extra["mp"].texto() ?: "") }
+    var codigo by remember { mutableStateOf(item.extra["cod"].texto() ?: "") }
     var confirmarQuitar by remember { mutableStateOf(false) }
 
     Hoja(alCerrar, if (esNuevo) "Gasto importante nuevo" else "Gasto importante") {
@@ -64,13 +65,16 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
             OutlinedTextField(cuotaActual, { cuotaActual = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text("Cuota") }, singleLine = true)
             OutlinedTextField(cuotaTotal, { cuotaTotal = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text("de") }, singleLine = true)
         }
-        OutlinedTextField(alias, { alias = it }, Modifier.fillMaxWidth(), label = { Text("Alias o CVU de Mercado Pago (opcional)") }, singleLine = true)
+        OutlinedTextField(alias, { alias = it }, Modifier.fillMaxWidth(), label = { Text("Alias o CVU para transferir (opcional)") }, singleLine = true)
+        OutlinedTextField(codigo, { codigo = it }, Modifier.fillMaxWidth(), label = { Text("Código de pago de la factura (opcional)") }, singleLine = true)
+        Text("Al tocar \"Pagar en Mercado Pago\" se copia el alias (o el código) para que lo pegues en la app de MP.", fontSize = 12.sp, color = k.suave)
         Button(onClick = {
             val campos = mutableMapOf<String, JsonElement?>(
                 "n" to JsonPrimitive(nombre.trim()), "p" to JsonPrimitive(pagado),
                 "f" to JsonPrimitive(repite), "v" to JsonPrimitive(repite && variable),
                 "prox" to if (repite && prox.isNotBlank()) num(aNumero(prox)) else null,
                 "mp" to alias.trim().takeIf { it.isNotEmpty() }?.let { JsonPrimitive(it) },
+                "cod" to codigo.trim().takeIf { it.isNotEmpty() }?.let { JsonPrimitive(it) },
             )
             val total = cuotaTotal.toIntOrNull() ?: 0
             campos["q"] = if (conCuotas && total > 1) {
