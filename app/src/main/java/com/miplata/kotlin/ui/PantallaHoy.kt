@@ -24,7 +24,7 @@ import java.time.LocalTime
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
-                alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}) {
+                alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -48,6 +48,17 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 Icon(Icons.Outlined.LocalFireDepartment, null, tint = k.verde, modifier = Modifier.size(18.dp))
                 Text(" ${racha.racha}", color = k.verde, fontWeight = FontWeight.Bold)
             }
+        }
+
+        /* Cerca del cobro: atajo para empezar el período nuevo */
+        val diasAlFin = Fechas.dia(S.end) - Fechas.dia(hoy)
+        if (diasAlFin <= 2) Row(Modifier.fillMaxWidth().background(k.verdeClaro, RoundedCornerShape(18.dp)).padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if (diasAlFin <= 0) "¡Ya cobraste!" else "Cobrás el ${Fechas.diaYMes(S.end)}", fontWeight = FontWeight.Bold, color = k.verde)
+                Text("Cuando cobres, empezá el período nuevo.", fontSize = 13.sp, color = k.suave)
+            }
+            Button(onClick = alPeriodoNuevo) { Text("Empezar") }
         }
 
         /* Lo principal: cuánto te queda hoy */

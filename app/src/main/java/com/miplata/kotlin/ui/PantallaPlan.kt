@@ -26,15 +26,19 @@ private sealed interface HojaPlan {
 }
 
 @Composable
-fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (String) -> Unit, alPagarMP: (Int) -> Unit = {}) {
+fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (String) -> Unit, alPagarMP: (Int) -> Unit = {}, abrirPeriodoNuevo: Boolean = false, alAbrirPeriodo: () -> Unit = {}) {
     val k = LocalColores.current
     val c = Nucleo.calcular(S, Fechas.hoy())
-    var hoja by remember { mutableStateOf<HojaPlan?>(null) }
+    var hoja by remember { mutableStateOf<HojaPlan?>(if (abrirPeriodoNuevo) HojaPlan.Nuevo else null) }
+    LaunchedEffect(abrirPeriodoNuevo) { if (abrirPeriodoNuevo) { hoja = HojaPlan.Nuevo; alAbrirPeriodo() } }
     var filtro by rememberSaveable { mutableIntStateOf(0) }   // 0 todos, 1 pendientes, 2 pagados
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Plan del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Plan del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.weight(1f))
+            FilledTonalButton(onClick = { hoja = HojaPlan.Nuevo }) { Text("Período nuevo") }
+        }
 
         Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {
             Renglon("Período", "${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)}")

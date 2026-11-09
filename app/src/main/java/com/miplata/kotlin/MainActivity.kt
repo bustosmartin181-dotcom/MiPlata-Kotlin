@@ -78,6 +78,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     var editando by remember { mutableStateOf<Movimiento?>(null) }
     var hojaHoy by remember { mutableStateOf("") }          // "fondo", "cuentas", "pase", "pin"
     var errorPin by remember { mutableStateOf<String?>(null) }
+    var irAPeriodoNuevo by remember { mutableStateOf(false) }
     var pendientePase by remember { mutableDoubleStateOf(0.0) }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
@@ -165,8 +166,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
-                        alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") })
-                    Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso, ::pagarMP)
+                        alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
+                        alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN })
+                    Pestana.PLAN -> PantallaPlan(estado, almacen, { vuelta++ }, ::aviso, ::pagarMP, irAPeriodoNuevo) { irAPeriodoNuevo = false }
                     Pestana.DIAS -> PantallaDias(estado, tocar,
                         alObjetivo = { n -> almacen.aplicarObjetivo(n); vuelta++; aviso(if (n > 0) "Listo: tu límite de hoy ahora es ${pesos(n)}" else "Volviste a tu límite normal") },
                         alRecalibrar = { almacen.recalibrar(); vuelta++; aviso("Recalibrado desde hoy") },
