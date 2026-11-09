@@ -29,6 +29,7 @@ class AccionesAjustes(
     val ocultar: (Boolean) -> Unit = {}, val recordatorio: (Boolean) -> Unit = {}, val horaRecordatorio: (String) -> Unit = {},
     val excel: () -> Unit = {}, val pdf: () -> Unit = {}, val copias: List<String> = emptyList(), val restaurarCierre: (Int) -> Unit = {},
     val demo: (Boolean) -> Unit = {},
+    val abrirWebIA: () -> Unit = {}, val avisar: (String) -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,6 +145,8 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 OutlinedButton(onClick = a.pdf, Modifier.weight(1f)) { Text("PDF") }
             }
         }
+
+        TarjetaIA(a.abrirWebIA, a.avisar)
 
         TarjetaCierres(a.copias, a.restaurarCierre)
 

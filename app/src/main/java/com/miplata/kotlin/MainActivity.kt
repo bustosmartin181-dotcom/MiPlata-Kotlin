@@ -201,6 +201,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alIrAPlan = { pestana = Pestana.PLAN },
                         alOjo = { if (Privacidad.mostrando || estado.pin.isEmpty()) Privacidad.mostrando = !Privacidad.mostrando else pidiendoPinOjo = true },
                         alCompartir = { hojaHoy = "resumen" },
+                        alIA = { hojaHoy = "ia" },
                         alSalirDemo = { almacen.salirDemo(); vuelta++; aviso("Volviste a tus datos") },
                         avisoCopia = run {
                             val auto = com.miplata.kotlin.datos.CopiaAutomatica.uri(ctx) != null
@@ -236,6 +237,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         abrirPin = { hojaHoy = "pin" },
                         copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
                         abrirMP = ::abrirMP,
+                        abrirWebIA = { runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://aistudio.google.com/apikey"))) } },
+                        avisar = ::aviso,
                         ocultar = { campo("ocultar", JsonPrimitive(it)) },
                         recordatorio = { on -> campo("recOn", JsonPrimitive(on)); if (on) { asegurarNotis(); aviso("Te recuerdo todos los días a las ${estado.recHora}") } },
                         horaRecordatorio = { campo("recHora", JsonPrimitive(it)); aviso("Te recuerdo a las $it") },
@@ -290,6 +294,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                     if (!almacen.pinCorrecto(actual)) "Escribí el PIN actual para quitarlo."
                     else { almacen.quitarPin(); vuelta++; hojaHoy = ""; aviso("PIN quitado"); null }
                 })
+            "ia" -> PantallaIA(estado, { hojaHoy = "" }) { hojaHoy = ""; pestana = Pestana.AJUSTES }
             "resumen" -> HojaResumen(com.miplata.kotlin.exportar.Exportar.resumenTexto(estado, Fechas.hoy()), { hojaHoy = "" },
                 alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
                 alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
