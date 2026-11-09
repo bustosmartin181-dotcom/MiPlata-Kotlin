@@ -21,6 +21,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".widget.VentanitaActivity"
+            android:exported="false"
+            android:theme="@style/Ventanita"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.miplata.kotlin.ventanita"
+            android:windowSoftInputMode="adjustResize" />
+        <receiver android:name=".widget.ReceptorWidgetHoy" android:exported="true" android:label="Mi plata K · Hoy">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_hoy" />
+        </receiver>
         <receiver android:name=".aviso.ReceptorAviso" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

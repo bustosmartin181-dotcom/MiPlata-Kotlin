@@ -79,7 +79,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>) {
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
-    LaunchedEffect(vuelta) { runCatching { AvisoReserva.programar(ctx) } }
+    LaunchedEffect(vuelta) { runCatching { AvisoReserva.programar(ctx) }; com.miplata.kotlin.widget.Widget.actualizar(ctx) }
     val pedirNotis = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (!ok) aviso("Sin permiso de notificaciones no te puedo avisar. Activalo en Ajustes del teléfono → Apps → Mi plata K.")
         vuelta++

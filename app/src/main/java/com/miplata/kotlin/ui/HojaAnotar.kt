@@ -51,6 +51,7 @@ fun HojaAnotar(
     alGuardar: (NuevoMovimiento) -> Unit,
     alBorrar: (Long) -> Unit,
     alMarcarDevuelto: (Long) -> Unit,
+    dictarAlAbrir: Boolean = false,
 ) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
@@ -73,7 +74,13 @@ fun HojaAnotar(
             if (n.isNotEmpty()) nota = n
         }
     }
-    LaunchedEffect(Unit) { if (editando == null) runCatching { foco.requestFocus() } }
+    fun lanzarDictado() = runCatching {
+        dictar.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
+            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Decí el monto y en qué, ej: 2800 tortas"))
+    }.onFailure { error = "Este teléfono no tiene dictado por voz." }
+    LaunchedEffect(Unit) { if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
 
     ModalBottomSheet(onDismissRequest = alCerrar, sheetState = estado, containerColor = k.tarjeta) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
@@ -94,14 +101,7 @@ fun HojaAnotar(
                     label = { Text("Monto") },
                 )
                 Spacer(Modifier.width(8.dp))
-                FilledTonalIconButton(onClick = {
-                    runCatching {
-                        dictar.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
-                            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Decí el monto y en qué, ej: 2800 tortas"))
-                    }.onFailure { error = "Este teléfono no tiene dictado por voz." }
-                }, modifier = Modifier.size(56.dp)) { Icon(Icons.Outlined.Mic, contentDescription = "Dictar por voz") }
+                FilledTonalIconButton(onClick = { lanzarDictado() }, modifier = Modifier.size(56.dp)) { Icon(Icons.Outlined.Mic, contentDescription = "Dictar por voz") }
             }
             OutlinedTextField(nota, { nota = it }, Modifier.fillMaxWidth(), label = { Text("Detalle") },
                 placeholder = { Text(if (entrada) "Ej: me devolvió Orlando" else "Ej: tortas") }, singleLine = true)
