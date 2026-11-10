@@ -68,14 +68,15 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
     "10.3" to listOf("🎬 Demo automática para grabar videos: se escribe sola, con cuenta regresiva y frases (Ajustes → Modo demo → Reproducir)",
-        "La demo muestra el aviso de IPC del alquiler y calcula el aumento"),
+        "La demo muestra el aviso de IPC del alquiler y calcula el aumento",
+        "La app ahora se llama Mi plata: así figura en el cajón de aplicaciones, el widget y los archivos"),
     "10.2" to listOf("Mis cuentas: cada gasto que anotás baja solo el saldo de Mercado Pago (y cada entrada lo sube)",
         "\"Ya pasé a la reserva\" desde Ajustes también mueve la plata de Mercado Pago a la Reserva",
         "Si te olvidaste un gasto, lo anotás desde Mis cuentas sin descontarlo dos veces"),
     "10.1" to listOf("Temas de colores (incluido Argentina 🇦🇷) y modo claro/oscuro", "Copia automática en un solo archivo (también en Drive)",
         "Pagar al cobrar con botón de Mercado Pago y Detalles", "IPC para pagos que se actualizan cada 6 meses", "Exportar a Excel y PDF, resumen para compartir",
         "Recordatorio diario, ocultar montos, cierre nocturno y modo demo"),
-    "10.0" to listOf("Mi plata K: la app hecha de nuevo, nativa de Android (Kotlin)", "Mismas cuentas que Mi plata, comprobadas con miles de casos",
+    "10.0" to listOf("Mi plata hecha de nuevo, nativa de Android (Kotlin)", "Mismas cuentas que Mi plata, comprobadas con miles de casos",
         "Widget con ventanita para anotar sin abrir la app", "Fondo de ahorro, aviso nocturno de la reserva, cuentas, metas, objetivo, PIN"),
 )
 

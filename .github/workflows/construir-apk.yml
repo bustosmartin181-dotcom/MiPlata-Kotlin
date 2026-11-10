@@ -41,10 +41,10 @@ jobs:
         run: ./gradlew :app:assembleRelease
 
       - name: Ponerle nombre con la versión
-        run: cp app/build/outputs/apk/release/app-release.apk "MiPlataK-10.0.${{ github.run_number }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "MiPlata-10.0.${{ github.run_number }}.apk"
 
       - name: Subir el APK
         uses: actions/upload-artifact@v4
         with:
-          name: MiPlataK-APK
-          path: MiPlataK-*.apk
+          name: MiPlata-APK
+          path: MiPlata-*.apk

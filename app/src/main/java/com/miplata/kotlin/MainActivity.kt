@@ -107,7 +107,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
             .onSuccess { aviso("Excel guardado") }.onFailure { aviso("No pude guardar el Excel") }
     }
     val exportarPdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
-        if (uri != null && estado != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { com.miplata.kotlin.exportar.Exportar.pdf(com.miplata.kotlin.exportar.Exportar.datos(estado, Fechas.hoy()), "Mi plata K v$version", it) } }
+        if (uri != null && estado != null) runCatching { ctx.contentResolver.openOutputStream(uri)!!.use { com.miplata.kotlin.exportar.Exportar.pdf(com.miplata.kotlin.exportar.Exportar.datos(estado, Fechas.hoy()), "Mi plata v$version", it) } }
             .onSuccess { aviso("PDF guardado") }.onFailure { aviso("No pude guardar el PDF") }
     }
     var pidiendoPinOjo by remember { mutableStateOf(false) }
@@ -123,7 +123,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
             aviso(if (com.miplata.kotlin.datos.CopiaAutomatica.error(ctx) == null) "Copia automática activada" else "No pude escribir ahí: elegí otro lugar") }
     }
     val pedirNotis = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        if (!ok) aviso("Sin permiso de notificaciones no te puedo avisar. Activalo en Ajustes del teléfono → Apps → Mi plata K.")
+        if (!ok) aviso("Sin permiso de notificaciones no te puedo avisar. Activalo en Ajustes del teléfono → Apps → Mi plata.")
         vuelta++
     }
     fun asegurarNotis() { if (!AvisoReserva.hayPermiso(ctx) && android.os.Build.VERSION.SDK_INT >= 33) pedirNotis.launch(android.Manifest.permission.POST_NOTIFICATIONS) }

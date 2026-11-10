@@ -26,7 +26,7 @@ import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.ui.pesos
 import java.util.Calendar
 
-/* Widget "Mi plata K · Hoy": lo que te queda hoy, una barrita, mañana y el fondo,
+/* Widget "Mi plata · Hoy": lo que te queda hoy, una barrita, mañana y el fondo,
    con un botón + y un micrófono que abren la ventanita para anotar sin abrir la app. */
 
 private data class Datos(val queda: Double, val fraccion: Float, val manana: Double?, val fondo: Double?, val clase: String,
@@ -65,7 +65,7 @@ class WidgetHoy : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically) {
             Column(GlanceModifier.defaultWeight().clickable(abrirApp)) {
                 if (d == null) {
-                    Text("Mi plata K", style = TextStyle(color = blanco, fontSize = 18.sp, fontWeight = FontWeight.Bold))
+                    Text("Mi plata", style = TextStyle(color = blanco, fontSize = 18.sp, fontWeight = FontWeight.Bold))
                     Text("Abrí la app e importá tu copia", style = TextStyle(color = suave, fontSize = 13.sp))
                 } else {
                     Text("Te queda hoy", style = TextStyle(color = suave, fontSize = 13.sp))

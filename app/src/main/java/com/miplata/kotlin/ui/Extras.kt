@@ -173,7 +173,7 @@ fun PantallaBloqueo(error: String?, alProbar: (String) -> Unit) {
     var pin by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().background(k.fondo).padding(32.dp), verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Mi plata K", fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.verde)
+        Text("Mi plata", fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.verde)
         Spacer(Modifier.height(20.dp))
         CampoPin(pin, { pin = it }, "Ingresá tu PIN")
         error?.let { Text(it, color = k.rojo, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp)) }

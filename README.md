@@ -18,7 +18,7 @@ Versión nueva de "Mi plata", hecha desde cero en Kotlin + Jetpack Compose.
 
 ## Cómo se compila
 El APK se arma solo con GitHub Actions al subir cambios a `main`.
-Se descarga desde la pestaña **Actions** → última ejecución → **Artifacts** → `MiPlataK-APK`.
+Se descarga desde la pestaña **Actions** → última ejecución → **Artifacts** → `MiPlata-APK`.
 Siempre se firma con la misma clave (guardada en los secretos del repo `MIPLATA_KEYSTORE` y `MIPLATA_CLAVE`), así cada versión se instala encima de la anterior.
 
 ## Cómo se comprueban las cuentas
@@ -32,7 +32,7 @@ la prueba `NucleoContraOriginalTest` exige que Kotlin dé exactamente lo mismo. 
 - ✅ Etapa 3a: Plan completo — agregar/editar/quitar gastos importantes (se repite, monto variable, cuotas, monto del próximo período, alias de MP), ingresos, fechas del período, gastos para el próximo período y **empezar período nuevo** (verificado contra el original con 300 casos).
 - ✅ Etapa 3b: fondo de ahorro (activar, sacar plata, "Para pasar a tu reserva", "Ya lo pasé"), aviso nocturno con el monto real del momento, rendimientos de Mercado Pago, cuentas con diferencia y recomposiciones.
 - ✅ Etapa 3c: metas, objetivo por día (con escenarios), recalibrar, lista "Me deben" y PIN (compatible con el de Mi plata).
-- ✅ Etapa 4: widget "Mi plata K · Hoy" (lo que queda hoy, barrita, mañana, fondo; botones + y micrófono) y ventanita para anotar sobre la pantalla de inicio, que guarda directo. Se actualiza al anotar y a la medianoche.
-- ✅ Etapa 4: widget "Mi plata K · Hoy" (lo que queda hoy, barrita, mañana, fondo; botones + y micrófono) y ventanita para anotar sobre la pantalla de inicio, que guarda directo. Se actualiza al anotar y a la medianoche.
+- ✅ Etapa 4: widget "Mi plata · Hoy" (lo que queda hoy, barrita, mañana, fondo; botones + y micrófono) y ventanita para anotar sobre la pantalla de inicio, que guarda directo. Se actualiza al anotar y a la medianoche.
+- ✅ Etapa 4: widget "Mi plata · Hoy" (lo que queda hoy, barrita, mañana, fondo; botones + y micrófono) y ventanita para anotar sobre la pantalla de inicio, que guarda directo. Se actualiza al anotar y a la medianoche.
 
 Autor: Martín Bustos

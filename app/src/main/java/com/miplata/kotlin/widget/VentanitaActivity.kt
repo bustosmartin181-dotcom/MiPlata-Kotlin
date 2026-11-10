@@ -21,7 +21,7 @@ class VentanitaActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val almacen = Almacen(applicationContext)
         val dictar = intent.getBooleanExtra("dictar", false)
-        if (almacen.estado == null) { Toast.makeText(this, "Abrí Mi plata K e importá tu copia primero", Toast.LENGTH_LONG).show(); finish(); return }
+        if (almacen.estado == null) { Toast.makeText(this, "Abrí Mi plata e importá tu copia primero", Toast.LENGTH_LONG).show(); finish(); return }
         setContent {
             val e = almacen.estado!!
             TemaMiPlata(e.color, e.tema) {

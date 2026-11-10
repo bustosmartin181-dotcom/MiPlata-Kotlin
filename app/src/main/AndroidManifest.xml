@@ -12,7 +12,7 @@
     </queries>
     <application
         android:allowBackup="true"
-        android:label="Mi plata K"
+        android:label="Mi plata"
         android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
@@ -32,7 +32,7 @@
             android:excludeFromRecents="true"
             android:taskAffinity="com.miplata.kotlin.ventanita"
             android:windowSoftInputMode="adjustResize" />
-        <receiver android:name=".widget.ReceptorWidgetHoy" android:exported="true" android:label="Mi plata K · Hoy">
+        <receiver android:name=".widget.ReceptorWidgetHoy" android:exported="true" android:label="Mi plata · Hoy">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
