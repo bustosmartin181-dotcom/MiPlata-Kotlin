@@ -43,7 +43,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.demo("hoy.arriba"), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("${saludoSegunHora(LocalTime.now().hour)}, $nombre", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
                 Text(fraseDeEstado(c, clase), fontSize = 14.sp, color = k.suave)
@@ -60,7 +60,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             }
         }
 
-        if (S.demo) Row(Modifier.fillMaxWidth().background(k.naranja, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
+        if (S.demo && !Demo.corriendo) Row(Modifier.fillMaxWidth().background(k.naranja, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text("🎬 Modo demo: datos de ejemplo", Modifier.weight(1f), color = Color.White, fontWeight = FontWeight.SemiBold)
             TextButton(onClick = alSalirDemo, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Salir") }
@@ -81,12 +81,14 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         /* Aviso de IPC: toca actualizar un gasto (por ejemplo, el pago a Alejandro) */
         val ipcConocidos = Ipc.conocidos(androidx.compose.ui.platform.LocalContext.current)
         S.items.filter { it -> Ipc.de(it)?.let { d -> Ipc.toca(d, hoy, ipcConocidos) } == true }.forEach { it ->
-            Row(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().demo("hoy.ipc")
+                .then(if (Demo.resaltado == "hoy.ipc") Modifier.border(3.dp, k.naranja, RoundedCornerShape(18.dp)) else Modifier)
+                .background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("📈 Toca actualizar: ${it.n}", fontWeight = FontWeight.Bold, color = k.naranja)
                     Text("Ya salió la inflación que se usa. Calculá el monto nuevo para pagar desde ${mesYAnio(Ipc.de(it)!!.prox)}.", fontSize = 13.sp, color = k.suave)
                 }
-                TextButton(onClick = alIrAPlan) { Text("Ver") }
+                TextButton(onClick = alIrAPlan, Modifier.demo("hoy.ipc.ver", alIrAPlan)) { Text("Ver") }
             }
         }
 
@@ -98,7 +100,12 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             LinearProgressIndicator(progress = { fraccion }, modifier = Modifier.fillMaxWidth().height(8.dp),
                 color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
             Text("Presupuesto ${dinero(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
-            c.manana?.let { Text("Mañana tendrás ${dinero(it)}", color = sobreHero, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            c.manana?.let {
+                val luz = Demo.resaltado == "hoy.manana"
+                Text("Mañana tendrás ${dinero(it)}", Modifier.demo("hoy.manana")
+                    .then(if (luz) Modifier.border(3.dp, sobreHero, RoundedCornerShape(10.dp)).background(sobreHero.copy(alpha = 0.18f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp) else Modifier),
+                    color = sobreHero, fontSize = if (luz) 21.sp else 16.sp, fontWeight = if (luz) FontWeight.Bold else FontWeight.SemiBold)
+            }
             if (c.fondo.activo && c.fondo.hoySuma > 0)
                 Text("Lo que no gastes hoy va a tu fondo: ${dinero(c.fondo.hoySuma)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
         }

@@ -5,7 +5,9 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -81,9 +83,14 @@ fun HojaAnotar(
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
             .putExtra(RecognizerIntent.EXTRA_PROMPT, "Decí el monto y en qué, ej: 2800 tortas"))
     }.onFailure { error = "Este teléfono no tiene dictado por voz." }
-    LaunchedEffect(Unit) { if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
+    LaunchedEffect(Unit) { if (Demo.corriendo) return@LaunchedEffect; if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
+    val guardarClick: () -> Unit = {
+        val n = aNumero(monto)
+        if (n <= 0) error = "Escribí un monto"
+        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven, fecha, editando?.id))
+    }
 
-    ModalBottomSheet(onDismissRequest = alCerrar, sheetState = estado, containerColor = k.tarjeta) {
+    val contenido: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -93,7 +100,8 @@ fun HojaAnotar(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = monto, onValueChange = { monto = it.filter { ch -> ch.isDigit() || ch == ',' || ch == '.' }; error = null },
-                    modifier = Modifier.weight(1f).focusRequester(foco),
+                    modifier = Modifier.weight(1f).focusRequester(foco).demo("an.monto", escribir = { monto = it }),
+                    visualTransformation = cursorDemo("an.monto"),
                     placeholder = { Text("0", fontSize = 30.sp) },
                     prefix = { Text("$", fontSize = 30.sp) },
                     textStyle = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.texto),
@@ -104,12 +112,13 @@ fun HojaAnotar(
                 Spacer(Modifier.width(8.dp))
                 FilledTonalIconButton(onClick = { lanzarDictado() }, modifier = Modifier.size(56.dp)) { Icon(Icons.Outlined.Mic, contentDescription = "Dictar por voz") }
             }
-            OutlinedTextField(nota, { nota = it }, Modifier.fillMaxWidth(), label = { Text("Detalle") },
+            OutlinedTextField(nota, { nota = it }, Modifier.fillMaxWidth().demo("an.nota", escribir = { nota = it }), label = { Text("Detalle") }, visualTransformation = cursorDemo("an.nota"),
                 placeholder = { Text(if (entrada) "Ej: me devolvió Orlando" else "Ej: tortas") }, singleLine = true)
             if (!entrada) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CATEGORIAS.forEach { cat ->
-                        FilterChip(selected = categoria == cat, onClick = { categoria = if (categoria == cat) null else cat }, label = { Text(cat) })
+                        FilterChip(selected = categoria == cat, onClick = { categoria = if (categoria == cat) null else cat }, label = { Text(cat) },
+                            modifier = Modifier.demo("an.cat.$cat", accion = { categoria = cat }))
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -134,11 +143,7 @@ fun HojaAnotar(
                     confirmButton = { TextButton(onClick = { est.selectedDateMillis?.let { fecha = Fechas.iso(it / 86_400_000L) }; calendario = false }) { Text("Listo") } },
                     dismissButton = { TextButton(onClick = { calendario = false }) { Text("Cancelar") } }) { DatePicker(est) }
             }
-            Button(onClick = {
-                val n = aNumero(monto)
-                if (n <= 0) { error = "Escribí un monto"; return@Button }
-                alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven, fecha, editando?.id))
-            }, modifier = Modifier.fillMaxWidth().height(54.dp)) {
+            Button(onClick = guardarClick, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
                 Text(if (editando != null) "Guardar cambios" else if (entrada) "Anotar entrada" else "Anotar gasto", fontSize = 17.sp)
             }
             if (editando != null) {
@@ -148,4 +153,6 @@ fun HojaAnotar(
             }
         }
     }
+    if (Demo.corriendo) HojaEnLinea(contenido)
+    else ModalBottomSheet(onDismissRequest = alCerrar, sheetState = estado, containerColor = k.tarjeta) { contenido() }
 }

@@ -142,7 +142,7 @@ fun HojaIPC(item: Item, alCerrar: () -> Unit, alGuardar: (cadaUno: Double, facto
         if (d.partes > 1) Renglon("Cada uno pone", pesos(cada), colorDer = k.verde)
         if (faltan > 0) Text("$faltan ${if (faltan == 1) "mes es estimado" else "meses son estimados"} (promedio de los últimos 3 publicados): es una estimación, no lo guardes todavía. Cuando el INDEC los publique se reemplazan solos y te aparece el aviso.", color = k.naranja, fontSize = 13.sp)
         Text("Rige desde ${mesYAnio(d.prox)}.", fontSize = 13.sp, color = k.suave)
-        Button(onClick = { if (faltan > 0) confirmar = true else alGuardar(cada, factor) }, Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar monto nuevo") }
+        Button(onClick = { if (faltan > 0) confirmar = true else alGuardar(cada, factor) }, Modifier.fillMaxWidth().height(52.dp).demo("ipc.guardar", accion = { if (faltan > 0) confirmar = true else alGuardar(cada, factor) })) { Text("Guardar monto nuevo") }
     }
     if (confirmar) AlertDialog(onDismissRequest = { confirmar = false }, title = { Text("Faltan meses de inflación") },
         text = { Text("¿Guardar igual este monto?") },

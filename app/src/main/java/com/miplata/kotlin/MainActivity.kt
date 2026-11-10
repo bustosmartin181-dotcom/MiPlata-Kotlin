@@ -34,6 +34,7 @@ import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Movimiento
 import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.*
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var almacen: Almacen
@@ -167,6 +168,18 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         }.onSuccess { aviso("Copia guardada"); ctx.getSharedPreferences("aviso_copia", android.content.Context.MODE_PRIVATE).edit().putLong("ultima", System.currentTimeMillis()).apply() }
             .onFailure { aviso("No pude guardar la copia") }
     }
+    /* Demo automática: arranca siempre de los mismos datos de ejemplo y al terminar los deja limpios */
+    val alcance = rememberCoroutineScope()
+    fun cargarDemo() { almacen.entrarDemo(estadoDemo(almacen.crudo)); hojaAbierta = false; editando = null; hojaHoy = ""; vuelta++ }
+    fun reproducirDemo() { alcance.launch {
+        Demo.correr(preparar = { cargarDemo(); pestana = Pestana.HOY },
+            guion = { guionMiPlata(
+                calculo = { almacen.estado?.let { Nucleo.calcular(it, Fechas.hoy()) } },
+                ultimoGasto = { almacen.estado?.spent?.maxByOrNull { it.id }?.id },
+                borrar = { almacen.borrarMovimiento(it); vuelta++ },
+                reiniciar = { }) },
+            alTerminar = { cargarDemo() })
+    } }
     val abrirImportar = { importar.launch(arrayOf("application/json", "text/plain", "*/*")) }
     val abrirExportar = { exportar.launch("mi-plata-copia-${Fechas.hoy()}.json") }
 
@@ -184,11 +197,12 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
 
     Box(Modifier.fillMaxSize().background(k.fondo)) { FondoArgentina() }
     Scaffold(containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
-        if (estado != null) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
+        if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
-            if (estado == null) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
-                almacen.empezarDeCero(n, sueldo, ini, fin, gastos); vuelta++; aviso("¡Bienvenido a Mi plata!") }
+            if (estado == null || Demo.bienvenida) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
+                if (Demo.corriendo) { almacen.entrarDemo(estadoDemo(almacen.crudo)); Demo.bienvenida = false; pestana = Pestana.HOY; vuelta++ }
+                else { almacen.empezarDeCero(n, sueldo, ini, fin, gastos); vuelta++; aviso("¡Bienvenido a Mi plata!") } }
             else {
                 val tocar: (Movimiento) -> Unit = { editando = it; hojaAbierta = true }
                 when (pestana) {
@@ -247,6 +261,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         pdf = { exportarPdf.launch("mi-plata-${Fechas.hoy()}.pdf") },
                         copias = (estado.crudo["copias"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonObject)?.get("iso").texto() } ?: emptyList(),
                         restaurarCierre = { i -> if (almacen.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.restaurarCierre(it, i) }) { vuelta++; aviso("Restaurado") } },
+                        reproducirDemo = ::reproducirDemo,
                         demo = { on -> if (on) { almacen.entrarDemo(estadoDemo(almacen.crudo)); pestana = Pestana.HOY; aviso("Modo demo: tus datos quedaron guardados aparte") }
                                        else { almacen.salirDemo(); aviso("Volviste a tus datos") }; vuelta++ },
                         borrarTodo = { pin ->
@@ -332,6 +347,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
     )
+
+    CapaDemo()
 }
 
 @Composable
@@ -341,7 +358,7 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
         @Composable fun Boton(p: Pestana) {
             val elegido = p == actual
-            Column(Modifier.weight(1f).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.weight(1f).demo("nav.${p.name}", accion = { alElegir(p) }).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.background(if (elegido) k.verdeClaro else k.tarjeta, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 4.dp)) {
                     Icon(p.icono, null, tint = if (elegido) k.verde else k.suave)
                 }
@@ -350,7 +367,7 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         }
         Boton(Pestana.HOY); Boton(Pestana.PLAN)
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            FloatingActionButton(onClick = alSumar, shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
+            FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
                 elevation = FloatingActionButtonDefaults.elevation(2.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto")
             }

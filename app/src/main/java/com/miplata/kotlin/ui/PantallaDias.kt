@@ -24,7 +24,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
     val c = Nucleo.calcular(S, hoy)
     val dias = Nucleo.diasDelPeriodo(S, hoy, c)
     var abierto by remember { mutableStateOf(c.hoyIdx) }
-    val lista = rememberLazyListState(initialFirstVisibleItemIndex = maxOf(0, c.hoyIdx))
+    val lista = rememberLazyListState(initialFirstVisibleItemIndex = if (Demo.corriendo) 0 else maxOf(0, c.hoyIdx))
 
     LazyColumn(state = lista, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {

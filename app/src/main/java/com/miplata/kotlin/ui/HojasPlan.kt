@@ -22,13 +22,15 @@ private val CATEGORIAS_INGRESO = listOf("Sueldo", "Trabajo independiente", "Efec
 @Composable
 fun Hoja(alCerrar: () -> Unit, titulo: String, contenido: @Composable ColumnScope.() -> Unit) {
     val k = LocalColores.current
-    ModalBottomSheet(onDismissRequest = alCerrar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = k.tarjeta) {
+    val cuerpo: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(titulo, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
             contenido()
         }
     }
+    if (Demo.corriendo) HojaEnLinea(cuerpo)
+    else ModalBottomSheet(onDismissRequest = alCerrar, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = k.tarjeta) { cuerpo() }
 }
 
 /** Editar un gasto importante. */

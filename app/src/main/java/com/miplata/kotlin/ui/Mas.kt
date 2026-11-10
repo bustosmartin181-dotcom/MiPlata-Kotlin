@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.3" to listOf("🎬 Demo automática para grabar videos: se escribe sola, con cuenta regresiva y frases (Ajustes → Modo demo → Reproducir)",
+        "La demo muestra el aviso de IPC del alquiler y calcula el aumento"),
     "10.2" to listOf("Mis cuentas: cada gasto que anotás baja solo el saldo de Mercado Pago (y cada entrada lo sube)",
         "\"Ya pasé a la reserva\" desde Ajustes también mueve la plata de Mercado Pago a la Reserva",
         "Si te olvidaste un gasto, lo anotás desde Mis cuentas sin descontarlo dos veces"),
@@ -108,7 +110,9 @@ fun estadoDemo(real: JsonObject?): JsonObject {
         "ingresos" to JsonArray(listOf(JsonObject(mapOf("cat" to JsonPrimitive("Sueldo"), "a" to JsonPrimitive(620000))))),
         "start" to JsonPrimitive(start), "end" to JsonPrimitive(Fechas.mesSiguiente(start)),
         "items" to JsonArray(listOf("Alquiler" to 180000, "Luz" to 25000, "Internet" to 20000).map { (nn, a) ->
-            JsonObject(mapOf("n" to JsonPrimitive(nn), "a" to JsonPrimitive(a), "p" to JsonPrimitive(true))) }),
+            val base = mutableMapOf<String, JsonElement>("n" to JsonPrimitive(nn), "a" to JsonPrimitive(a), "p" to JsonPrimitive(true))
+            if (nn == "Alquiler") base["ipc"] = JsonObject(mapOf("prox" to JsonPrimitive(hoy.take(7)), "cada" to JsonPrimitive(6), "partes" to JsonPrimitive(1)))
+            JsonObject(base) }),
         "spent" to JsonArray(gastos.mapIndexed { i, (d, amt, nc) -> JsonObject(mapOf("id" to JsonPrimitive(ahora + i),
             "date" to JsonPrimitive(Fechas.iso(n + d)), "amt" to num(amt), "note" to JsonPrimitive(nc.first), "cat" to JsonPrimitive(nc.second))) }),
         "recal" to JsonNull, "ipcMig" to JsonPrimitive(1),

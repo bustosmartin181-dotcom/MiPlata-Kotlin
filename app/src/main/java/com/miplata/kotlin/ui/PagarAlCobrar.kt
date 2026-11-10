@@ -85,7 +85,7 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
                         (if (d.partes > 1) "\nTotal ${dinero(it.a * d.partes)} entre ${d.partes} (${dinero(it.a)} cada uno)" else "") +
                         (d.pend?.let { (m, desde) -> "\n✅ Ya calculado: ${dinero(m)}${if (d.partes > 1) " cada uno" else ""} desde ${mesYAnio(desde)}" } ?: ""),
                         fontSize = 12.sp, color = k.suave)
-                    OutlinedButton(onClick = { alIPC(i) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = if (toca) k.naranja else k.verde)) {
+                    OutlinedButton(onClick = { alIPC(i) }, Modifier.demo("plan.ipc.$i", accion = { alIPC(i) }), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (toca) k.naranja else k.verde)) {
                         Text(if (toca) "⚠️ Toca actualizar" else "Calcular actualización", fontSize = 13.sp) }
                 }
                 if (!it.p && it.a > 0) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth()) { alPagarMP(i) }

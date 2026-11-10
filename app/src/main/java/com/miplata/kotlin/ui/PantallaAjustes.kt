@@ -29,6 +29,7 @@ class AccionesAjustes(
     val ocultar: (Boolean) -> Unit = {}, val recordatorio: (Boolean) -> Unit = {}, val horaRecordatorio: (String) -> Unit = {},
     val excel: () -> Unit = {}, val pdf: () -> Unit = {}, val copias: List<String> = emptyList(), val restaurarCierre: (Int) -> Unit = {},
     val demo: (Boolean) -> Unit = {},
+    val reproducirDemo: () -> Unit = {},
     val abrirWebIA: () -> Unit = {}, val avisar: (String) -> Unit = {},
 )
 
@@ -153,7 +154,14 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
         Tarjeta {
             Titulo("Modo demo")
             Subtitulo(if (S.demo) "Estás viendo datos de ejemplo. Tus datos reales están guardados aparte." else "Muestra datos de ejemplo para grabar un video o sacar capturas sin mostrar tu plata. Tus datos quedan guardados aparte.")
-            if (S.demo) Button(onClick = { a.demo(false) }, Modifier.fillMaxWidth()) { Text("Salir del modo demo") }
+            if (S.demo) {
+                Text("▶️ Demo automática para grabar", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = LocalColores.current.texto)
+                Subtitulo("Se escribe sola: carga el sueldo y los gastos, anota gastos, muestra cómo pasa a mañana y pone el objetivo por día. " +
+                    "Pasos: 1) empezá a grabar la pantalla del teléfono, 2) volvé acá y tocá Reproducir, 3) hay 5 segundos de cuenta regresiva y arranca. Para cortarla, tocá 3 veces la pantalla.")
+                Interruptor("Mostrar frases en pantalla", Demo.conFrases, { Demo.conFrases = it })
+                Button(onClick = a.reproducirDemo, Modifier.fillMaxWidth()) { Text("▶️ Reproducir demo") }
+                OutlinedButton(onClick = { a.demo(false) }, Modifier.fillMaxWidth()) { Text("Salir del modo demo") }
+            }
             else OutlinedButton(onClick = { a.demo(true) }, Modifier.fillMaxWidth()) { Text("Activar modo demo") }
         }
 

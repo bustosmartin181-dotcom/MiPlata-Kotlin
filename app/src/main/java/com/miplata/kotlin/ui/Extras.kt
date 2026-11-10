@@ -67,8 +67,8 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
         Titulo("Mi objetivo por día")
         Subtitulo("Cuánto querés gastar por día. Pasa a ser tu límite desde hoy, y lo que no gastes se suma al día siguiente.")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CampoMonto(valor, { valor = it }, "Objetivo por día", Modifier.weight(1f))
-            Button(onClick = { alPoner(aNumero(valor)) }) { Text("Usar") }
+            CampoMonto(valor, { valor = it }, "Objetivo por día", Modifier.weight(1f), demoClave = "obj.campo")
+            Button(onClick = { alPoner(aNumero(valor)) }, Modifier.demo("obj.usar", accion = { alPoner(aNumero(valor)) })) { Text("Usar") }
         }
         if (o != null) {
             Renglon("Podrías gastar parejo", dinero(o.promedio) + " por día", negrita = false)

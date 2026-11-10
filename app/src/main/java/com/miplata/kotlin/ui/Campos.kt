@@ -18,9 +18,11 @@ import java.time.ZoneOffset
 fun textoMonto(n: Double): String = if (n == 0.0) "" else if (n % 1.0 == 0.0) n.toLong().toString() else n.toString().replace('.', ',')
 
 @Composable
-fun CampoMonto(valor: String, alCambiar: (String) -> Unit, etiqueta: String, modifier: Modifier = Modifier.fillMaxWidth()) {
-    OutlinedTextField(valor, { alCambiar(it.filter { c -> c.isDigit() || c == ',' || c == '.' }) }, modifier,
+fun CampoMonto(valor: String, alCambiar: (String) -> Unit, etiqueta: String, modifier: Modifier = Modifier.fillMaxWidth(), demoClave: String? = null) {
+    val m = if (demoClave != null) modifier.demo(demoClave, escribir = alCambiar) else modifier
+    OutlinedTextField(valor, { alCambiar(it.filter { c -> c.isDigit() || c == ',' || c == '.' }) }, m,
         label = { Text(etiqueta) }, prefix = { Text("$") }, singleLine = true,
+        visualTransformation = if (demoClave != null) cursorDemo(demoClave) else androidx.compose.ui.text.input.VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
 }
 
