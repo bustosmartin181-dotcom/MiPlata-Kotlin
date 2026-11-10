@@ -229,7 +229,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         avisoReserva = { on -> campo("resAviso", JsonPrimitive(on)); if (on) asegurarNotis() },
                         horaReserva = { campo("resHora", JsonPrimitive(it)); aviso("Te aviso todas las noches a las $it") },
                         probarAviso = { if (!AvisoReserva.hayPermiso(ctx)) asegurarNotis() else { AvisoReserva.probar(ctx) } },
-                        pasado = { campo("resPasado", num(it)); aviso("Montos guardados") },
+                        pasado = { almacen.fijarPasado(it); vuelta++; aviso("Montos guardados") },
                         rendDisp = { almacen.activarRendDisp(it); vuelta++ },
                         rendFondo = { almacen.activarRendFondo(it); vuelta++ },
                         tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
@@ -284,6 +284,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
             "cuentas" -> HojaCuentas(estado, c, { hojaHoy = "" },
                 alGuardar = { almacen.guardarCuentas(it); vuelta++; aviso("Saldos guardados") },
                 alAjustar = { almacen.agregarRecomposicion(it); vuelta++; hojaHoy = ""; aviso("Recomposición anotada") },
+                alAnotarDiferencia = { d -> almacen.anotar(Math.abs(d), if (d < 0) "Gasto sin anotar" else "Entrada sin anotar", null, d > 0, false, moverCuenta = false)
+                    vuelta++; hojaHoy = ""; aviso(if (d < 0) "Anotado como gasto" else "Anotado como entrada") },
                 alQuitarAjuste = { almacen.quitarRecomposicion(it); vuelta++ })
             "pin" -> HojaPin(estado.pin.isNotEmpty(), { hojaHoy = "" },
                 alGuardar = { actual, nuevo ->

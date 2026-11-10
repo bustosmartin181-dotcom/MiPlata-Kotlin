@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.2" to listOf("Mis cuentas: cada gasto que anotás baja solo el saldo de Mercado Pago (y cada entrada lo sube)",
+        "\"Ya pasé a la reserva\" desde Ajustes también mueve la plata de Mercado Pago a la Reserva",
+        "Si te olvidaste un gasto, lo anotás desde Mis cuentas sin descontarlo dos veces"),
     "10.1" to listOf("Temas de colores (incluido Argentina 🇦🇷) y modo claro/oscuro", "Copia automática en un solo archivo (también en Drive)",
         "Pagar al cobrar con botón de Mercado Pago y Detalles", "IPC para pagos que se actualizan cada 6 meses", "Exportar a Excel y PDF, resumen para compartir",
         "Recordatorio diario, ocultar montos, cierre nocturno y modo demo"),

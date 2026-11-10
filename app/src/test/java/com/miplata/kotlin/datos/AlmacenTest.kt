@@ -135,4 +135,35 @@ class AlmacenTest {
         assertEquals("3000" to "Verdulería", interpretarDictado("3 mil verdulería"))
         assertEquals("12500" to "Súper", interpretarDictado("12.500 súper"))
     }
+
+    @Test fun gastosYReservaMuevenLasCuentas() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 500000.0, true), Almacen.CuentaEditable("Reserva MP", 80000.0, true)))
+        fun mp() = a.estado!!.cuentas[0].m
+        fun res() = a.estado!!.cuentas[1].m
+        val dif0 = Nucleo.conciliar(a.estado!!, Nucleo.calcular(a.estado!!, hoy)).diferencia
+        a.anotar(13400.0, "colgantes", null, entrada = false, meLoDevuelven = false)
+        assertEquals(486600.0, mp(), 1e-6)
+        a.anotar(3000.0, "Orlando", null, entrada = true, meLoDevuelven = false)
+        assertEquals(489600.0, mp(), 1e-6)
+        val id = a.estado!!.spent.first { it.note == "colgantes" }.id
+        a.anotar(15000.0, "colgantes", null, false, false, hoy, editarId = id)
+        assertEquals(488000.0, mp(), 1e-6)
+        a.borrarMovimiento(id)
+        assertEquals(503000.0, mp(), 1e-6)
+        a.anotar(5000.0, "desayuno", null, entrada = false, meLoDevuelven = true)
+        assertEquals(498000.0, mp(), 1e-6)
+        a.marcarDevuelto(a.estado!!.spent.first { it.dev == 1 }.id)
+        assertEquals(503000.0, mp(), 1e-6)
+        // la diferencia con la app no cambia: las cuentas se mueven igual que la app
+        assertEquals(dif0, Nucleo.conciliar(a.estado!!, Nucleo.calcular(a.estado!!, hoy)).diferencia, 1e-6)
+        // "Ya lo pasé" (botón y Ajustes): sale de Mercado Pago y entra a la Reserva
+        a.sumarPasado(1959.0)
+        assertEquals(501041.0, mp(), 1e-6); assertEquals(81959.0, res(), 1e-6)
+        a.fijarPasado(5000.0)
+        assertEquals(498000.0, mp(), 1e-6); assertEquals(85000.0, res(), 1e-6); assertEquals(5000.0, a.estado!!.resPasado, 1e-6)
+        // gasto olvidado anotado desde Mis cuentas: no toca la cuenta
+        a.anotar(700.0, "Gasto sin anotar", null, false, false, moverCuenta = false)
+        assertEquals(498000.0, mp(), 1e-6)
+    }
 }

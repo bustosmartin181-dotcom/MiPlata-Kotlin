@@ -71,7 +71,7 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
 /** Mis cuentas: cargás lo que tenés en Mercado Pago (u otras) y la app te dice la diferencia. */
 @Composable
 fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Almacen.CuentaEditable>) -> Unit,
-                alAjustar: (Double) -> Unit, alQuitarAjuste: (Int) -> Unit) {
+                alAjustar: (Double) -> Unit, alQuitarAjuste: (Int) -> Unit, alAnotarDiferencia: (Double) -> Unit = {}) {
     val k = LocalColores.current
     val filas = remember { mutableStateListOf(*S.cuentas.map { Triple(it.n, textoMonto(it.m), !it.excluida) }
         .ifEmpty { listOf(Triple("Mercado Pago", "", true)) + (if (c.fondo.activo) listOf(Triple("Reserva (fondo de ahorro)", "", true)) else emptyList()) }
@@ -83,6 +83,8 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
         Text("Cargá lo que tenés hoy en tus cuentas. Las tildadas cuentan." +
             (if (c.fondo.activo) " Sumá también la reserva de Mercado Pago donde guardás el fondo de ahorro." else " Destildá la plata que no es del día a día."),
             color = k.suave, fontSize = 14.sp)
+        Text("Mercado Pago baja solo con cada gasto que anotás, y lo que pasás a la reserva pasa solo de una cuenta a la otra. Cargá el saldo real de vez en cuando para controlar.",
+            color = k.suave, fontSize = 13.sp)
         filas.forEachIndexed { i, (n, m, cuenta) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Checkbox(cuenta, { filas[i] = Triple(n, m, it) })
@@ -109,8 +111,12 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
         }
         Button(onClick = { alGuardar(filas.map { Almacen.CuentaEditable(it.first.trim(), aNumero(it.second), it.third) }) },
             Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar saldos") }
-        if (cc.hayCuentas && Math.abs(cc.diferencia) >= 1 && !(c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1))
-            OutlinedButton(onClick = { confirmar = cc.diferencia }, Modifier.fillMaxWidth()) { Text("Ajustar la app con las cuentas") }
+        if (cc.hayCuentas && Math.abs(cc.diferencia) >= 1 && !(c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1)) {
+            val d = cc.diferencia
+            OutlinedButton(onClick = { alGuardar(filas.map { Almacen.CuentaEditable(it.first.trim(), aNumero(it.second), it.third) }); alAnotarDiferencia(d) },
+                Modifier.fillMaxWidth()) { Text(if (d < 0) "Anotar ${dinero(-d)} como gasto que me olvidé" else "Anotar ${dinero(d)} como entrada que faltaba") }
+            OutlinedButton(onClick = { confirmar = d }, Modifier.fillMaxWidth()) { Text("Ajustar la app con las cuentas") }
+        }
         if (S.ajustes.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
             Text("Recomposiciones (se reparten desde el día siguiente)", fontWeight = FontWeight.SemiBold, color = k.texto)

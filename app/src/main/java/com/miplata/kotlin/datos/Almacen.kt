@@ -54,20 +54,35 @@ class Almacen(private val carpeta: File) {
         return maxOf(System.currentTimeMillis(), max + 1)
     }
 
-    private fun cambiar(f: MutableMap<String, JsonElement>.() -> Unit) {
-        val m = (crudo ?: return).toMutableMap()
+    /** Cambia los datos. Si cambiaron los gastos/entradas, el saldo de Mercado Pago en "Mis cuentas"
+        se mueve igual: un gasto lo baja, una entrada lo sube (moverCuenta = false para no tocarlo). */
+    private fun cambiar(moverCuenta: Boolean = true, f: MutableMap<String, JsonElement>.() -> Unit) {
+        val antes = crudo ?: return
+        val m = antes.toMutableMap()
         m.f()
         m["upd"] = JsonPrimitive(System.currentTimeMillis())
-        guardar(JsonObject(m))
+        var nuevo = JsonObject(m)
+        if (moverCuenta) {
+            val d = efectoEnCuenta(nuevo) - efectoEnCuenta(antes)
+            if (Math.abs(d) >= 0.005) nuevo = sumarAMercadoPago(nuevo, d)
+        }
+        guardar(nuevo)
     }
+
+    /** Cuánto movieron la cuenta los movimientos: gasto = sale plata, entrada = entra.
+        Un aporte a una meta o un gasto que ya te devolvieron no mueven la cuenta. */
+    private fun efectoEnCuenta(o: JsonObject): Double =
+        (o["spent"] as? JsonArray)?.sumOf { e: JsonElement ->
+            (e as? JsonObject)?.let { x -> if (x["meta"].verdadero() || x["dev"].num().toInt() == 2) 0.0 else -x["amt"].num() } ?: 0.0
+        } ?: 0.0
 
     private fun MutableMap<String, JsonElement>.spent(): MutableList<JsonElement> =
         ((this["spent"] as? JsonArray)?.toMutableList() ?: mutableListOf())
 
     /** Anota un gasto (o una entrada si `entrada`). Igual que la app original. */
     fun anotar(monto: Double, nota: String, categoria: String?, entrada: Boolean, meLoDevuelven: Boolean,
-               fecha: String = Fechas.hoy(), editarId: Long? = null) {
-        cambiar {
+               fecha: String = Fechas.hoy(), editarId: Long? = null, moverCuenta: Boolean = true) {
+        cambiar(moverCuenta) {
             val lista = spent()
             val datos = buildMap<String, JsonElement> {
                 put("date", JsonPrimitive(fecha))
@@ -194,15 +209,42 @@ class Almacen(private val carpeta: File) {
         La reserva es la cuenta cuyo nombre dice "reserva"; Mercado Pago, la que dice "mercado" (o la primera tildada que no sea la reserva).
         Si no hay las dos cuentas cargadas, no toca nada. */
     private fun moverEnCuentas(o: JsonObject, monto: Double): JsonObject {
-        val l = (o["cuentas"] as? JsonArray)?.map { it as? JsonObject ?: JsonObject(emptyMap()) }?.toMutableList() ?: return o
+        val l = cuentasDe(o) ?: return o
+        val (iMp, iRes) = indicesCuentas(l)
+        if (iRes < 0 || iMp < 0) return o
+        sumarEn(l, iRes, monto); sumarEn(l, iMp, -monto)
+        return JsonObject(o + ("cuentas" to JsonArray(l)))
+    }
+
+    /** Suma (o resta, si es negativo) al saldo de Mercado Pago en Mis cuentas. Si no hay cuenta cargada, no toca nada. */
+    private fun sumarAMercadoPago(o: JsonObject, monto: Double): JsonObject {
+        val l = cuentasDe(o) ?: return o
+        val iMp = indicesCuentas(l).first
+        if (iMp < 0) return o
+        sumarEn(l, iMp, monto)
+        return JsonObject(o + ("cuentas" to JsonArray(l)))
+    }
+
+    private fun cuentasDe(o: JsonObject) =
+        (o["cuentas"] as? JsonArray)?.map { it as? JsonObject ?: JsonObject(emptyMap()) }?.toMutableList()?.takeIf { it.isNotEmpty() }
+
+    /** (Mercado Pago, Reserva): la reserva es la que dice "reserva"; Mercado Pago, la que dice "mercado" (o la primera tildada que no sea la reserva). -1 si no está. */
+    private fun indicesCuentas(l: List<JsonObject>): Pair<Int, Int> {
         fun nombre(c: JsonObject) = (c["n"].texto() ?: "").lowercase()
         val iRes = l.indexOfFirst { nombre(it).contains("reserva") }
         val iMp = l.indices.firstOrNull { it != iRes && nombre(l[it]).contains("mercado") }
             ?: l.indices.firstOrNull { it != iRes && !l[it]["x"].verdadero() } ?: -1
-        if (iRes < 0 || iMp < 0) return o
-        fun sumar(i: Int, v: Double) { l[i] = JsonObject(l[i] + ("m" to num(com.miplata.kotlin.nucleo.redondear2(l[i]["m"].num() + v)))) }
-        sumar(iRes, monto); sumar(iMp, -monto)
-        return JsonObject(o + ("cuentas" to JsonArray(l)))
+        return iMp to iRes
+    }
+
+    private fun sumarEn(l: MutableList<JsonObject>, i: Int, v: Double) {
+        l[i] = JsonObject(l[i] + ("m" to num(com.miplata.kotlin.nucleo.redondear2(l[i]["m"].num() + v))))
+    }
+
+    /** Desde Ajustes: "Ya pasé a la reserva (en total)". Lo que cambió también pasa de Mercado Pago a la Reserva. */
+    fun fijarPasado(total: Double) = cambiarTodo { o ->
+        val nuevo = Math.max(0.0, com.miplata.kotlin.nucleo.redondear2(total))
+        moverEnCuentas(JsonObject(o + ("resPasado" to num(nuevo))), nuevo - o["resPasado"].num())
     }
 
     data class CuentaEditable(val n: String, val m: Double, val cuenta: Boolean)
