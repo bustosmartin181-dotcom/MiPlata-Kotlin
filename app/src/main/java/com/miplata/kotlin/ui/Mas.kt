@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.4" to listOf("🎤 Widget nuevo \"Mi plata · Dictar gasto\": tocás el micrófono, decís \"2800 negocio Telma\" y se anota solo, con Deshacer y Editar",
+        "El widget de siempre ahora muestra el micrófono también cuando es cuadrado (2×2)",
+        "El dictado entiende mejor: \"2 mil 800\", \"2.800 pesos\" y deja el detalle prolijo (\"Negocio de la Telma\")"),
     "10.3" to listOf("🎬 Demo automática para grabar videos: se escribe sola, con cuenta regresiva y frases (Ajustes → Modo demo → Reproducir)",
         "La demo muestra el aviso de IPC del alquiler y calcula el aumento",
         "La app ahora se llama Mi plata: así figura en el cajón de aplicaciones, el widget y los archivos",

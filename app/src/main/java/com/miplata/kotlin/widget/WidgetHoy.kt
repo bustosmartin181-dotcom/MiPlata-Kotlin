@@ -29,10 +29,10 @@ import java.util.Calendar
 /* Widget "Mi plata · Hoy": lo que te queda hoy, una barrita, mañana y el fondo,
    con un botón + y un micrófono que abren la ventanita para anotar sin abrir la app. */
 
-private data class Datos(val queda: Double, val fraccion: Float, val manana: Double?, val fondo: Double?, val clase: String,
+internal data class Datos(val queda: Double, val fraccion: Float, val manana: Double?, val fondo: Double?, val clase: String,
                          val gastoHoy: Double, val oculto: Boolean, val color: String)
 
-private fun leer(ctx: Context): Datos? {
+internal fun leer(ctx: Context): Datos? {
     val S = Almacen(ctx).estado ?: return null
     val c = Nucleo.calcular(S, Fechas.hoy())
     val presupuesto = c.quedaHoy + c.gastoHoy
@@ -42,7 +42,7 @@ private fun leer(ctx: Context): Datos? {
 }
 
 class WidgetHoy : GlanceAppWidget() {
-    override val sizeMode = SizeMode.Responsive(setOf(DpSize(180.dp, 80.dp), DpSize(250.dp, 110.dp), DpSize(300.dp, 160.dp)))
+    override val sizeMode = SizeMode.Responsive(setOf(DpSize(140.dp, 140.dp), DpSize(180.dp, 80.dp), DpSize(250.dp, 110.dp), DpSize(300.dp, 160.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val d = runCatching { leer(context) }.getOrNull()
@@ -113,6 +113,7 @@ object Widget {
     /** Redibuja el widget con los datos de ahora. */
     suspend fun actualizar(ctx: Context) {
         runCatching { WidgetHoy().updateAll(ctx) }
+        runCatching { WidgetVoz().updateAll(ctx) }
         programarMedianoche(ctx)
     }
 
@@ -123,5 +124,8 @@ object Widget {
             .setAction(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val cuando = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 1); set(Calendar.SECOND, 0) }
         am.setAndAllowWhileIdle(AlarmManager.RTC, cuando.timeInMillis, pi)
+        val piVoz = PendingIntent.getBroadcast(ctx, 3, Intent(ctx, ReceptorWidgetVoz::class.java)
+            .setAction(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        am.setAndAllowWhileIdle(AlarmManager.RTC, cuando.timeInMillis + 2000, piVoz)
     }
 }

@@ -34,15 +34,22 @@ data class NuevoMovimiento(
     val meLoDevuelven: Boolean, val fecha: String, val editarId: Long?,
 )
 
-/** Saca monto y detalle de lo dictado: "2800 tortas", "dos mil quinientos en nafta" (Google suele dar números). */
+/** Saca monto y detalle de lo dictado: "2800 negocio Telma", "2 mil 800 en el negocio de la Telma", "2.500 pesos en nafta".
+    Google suele dar los números en cifras. Del detalle saca "pesos" y las palabras sueltas del principio (en, el, de…). */
 fun interpretarDictado(t: String): Pair<String, String> {
-    val r = Regex("""(\d[\d.,]*)\s*(mil)?""").find(t) ?: return "" to t.trim()
+    val r = Regex("""(\d[\d.,]*)(\s*mil(?:\s+(?:y\s+)?(\d{1,3})(?![\d.,]))?)?""", RegexOption.IGNORE_CASE).find(t) ?: return "" to limpiarDetalle(t)
     var n = aNumero(r.groupValues[1])
-    if (r.groupValues[2].isNotEmpty()) n *= 1000
-    val resto = t.removeRange(r.range).replace(Regex("""\b(pesos|en|de)\b""", RegexOption.IGNORE_CASE), " ")
-        .replace(Regex("\\s+"), " ").trim()
+    if (r.groupValues[2].isNotBlank()) n = n * 1000 + (r.groupValues[3].toIntOrNull() ?: 0)
     val monto = if (n % 1.0 == 0.0) n.toLong().toString() else n.toString().replace('.', ',')
-    return monto to resto.replaceFirstChar { it.uppercase() }
+    return monto to limpiarDetalle(t.removeRange(r.range))
+}
+
+private val SUELTAS = setOf("en", "el", "la", "los", "las", "de", "del", "por", "para", "al", "a", "y")
+private fun limpiarDetalle(t: String): String {
+    val palabras = t.replace("$", " ").replace(Regex("""\bpesos?\b""", RegexOption.IGNORE_CASE), " ")
+        .trim(' ', '.', ',', ';', ':').split(Regex("\\s+")).filter { it.isNotEmpty() }.toMutableList()
+    while (palabras.isNotEmpty() && palabras.first().lowercase() in SUELTAS) palabras.removeAt(0)
+    return palabras.joinToString(" ").replaceFirstChar { it.uppercase() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -54,13 +61,15 @@ fun HojaAnotar(
     alBorrar: (Long) -> Unit,
     alMarcarDevuelto: (Long) -> Unit,
     dictarAlAbrir: Boolean = false,
+    montoInicial: String = "",
+    notaInicial: String = "",
 ) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val ayer = Fechas.iso(Fechas.dia(hoy) - 1)
     var entrada by remember { mutableStateOf((editando?.amt ?: 0.0) < 0) }
-    var monto by remember { mutableStateOf(editando?.let { val v = Math.abs(it.amt); if (v % 1.0 == 0.0) v.toLong().toString() else v.toString().replace('.', ',') } ?: "") }
-    var nota by remember { mutableStateOf(editando?.note ?: "") }
+    var monto by remember { mutableStateOf(editando?.let { val v = Math.abs(it.amt); if (v % 1.0 == 0.0) v.toLong().toString() else v.toString().replace('.', ',') } ?: montoInicial) }
+    var nota by remember { mutableStateOf(editando?.note ?: notaInicial) }
     var categoria by remember { mutableStateOf(editando?.cat) }
     var devuelven by remember { mutableStateOf(editando?.dev == 1 || editando?.dev == 2) }
     var fecha by remember { mutableStateOf(editando?.date ?: hoy) }

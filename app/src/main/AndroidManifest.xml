@@ -38,6 +38,12 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_hoy" />
         </receiver>
+        <receiver android:name=".widget.ReceptorWidgetVoz" android:exported="true" android:label="Mi plata · Dictar gasto">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_voz" />
+        </receiver>
         <receiver android:name=".aviso.ReceptorAviso" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
