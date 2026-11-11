@@ -78,20 +78,8 @@ fun HojaAnotar(
     val foco = remember { FocusRequester() }
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val dictar = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        if (r.resultCode == Activity.RESULT_OK) {
-            val texto = r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return@rememberLauncherForActivityResult
-            val (m, n) = interpretarDictado(texto)
-            if (m.isNotEmpty()) monto = m
-            if (n.isNotEmpty()) nota = n
-        }
-    }
-    fun lanzarDictado() = runCatching {
-        dictar.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
-            .putExtra(RecognizerIntent.EXTRA_PROMPT, "Decí el monto y en qué, ej: 2800 tortas"))
-    }.onFailure { error = "Este teléfono no tiene dictado por voz." }
+    var escuchando by remember { mutableStateOf(false) }
+    fun lanzarDictado() { escuchando = true }
     LaunchedEffect(Unit) { if (Demo.corriendo) return@LaunchedEffect; if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
     val guardarClick: () -> Unit = {
         val n = aNumero(monto)
@@ -99,6 +87,15 @@ fun HojaAnotar(
         else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven, fecha, editando?.id))
     }
 
+    if (escuchando) androidx.compose.ui.window.Dialog(onDismissRequest = { escuchando = false },
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Escuchador(alResultado = { texto ->
+            val (m, n) = interpretarDictado(texto)
+            if (m.isNotEmpty()) monto = m
+            if (n.isNotEmpty()) nota = n
+            escuchando = false
+        }, alCancelar = { escuchando = false })
+    }
     val contenido: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {

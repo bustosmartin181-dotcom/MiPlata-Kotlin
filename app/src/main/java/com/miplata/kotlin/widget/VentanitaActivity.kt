@@ -83,27 +83,17 @@ class VentanitaActivity : ComponentActivity() {
     @Composable
     private fun DictadoRapido() {
         var paso by remember { mutableStateOf<Paso>(Paso.Escuchando) }
-        val escuchar = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-            val texto = if (r.resultCode == Activity.RESULT_OK) r.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() else null
-            if (texto == null) { finish(); return@rememberLauncherForActivityResult }      // canceló o no dijo nada
+        fun entendido(texto: String) {
             val (m, n) = interpretarDictado(texto)
             val monto = aNumero(m)
-            if (monto <= 0) { paso = Paso.AMano("", n.ifBlank { texto }, "No entendí el monto. Escribilo y tocá Anotar."); return@rememberLauncherForActivityResult }
+            if (monto <= 0) { paso = Paso.AMano("", n.ifBlank { texto }, "No entendí el monto. Escribilo y tocá Anotar."); return }
             almacen.anotar(monto, n, null, false, false)
             val id = almacen.estado?.spent?.maxByOrNull { it.id }?.id ?: 0L
             paso = Paso.Anotado(id, monto, n, quedaHoy())
             alDia(cerrar = false)
         }
-        LaunchedEffect(Unit) {
-            runCatching {
-                escuchar.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
-                    .putExtra(RecognizerIntent.EXTRA_PROMPT, "Decí el monto y en qué, ej: 2800 negocio Telma"))
-            }.onFailure { paso = Paso.AMano("", "", "Este teléfono no tiene dictado por voz. Anotalo a mano.") }
-        }
         when (val p = paso) {
-            Paso.Escuchando -> {}
+            Paso.Escuchando -> Escuchador(alResultado = ::entendido, alCancelar = { finish() })
             is Paso.Anotado -> Anotado(p,
                 alDeshacer = { almacen.borrarMovimiento(p.id); Toast.makeText(this, "Listo, no se anotó", Toast.LENGTH_SHORT).show(); alDia(cerrar = true) },
                 alEditar = { almacen.estado?.spent?.find { it.id == p.id }?.let { paso = Paso.Editar(it) } ?: finish() },

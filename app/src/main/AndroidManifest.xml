@@ -7,8 +7,14 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <!-- Android 13+: alarma exacta para que el aviso de la reserva llegue a la hora justa -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Micrófono propio para dictar gastos (el aro de luz que sigue tu voz) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <queries>
         <package android:name="com.mercadopago.wallet" />
+        <!-- para encontrar el reconocimiento de voz del teléfono -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
     </queries>
     <application
         android:allowBackup="true"
