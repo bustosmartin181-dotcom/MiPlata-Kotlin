@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +78,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     var pestana by rememberSaveable { mutableStateOf(Pestana.HOY) }
     var hojaAbierta by remember { mutableStateOf(false) }
     var editando by remember { mutableStateOf<Movimiento?>(null) }
-    var hojaHoy by remember { mutableStateOf("") }          // "fondo", "cuentas", "pase", "pin"
+    var hojaHoy by remember { mutableStateOf("") }
+    var colaboraAbierta by remember { mutableStateOf(false) }          // "fondo", "cuentas", "pase", "pin"
     var errorPin by remember { mutableStateOf<String?>(null) }
     var irAPeriodoNuevo by remember { mutableStateOf(false) }
     var pendientePase by remember { mutableDoubleStateOf(0.0) }
@@ -196,7 +198,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     }
 
     Box(Modifier.fillMaxSize().background(k.fondo)) { FondoArgentina() }
-    Scaffold(containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
+    /* Con el cartel "Ayudá al creador" abierto, la app queda borrosa detrás (Android 12 o más nuevo) */
+    val borroso by androidx.compose.animation.core.animateDpAsState(if (colaboraAbierta) 14.dp else 0.dp, label = "borroso")
+    Scaffold(modifier = Modifier.blur(borroso), containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
         if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
@@ -347,6 +351,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
     )
+
+    /* "Ayudá al creador" flotante: burbuja que se convierte en el cartel grande */
+    ColaboraFlotante(puede = estado != null && pestana == Pestana.HOY && !estado.demo && !Demo.corriendo &&
+        estado.spent.size >= 5 && hojaHoy.isEmpty() && !hojaAbierta,
+        alCopiar = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
+        alAbrirMP = ::abrirMP,
+        alYaColabore = { Colabora.yaColaboro(ctx); aviso("¡Gracias de corazón! 💚") },
+        alCambiarAbierto = { colaboraAbierta = it })
 
     CapaDemo()
 }

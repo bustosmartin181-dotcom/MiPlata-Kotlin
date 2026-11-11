@@ -49,6 +49,15 @@ fun TarjetaColabora(alCopiar: () -> Unit, alAbrirMP: () -> Unit) {
     val k = LocalColores.current
     Tarjeta {
         Titulo("💚 Ayudá al creador")
+        ContenidoColabora(alCopiar, alAbrirMP)
+    }
+}
+
+/** Lo de adentro del cartel "Ayudá al creador" (se usa en Ajustes y en la hoja que abre la burbuja). */
+@Composable
+fun ColumnScope.ContenidoColabora(alCopiar: () -> Unit, alAbrirMP: () -> Unit) {
+    val k = LocalColores.current
+    run {
         Subtitulo("Hola, soy Martín Enrique Bustos. Hice Mi plata para llegar a fin de mes sin Excel, y la comparto gratis y sin publicidad. " +
             "Si te sirve y querés darme una mano para seguir mejorándola, cualquier aporte suma. ¡Gracias de corazón!")
         Text("Alias", fontSize = 13.sp, color = k.suave)
@@ -58,3 +67,4 @@ fun TarjetaColabora(alCopiar: () -> Unit, alAbrirMP: () -> Unit) {
         Text("Cómo: 1) Copiá el alias. 2) Abrí Mercado Pago. 3) Transferir → pegá el alias → elegí el monto que quieras.", fontSize = 12.sp, color = k.suave)
     }
 }
+

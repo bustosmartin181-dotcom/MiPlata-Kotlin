@@ -69,7 +69,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 val NOVEDADES = listOf(
     "10.3" to listOf("🎬 Demo automática para grabar videos: se escribe sola, con cuenta regresiva y frases (Ajustes → Modo demo → Reproducir)",
         "La demo muestra el aviso de IPC del alquiler y calcula el aumento",
-        "La app ahora se llama Mi plata: así figura en el cajón de aplicaciones, el widget y los archivos"),
+        "La app ahora se llama Mi plata: así figura en el cajón de aplicaciones, el widget y los archivos",
+        "💚 Burbuja \"Ayudá al creador\": brilla un ratito (como mucho una vez por día) y al tocarla se convierte en el cartel para colaborar, con corazones y fondo borroso"),
     "10.2" to listOf("Mis cuentas: cada gasto que anotás baja solo el saldo de Mercado Pago (y cada entrada lo sube)",
         "\"Ya pasé a la reserva\" desde Ajustes también mueve la plata de Mercado Pago a la Reserva",
         "Si te olvidaste un gasto, lo anotás desde Mis cuentas sin descontarlo dos veces"),
