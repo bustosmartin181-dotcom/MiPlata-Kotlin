@@ -145,7 +145,7 @@ class ServicioVoz : Service() {
     }
 
     private fun mostrar(f: VozWidget.Fase) { VozWidget.fase.value = f; redibujar() }
-    private fun redibujar() { alcance.launch { runCatching { WidgetVoz().updateAll(applicationContext) } } }
+    private fun redibujar() { alcance.launch { runCatching { WidgetVoz().updateAll(applicationContext) }; runCatching { WidgetHoy().updateAll(applicationContext) } } }
 
     fun parar() { runCatching { oido?.stopListening() } }
 

@@ -53,23 +53,8 @@ class WidgetVoz : GlanceAppWidget() {
         val suave = ColorProvider(Color(0xDDFFFFFF), Color(0xDDFFFFFF))
         val abrirApp = actionStartActivity(Intent(ctx, MainActivity::class.java))
         val escuchando = fase == VozWidget.Fase.ESCUCHANDO || fase == VozWidget.Fase.PENSANDO
-        val hayPermiso = androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED
-        /* tocar el micrófono: escucha ahí mismo (o lo corta si ya está escuchando).
-           Sin permiso todavía, abre la ventanita que lo pide. */
-        val accionMic = when {
-            !hayPermiso -> actionStartActivity(Intent(ctx, VentanitaActivity::class.java).putExtra("rapido", true)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-            escuchando -> actionSendBroadcast(Intent(ctx, ReceptorVoz::class.java).setAction(ServicioVoz.PARAR))
-            else -> actionStartService(Intent(ctx, ServicioVoz::class.java), isForegroundService = true)
-        }
-        val accionTexto = when (fase) {
-            VozWidget.Fase.LISTO -> actionSendBroadcast(Intent(ctx, ReceptorVoz::class.java).setAction(ServicioVoz.DESHACER))
-            VozWidget.Fase.SIN_MONTO -> actionStartActivity(Intent(ctx, VentanitaActivity::class.java)
-                .putExtra("monto", VozWidget.sinMonto.first).putExtra("nota", VozWidget.sinMonto.second)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
-            else -> accionMic
-        }
+        val accionMic = accionMicVoz(ctx, fase)
+        val accionTexto = accionTextoVoz(ctx, fase, accionMic)
 
         @Composable fun Saldo() {
             if (d == null) {
@@ -80,34 +65,8 @@ class WidgetVoz : GlanceAppWidget() {
                 Text(if (d.oculto) "$ ••••" else pesos(d.queda), style = TextStyle(color = blanco, fontSize = 24.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             }
         }
-        /* El micrófono con aro de luz: mientras escucha, el aro crece y brilla con tu voz (nivel 0 a 4) */
-        @Composable fun Microfono(lado: Int) {
-            val aro = lado + 8 + nivel * 7
-            val luz = when {
-                !escuchando -> Color.Transparent
-                nivel >= 3 -> Color(0x99FFFFFF)
-                nivel >= 1 -> Color(0x66FFFFFF)
-                else -> Color(0x40FFFFFF)
-            }
-            val luz2 = if (escuchando) Color(0x2EFFFFFF) else Color.Transparent
-            Box(GlanceModifier.size((lado + 8 + 4 * 7 + 10).dp), contentAlignment = Alignment.Center) {
-                Box(GlanceModifier.size((aro + 10).dp).cornerRadius(((aro + 10) / 2).dp).background(ColorProvider(luz2, luz2))) {}
-                Box(GlanceModifier.size(aro.dp).cornerRadius((aro / 2).dp).background(ColorProvider(luz, luz))) {}
-                Box(GlanceModifier.size(lado.dp).cornerRadius((lado / 2).dp)
-                    .background(if (escuchando) ColorProvider(Color(0xFFFFFFFF), Color(0xFFFFFFFF)) else ColorProvider(Color.White, Color(0xFFE3F1E9)))
-                    .clickable(accionMic), contentAlignment = Alignment.Center) {
-                    Image(ImageProvider(R.drawable.ic_mic), contentDescription = if (escuchando) "Dejar de escuchar" else "Dictar un gasto",
-                        modifier = GlanceModifier.size((lado * 0.55f).dp))
-                }
-            }
-        }
-        val etiqueta = when (fase) {
-            VozWidget.Fase.NADA -> "Dictá un gasto"
-            VozWidget.Fase.ESCUCHANDO -> texto.ifBlank { "Te escucho…" }
-            VozWidget.Fase.PENSANDO -> texto.ifBlank { "Entendiendo…" }
-            VozWidget.Fase.LISTO -> "$texto\nTocá acá para deshacer"
-            else -> texto
-        }
+        @Composable fun Microfono(lado: Int) = MicConAro(lado, 7, escuchando, nivel, accionMic)
+        val etiqueta = etiquetaVoz(fase, texto, "Dictá un gasto")
         val estiloEtiqueta = TextStyle(color = if (fase == VozWidget.Fase.NADA) suave else blanco, fontSize = if (fase == VozWidget.Fase.NADA) 11.sp else 12.sp,
             fontWeight = if (fase == VozWidget.Fase.NADA) FontWeight.Normal else FontWeight.Bold, textAlign = TextAlign.Center)
 
@@ -125,6 +84,60 @@ class WidgetVoz : GlanceAppWidget() {
                 else Text(etiqueta, style = estiloEtiqueta.copy(textAlign = TextAlign.Start), maxLines = 3)
             }
             if (d != null) Microfono(48)
+        }
+    }
+}
+
+/* ---- Lo que comparten los dos widgets (el de siempre y el del micrófono) ---- */
+
+/** Tocar el micrófono: escucha ahí mismo en el widget (o corta si ya está escuchando). Sin permiso, abre la ventanita que lo pide. */
+internal fun accionMicVoz(ctx: Context, fase: VozWidget.Fase): androidx.glance.action.Action {
+    val escuchando = fase == VozWidget.Fase.ESCUCHANDO || fase == VozWidget.Fase.PENSANDO
+    val hayPermiso = androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    return when {
+        !hayPermiso -> actionStartActivity(Intent(ctx, VentanitaActivity::class.java).putExtra("rapido", true)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        escuchando -> actionSendBroadcast(Intent(ctx, ReceptorVoz::class.java).setAction(ServicioVoz.PARAR))
+        else -> actionStartService(Intent(ctx, ServicioVoz::class.java), isForegroundService = true)
+    }
+}
+
+/** Tocar el texto: después de anotar, Deshacer; si no entendió el monto, abre la ventanita para escribirlo. */
+internal fun accionTextoVoz(ctx: Context, fase: VozWidget.Fase, otra: androidx.glance.action.Action): androidx.glance.action.Action = when (fase) {
+    VozWidget.Fase.LISTO -> actionSendBroadcast(Intent(ctx, ReceptorVoz::class.java).setAction(ServicioVoz.DESHACER))
+    VozWidget.Fase.SIN_MONTO -> actionStartActivity(Intent(ctx, VentanitaActivity::class.java)
+        .putExtra("monto", VozWidget.sinMonto.first).putExtra("nota", VozWidget.sinMonto.second)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+    else -> otra
+}
+
+internal fun etiquetaVoz(fase: VozWidget.Fase, texto: String, normal: String) = when (fase) {
+    VozWidget.Fase.NADA -> normal
+    VozWidget.Fase.ESCUCHANDO -> texto.ifBlank { "Te escucho…" }
+    VozWidget.Fase.PENSANDO -> texto.ifBlank { "Entendiendo…" }
+    VozWidget.Fase.LISTO -> "$texto\nTocá acá para deshacer"
+    else -> texto
+}
+
+/** El micrófono blanco con el aro de luz que crece y brilla con tu voz (nivel 0 a 4). [paso] = cuánto crece por nivel. */
+@Composable
+internal fun MicConAro(lado: Int, paso: Int, escuchando: Boolean, nivel: Int, accion: androidx.glance.action.Action) {
+    val aro = lado + 8 + nivel * paso
+    val luz = when {
+        !escuchando -> Color.Transparent
+        nivel >= 3 -> Color(0x99FFFFFF)
+        nivel >= 1 -> Color(0x66FFFFFF)
+        else -> Color(0x40FFFFFF)
+    }
+    val luz2 = if (escuchando) Color(0x2EFFFFFF) else Color.Transparent
+    Box(GlanceModifier.size((lado + 8 + 4 * paso + 10).dp), contentAlignment = Alignment.Center) {
+        Box(GlanceModifier.size((aro + 10).dp).cornerRadius(((aro + 10) / 2).dp).background(ColorProvider(luz2, luz2))) {}
+        Box(GlanceModifier.size(aro.dp).cornerRadius((aro / 2).dp).background(ColorProvider(luz, luz))) {}
+        Box(GlanceModifier.size(lado.dp).cornerRadius((lado / 2).dp).background(ColorProvider(Color.White, Color(0xFFE3F1E9)))
+            .clickable(accion), contentAlignment = Alignment.Center) {
+            Image(ImageProvider(R.drawable.ic_mic), contentDescription = if (escuchando) "Dejar de escuchar" else "Dictar un gasto",
+                modifier = GlanceModifier.size((lado * 0.55f).dp))
         }
     }
 }

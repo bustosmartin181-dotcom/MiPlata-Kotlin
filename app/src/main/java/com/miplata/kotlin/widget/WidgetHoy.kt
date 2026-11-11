@@ -27,7 +27,7 @@ import com.miplata.kotlin.ui.pesos
 import java.util.Calendar
 
 /* Widget "Mi plata · Hoy": lo que te queda hoy, una barrita, mañana y el fondo,
-   con un botón + y un micrófono que abren la ventanita para anotar sin abrir la app. */
+   con un botón + que abre la ventanita para anotar y un micrófono que escucha ahí mismo (el aro se ilumina con tu voz). */
 
 internal data class Datos(val queda: Double, val fraccion: Float, val manana: Double?, val fondo: Double?, val clase: String,
                          val gastoHoy: Double, val oculto: Boolean, val color: String)
@@ -45,12 +45,18 @@ class WidgetHoy : GlanceAppWidget() {
     override val sizeMode = SizeMode.Responsive(setOf(DpSize(140.dp, 140.dp), DpSize(180.dp, 80.dp), DpSize(250.dp, 110.dp), DpSize(300.dp, 160.dp)))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val d = runCatching { leer(context) }.getOrNull()
-        provideContent { Contenido(context, d) }
+        provideContent {
+            /* se lee adentro: así, mientras el micrófono escucha, el widget se redibuja con cada cambio */
+            val version = VozWidget.version.intValue
+            val d = androidx.compose.runtime.remember(version) { runCatching { leer(context) }.getOrNull() }
+            Contenido(context, d, VozWidget.fase.value, VozWidget.nivel.intValue, VozWidget.texto.value)
+        }
     }
 
     @Composable
-    private fun Contenido(ctx: Context, d: Datos?) {
+    private fun Contenido(ctx: Context, d: Datos?, fase: VozWidget.Fase, nivel: Int, texto: String) {
+        val escuchando = fase == VozWidget.Fase.ESCUCHANDO || fase == VozWidget.Fase.PENSANDO
+        val accionMic = accionMicVoz(ctx, fase)
         val tam = LocalSize.current
         val chico = tam.height < 110.dp
         val fondo = when (d?.clase) {
@@ -75,15 +81,20 @@ class WidgetHoy : GlanceAppWidget() {
                         LinearProgressIndicator(progress = if (d.oculto) 0f else d.fraccion, modifier = GlanceModifier.fillMaxWidth().height(6.dp),
                             color = blanco, backgroundColor = ColorProvider(Color(0x40FFFFFF), Color(0x40FFFFFF)))
                         Spacer(GlanceModifier.height(4.dp))
+                        if (fase != VozWidget.Fase.NADA)        // lo que va entendiendo el micrófono, o el resultado
+                            Text(etiquetaVoz(fase, texto, ""), style = TextStyle(color = blanco, fontSize = 12.sp, fontWeight = FontWeight.Bold), maxLines = 3,
+                                modifier = GlanceModifier.clickable(accionTextoVoz(ctx, fase, accionMic)))
+                        else {
                         val partes = listOfNotNull(d.manana?.let { "Mañana ${if (d.oculto) "••••" else pesos(it)}" },
                             d.fondo?.let { "Fondo ${if (d.oculto) "••••" else pesos(it)}" })
                         if (partes.isNotEmpty()) Text(partes.joinToString("  ·  "), style = TextStyle(color = suave, fontSize = 12.sp), maxLines = 1)
+                        }
                     }
                 }
             }
             if (d != null) Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Boton(ctx, R.drawable.ic_mas, "Anotar gasto", false)
-                if (!chico) { Spacer(GlanceModifier.height(8.dp)); Boton(ctx, R.drawable.ic_mic, "Dictar gasto", true) }
+                if (!chico) MicConAro(48, 3, escuchando, nivel, accionMic)
             }
         }
     }
