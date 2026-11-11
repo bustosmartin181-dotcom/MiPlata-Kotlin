@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- Micrófono propio para dictar gastos (el aro de luz que sigue tu voz) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Escuchar desde el widget sin abrir ventanas (Android pide un aviso mientras usa el micrófono) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <queries>
         <package android:name="com.mercadopago.wallet" />
         <!-- para encontrar el reconocimiento de voz del teléfono -->
@@ -50,6 +53,8 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_voz" />
         </receiver>
+        <service android:name=".widget.ServicioVoz" android:exported="false" android:foregroundServiceType="microphone" />
+        <receiver android:name=".widget.ReceptorVoz" android:exported="false" />
         <receiver android:name=".aviso.ReceptorAviso" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

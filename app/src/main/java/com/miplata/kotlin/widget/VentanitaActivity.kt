@@ -55,7 +55,7 @@ class VentanitaActivity : ComponentActivity() {
             val e = almacen.estado!!
             TemaMiPlata(e.color, e.tema) {
                 if (rapido) DictadoRapido()
-                else Hoja(null, dictar = dictar)
+                else Hoja(null, dictar = dictar, monto = intent.getStringExtra("monto") ?: "", nota = intent.getStringExtra("nota") ?: "")
             }
         }
     }

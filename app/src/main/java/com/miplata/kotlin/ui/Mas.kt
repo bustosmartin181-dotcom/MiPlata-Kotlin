@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.6" to listOf("🎤 El widget \"Dictar gasto\" escucha ahí mismo, sin abrir ventanas: el aro del micrófono se ilumina con tu voz y abajo se escribe lo que decís",
+        "Después de anotar, tocando el texto del widget lo deshacés"),
     "10.5" to listOf("🎤 Micrófono propio, como el del teclado Samsung: un aro de luz que late con tu voz y lo que decís se va escribiendo. Ya no se abre la ventanita de Google",
         "La primera vez te pide permiso para usar el micrófono"),
     "10.4" to listOf("🎤 Widget nuevo \"Mi plata · Dictar gasto\": tocás el micrófono, decís \"2800 negocio Telma\" y se anota solo, con Deshacer y Editar",
