@@ -67,6 +67,10 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.7" to listOf("✨ Bienvenida nueva en 6 pantallas, como la Mi plata original: Bienvenido, Así funciona, Tu plata tu decisión, ¿De dónde viene tu plata?, Gastos importantes y ¡Listo!",
+        "Las pantallas entran deslizando y se van llenando de a poco; los números corren hasta su valor",
+        "🎬 La demo automática recorre las 6 pantallas (ya no se queda quieta en la primera)",
+        "En Hoy, el número grande y la barra se mueven cuando anotás un gasto"),
     "10.6" to listOf("🎤 El widget \"Dictar gasto\" escucha ahí mismo, sin abrir ventanas: el aro del micrófono se ilumina con tu voz y abajo se escribe lo que decís",
         "Después de anotar, tocando el texto del widget lo deshacés",
         "El micrófono del widget de siempre (el del +) también escucha ahí mismo y se ilumina"),

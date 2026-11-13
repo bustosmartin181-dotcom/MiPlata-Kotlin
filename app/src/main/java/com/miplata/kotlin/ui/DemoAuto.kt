@@ -211,25 +211,27 @@ suspend fun Demo.guionMiPlata(calculo: () -> com.miplata.kotlin.nucleo.Calculo?,
     val siguiente: suspend () -> Unit = { tocar("bv.siguiente"); pausa(900) }
 
     bienvenida = true; pausa(300)
-    decir("Dejé el Excel y armé mi propia app 📱"); pausa(3500)
-    decir("Así funciona: tres pasos y listo"); traer("bv.comofunciona"); pausa(4500)
-    decir("Sin cuenta ni anuncios: tus datos quedan en tu celu"); traer("bv.datos"); pausa(4500)
-    tocar("bv.cero"); pausa(900)
-
-    decir("Cargo lo que cobro"); pausa(1200)
+    decir("Dejé el Excel y armé mi propia app 📱"); pausa(1600)        // 0 · Bienvenido
     tocar("bv.nombre"); escribir("bv.nombre", "Martín", 110, 350)
-    tocar("bv.sueldo"); escribir("bv.sueldo", "620000", 130)
-    pausa(2500); siguiente()
+    pausa(900); siguiente()
 
-    decir("Anoto lo que pago sí o sí"); pausa(1000)
+    decir("Así funciona: tres pasos y listo"); pausa(5500); siguiente()                 // 1 · Así funciona
+
+    decir("Sin cuenta ni anuncios: tus datos quedan en tu celu"); pausa(5000); siguiente() // 2 · Tu plata, tu decisión
+
+    decir("Cargo lo que cobro"); pausa(1200)                                             // 3 · ¿De dónde viene tu plata?
+    tocar("bv.sueldo"); escribir("bv.sueldo", "620000", 130)
+    pausa(2200); siguiente()
+
+    decir("Anoto lo que pago sí o sí"); pausa(1000)                                      // 4 · Gastos importantes
     listOf("Alquiler" to "180000", "Luz" to "25000", "Internet" to "20000").forEachIndexed { i, (n, m) ->
         tocar("bv.gn.$i"); escribir("bv.gn.$i", n, 100, 350)
         tocar("bv.ga.$i"); escribir("bv.ga.$i", m, 120, 350)
         pausa(400)
     }
-    pausa(1500); siguiente()
+    traer("bv.asiqueda"); pausa(3000); siguiente()
 
-    decir("Y la app me dice cuánto puedo gastar por día"); pausa(5000)
+    decir("Y la app me dice cuánto puedo gastar por día"); pausa(5000)                  // 5 · ¡Listo!
     tocar("bv.siguiente"); pausa(1200)                       // Empezar → carga los datos de ejemplo
 
     decir("Anoto cada gasto en 5 segundos")
