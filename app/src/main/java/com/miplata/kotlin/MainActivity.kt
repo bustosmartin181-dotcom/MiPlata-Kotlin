@@ -224,6 +224,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alCompartir = { hojaHoy = "resumen" },
                         alIA = { hojaHoy = "ia" },
                         alSalirDemo = { almacen.salirDemo(); vuelta++; aviso("Volviste a tus datos") },
+                        alReproducirDemo = ::reproducirDemo,
                         avisoCopia = run {
                             val auto = com.miplata.kotlin.datos.CopiaAutomatica.uri(ctx) != null
                             val ultima = maxOf(prefsCopia.getLong("ultima", 0), com.miplata.kotlin.datos.CopiaAutomatica.ultima(ctx))

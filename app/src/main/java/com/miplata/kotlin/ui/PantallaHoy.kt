@@ -30,7 +30,7 @@ import java.time.LocalTime
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
                 alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
-                alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {},
+                alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
@@ -63,7 +63,11 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
 
         if (S.demo && !Demo.corriendo) Row(Modifier.fillMaxWidth().background(k.naranja, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Text("🎬 Modo demo: datos de ejemplo", Modifier.weight(1f), color = Color.White, fontWeight = FontWeight.SemiBold)
+            Column(Modifier.weight(1f)) {
+                Text("🎬 Modo demo: datos de ejemplo", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("Tocá ▶️ para que la demo se reproduzca sola", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+            }
+            Button(onClick = alReproducirDemo, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = k.naranja)) { Text("▶️ Reproducir") }
             TextButton(onClick = alSalirDemo, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Salir") }
         }
         avisoCopia?.invoke()

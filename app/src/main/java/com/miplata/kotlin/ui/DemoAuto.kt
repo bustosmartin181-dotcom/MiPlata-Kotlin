@@ -115,6 +115,8 @@ object Demo {
             cuenta = 0
             guion()
         } catch (_: Corte) {
+        } catch (e: Exception) {          // si algo falla, la demo se corta pero la app no se cierra
+            if (e is kotlinx.coroutines.CancellationException) throw e
         } finally {
             cuenta = 0; frase = null; cursor = null; resaltado = null; bienvenida = false; vitrina = false; toques.clear()
             corriendo = false; cancelada = false
