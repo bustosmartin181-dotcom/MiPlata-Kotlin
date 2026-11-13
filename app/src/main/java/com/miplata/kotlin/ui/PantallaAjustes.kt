@@ -82,10 +82,10 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 dismissButton = { TextButton(onClick = { eligiendoHoraRec = false }) { Text("Cancelar") } })
         }
 
-        Tarjeta {
+        Tarjeta(Modifier.demo("aj.fondo").luz("aj.fondo")) {
             Titulo("Fondo de ahorro")
             Subtitulo("Lo que no gastás cada día no pasa al día siguiente: se guarda en un fondo aparte. Cuenta desde el día que lo activás.")
-            Interruptor("Activar el fondo de ahorro", S.modoFondo, a.fondo)
+            Interruptor("Activar el fondo de ahorro", S.modoFondo, a.fondo, demoClave = "aj.fondo.activar")
             if (S.modoFondo) {
                 Interruptor("Si me paso, no descontarlo de ningún lado", S.fondoExceso == "aparte", a.excesoAparte,
                     "Apagado: lo que te pasás se descuenta del día siguiente")

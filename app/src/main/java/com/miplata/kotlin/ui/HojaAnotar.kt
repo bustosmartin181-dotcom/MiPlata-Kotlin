@@ -128,7 +128,7 @@ fun HojaAnotar(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(devuelven, { devuelven = it })
+                    Checkbox(devuelven, { devuelven = it }, Modifier.demo("an.devuelven", accion = { devuelven = true }))
                     Column {
                         Text("Me lo devuelven", color = k.texto)
                         Text("Compré para otros: no te baja el límite del día", fontSize = 12.sp, color = k.suave)

@@ -58,11 +58,11 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             if (S.ingresos.size > 1) Renglon("Total", dinero(S.sueldo))
         }
 
-        TarjetaPagarAlCobrar(S,
+        Box(Modifier.demo("plan.pagar").luz("plan.pagar")) { TarjetaPagarAlCobrar(S,
             alPagado = { i, v -> almacen.marcarPagado(i, v); alCambiar() },
             alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
             alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) },
-            alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) })
+            alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) }) }
 
         TarjetaCuotas(S)
 

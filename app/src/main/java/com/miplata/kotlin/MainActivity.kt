@@ -174,13 +174,16 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     val alcance = rememberCoroutineScope()
     fun cargarDemo() { almacen.entrarDemo(estadoDemo(almacen.crudo)); hojaAbierta = false; editando = null; hojaHoy = ""; vuelta++ }
     fun reproducirDemo() { alcance.launch {
+        val colorAntes = almacen.crudo?.get("color")
         Demo.correr(preparar = { cargarDemo(); pestana = Pestana.HOY },
-            guion = { guionMiPlata(
+            guion = { guionMiPlata(AccionesDemo(
                 calculo = { almacen.estado?.let { Nucleo.calcular(it, Fechas.hoy()) } },
                 ultimoGasto = { almacen.estado?.spent?.maxByOrNull { it.id }?.id },
                 borrar = { almacen.borrarMovimiento(it); vuelta++ },
-                reiniciar = { }) },
-            alTerminar = { cargarDemo() })
+                ajustar = { m -> m.forEach { (k, v) -> almacen.cambiarCampo(k, v) }; vuelta++ },
+                hoja = { hojaHoy = it },
+                estado = { almacen.estado })) },
+            alTerminar = { cargarDemo(); colorAntes?.let { almacen.cambiarCampo("color", it); vuelta++ } })   // datos de ejemplo de nuevo y tu color
     } }
     val abrirImportar = { importar.launch(arrayOf("application/json", "text/plain", "*/*")) }
     val abrirExportar = { exportar.launch("mi-plata-copia-${Fechas.hoy()}.json") }

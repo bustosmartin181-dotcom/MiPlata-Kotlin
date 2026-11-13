@@ -27,14 +27,14 @@ fun CampoMonto(valor: String, alCambiar: (String) -> Unit, etiqueta: String, mod
 }
 
 @Composable
-fun Interruptor(texto: String, valor: Boolean, alCambiar: (Boolean) -> Unit, detalle: String? = null) {
+fun Interruptor(texto: String, valor: Boolean, alCambiar: (Boolean) -> Unit, detalle: String? = null, demoClave: String? = null) {
     val k = LocalColores.current
     Row(Modifier.fillMaxWidth().clickable { alCambiar(!valor) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(texto, color = k.texto)
             detalle?.let { Text(it, fontSize = 12.sp, color = k.suave) }
         }
-        Switch(valor, alCambiar)
+        Switch(valor, alCambiar, if (demoClave != null) Modifier.demo(demoClave) else Modifier)   // en la demo solo se señala: la demo cambia los datos sin pedir permisos
     }
 }
 

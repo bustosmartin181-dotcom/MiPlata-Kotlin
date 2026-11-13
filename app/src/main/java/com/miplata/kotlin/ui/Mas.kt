@@ -70,6 +70,7 @@ val NOVEDADES = listOf(
     "10.7" to listOf("✨ Bienvenida nueva en 6 pantallas, como la Mi plata original: Bienvenido, Así funciona, Tu plata tu decisión, ¿De dónde viene tu plata?, Gastos importantes y ¡Listo!",
         "Las pantallas entran deslizando y se van llenando de a poco; los números corren hasta su valor",
         "🎬 La demo automática recorre las 6 pantallas (ya no se queda quieta en la primera)",
+        "🎬 Y después muestra las buenas funciones: Mis cuentas con Mercado Pago, Me deben, fondo de ahorro con rendimiento, la reserva, pagar con Mercado Pago, los colores 🇦🇷 y una pantalla final con todo lo demás",
         "En Hoy, el número grande y la barra se mueven cuando anotás un gasto"),
     "10.6" to listOf("🎤 El widget \"Dictar gasto\" escucha ahí mismo, sin abrir ventanas: el aro del micrófono se ilumina con tu voz y abajo se escribe lo que decís",
         "Después de anotar, tocando el texto del widget lo deshacés",
@@ -124,7 +125,8 @@ fun estadoDemo(real: JsonObject?): JsonObject {
         "ingresos" to JsonArray(listOf(JsonObject(mapOf("cat" to JsonPrimitive("Sueldo"), "a" to JsonPrimitive(620000))))),
         "start" to JsonPrimitive(start), "end" to JsonPrimitive(Fechas.mesSiguiente(start)),
         "items" to JsonArray(listOf("Alquiler" to 180000, "Luz" to 25000, "Internet" to 20000).map { (nn, a) ->
-            val base = mutableMapOf<String, JsonElement>("n" to JsonPrimitive(nn), "a" to JsonPrimitive(a), "p" to JsonPrimitive(true))
+            val base = mutableMapOf<String, JsonElement>("n" to JsonPrimitive(nn), "a" to JsonPrimitive(a), "p" to JsonPrimitive(nn != "Internet"))
+            if (nn == "Internet") base["mp"] = JsonPrimitive("mi.internet.mp")        // así se ve el botón de Mercado Pago
             if (nn == "Alquiler") base["ipc"] = JsonObject(mapOf("prox" to JsonPrimitive(hoy.take(7)), "cada" to JsonPrimitive(6), "partes" to JsonPrimitive(1)))
             JsonObject(base) }),
         "spent" to JsonArray(gastos.mapIndexed { i, (d, amt, nc) -> JsonObject(mapOf("id" to JsonPrimitive(ahora + i),
@@ -133,5 +135,11 @@ fun estadoDemo(real: JsonObject?): JsonObject {
         "metas" to JsonArray(listOf(JsonObject(mapOf("id" to JsonPrimitive(1), "n" to JsonPrimitive("Vacaciones"), "t" to JsonPrimitive(300000), "g0" to JsonPrimitive(60000), "f" to JsonPrimitive(""))))),
     )
     listOf("tema", "color").forEach { k -> real?.get(k)?.let { m[k] = it } }
+    /* Mis cuentas: el saldo de Mercado Pago coincide con la app (después cada gasto lo baja solo) */
+    runCatching {
+        val S = com.miplata.kotlin.nucleo.Estado.desdeJson(JsonObject(m))
+        val saldo = com.miplata.kotlin.nucleo.Nucleo.calcular(S, hoy).saldo
+        m["cuentas"] = JsonArray(listOf(JsonObject(mapOf("n" to JsonPrimitive("Mercado Pago"), "m" to num(Math.round(saldo * 100) / 100.0)))))
+    }
     return JsonObject(m)
 }

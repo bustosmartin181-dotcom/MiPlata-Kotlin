@@ -113,7 +113,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         }
 
         /* Dos números de un vistazo */
-        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min).demo("hoy.minis").luz("hoy.minis"), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (c.fondo.activo) {
                 Mini("Disponible", dinero(c.fondo.disponible), Modifier.weight(1f).clickable(onClick = alAbrirCuentas))
                 Mini("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), Modifier.weight(1f).clickable(onClick = alAbrirFondo),
@@ -129,7 +129,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
 
         /* Comparar con las cuentas */
         val cc = Nucleo.conciliar(S, c)
-        Row(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(18.dp)).clickable(onClick = alAbrirCuentas).padding(16.dp),
+        Row(Modifier.fillMaxWidth().demo("hoy.cuentas", alAbrirCuentas).luz("hoy.cuentas").background(k.tarjeta, RoundedCornerShape(18.dp)).clickable(onClick = alAbrirCuentas).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Mis cuentas", fontWeight = FontWeight.SemiBold, color = k.texto)
@@ -143,10 +143,10 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
 
         /* Me deben */
         val debo = deudas(S)
-        if (debo.isNotEmpty()) TarjetaMeDeben(debo, alCobrar, alNoPagaron)
+        if (debo.isNotEmpty()) Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron) }
 
         /* Mi fondo de ahorro, con cómo fue creciendo */
-        if (c.fondo.activo) TarjetaFondo(S, c, alAbrirFondo)
+        if (c.fondo.activo) Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }
 
         /* Para pasar a tu reserva (fondo de ahorro), justo abajo del fondo, como en Mi plata.
            "Ya lo pasé" se puede tocar también a la noche, cuando pasás lo de hoy (antes de que cierre el día). */
@@ -158,14 +158,14 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             val ahora = LocalTime.now()
             val esDeNoche = ahora >= LocalTime.of(hAviso, mAviso).minusHours(2) && ahora.hour >= 12
             val conHoy = anteriores + (if (esDeNoche) c.fondo.hoySuma else 0.0)
-            if (conHoy >= 1 || conHoy <= -1) Column(Modifier.fillMaxWidth()
+            if (conHoy >= 1 || conHoy <= -1) Column(Modifier.fillMaxWidth().demo("hoy.reserva").luz("hoy.reserva")
                 .border(1.5.dp, k.verde, RoundedCornerShape(22.dp)).background(k.tarjeta, RoundedCornerShape(22.dp)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🏦 Para pasar a tu reserva", color = k.suave, fontSize = 16.sp)
                 if (conHoy >= 1) {
                     Text(dinero(conHoy), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
                     Text(when {
-                        anteriores >= 1 && c.fondo.hoySuma >= 1 -> "${dinero(anteriores)} de días anteriores + ${dinero(c.fondo.hoySuma)} que te sobran hoy."
+                        anteriores >= 1 && esDeNoche && c.fondo.hoySuma >= 1 -> "${dinero(anteriores)} de días anteriores + ${dinero(c.fondo.hoySuma)} que te sobran hoy."
                         anteriores >= 1 -> "Es lo que fue al fondo y todavía no pasaste a tu reserva."
                         anteriores <= -1 -> "Ya pasaste una parte de lo de hoy. Te falta esto."
                         else -> "Es lo que te sobra hoy. Pasalo a la noche, cuando ya no vayas a gastar."
