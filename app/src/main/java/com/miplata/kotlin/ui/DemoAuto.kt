@@ -226,7 +226,7 @@ suspend fun Demo.guionMiPlata(a: AccionesDemo) {
     val siguiente: suspend () -> Unit = { tocar("bv.siguiente"); pausa(900) }
 
     bienvenida = true; pausa(300)
-    decir("Antes se hacía con lápiz y papel. Ahora, en el celu 📱"); pausa(1600)        // 0 · Bienvenido
+    decir("Dejé el lápiz y papel: las cuentas de la casa, ahora en el celu 📱"); pausa(1600)        // 0 · Bienvenido
     tocar("bv.nombre"); escribir("bv.nombre", "Martín", 110, 350)
     pausa(900); siguiente()
 
