@@ -23,6 +23,7 @@ private sealed interface HojaPlan {
     data object Actual : HojaPlan
     data object Nuevo : HojaPlan
     data class UnaMeta(val m: Meta?) : HojaPlan
+    data class UnPlan(val p: Plan?) : HojaPlan
     data class Detalle(val k: Int) : HojaPlan
     data class IPC(val k: Int) : HojaPlan
 }
@@ -47,8 +48,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             if (S.previo != 0.0) Renglon("Saldo previo", dinero(S.previo))
             Renglon("Gastos importantes", dinero(c.total))
             Renglon("Falta pagar", dinero(c.porPagar), colorDer = if (c.porPagar > 0) k.naranja else k.verde)
+            val enPlanes = S.planes.filter { it.activo && !it.fin }.sumOf { it.cuota }
+            if (enPlanes > 0) Renglon("Mis planes activos", dinero(enPlanes))
             HorizontalDivider(color = k.linea)
-            Renglon("Para el día a día", dinero(S.sueldo + S.previo - c.total))
+            Renglon("Para el día a día", dinero(S.sueldo + S.previo - c.total - enPlanes))
             Text("Tocá para cambiar fechas o saldo previo", fontSize = 12.sp, color = k.suave)
         }
 
@@ -63,6 +66,11 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
             alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) },
             alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) }) }
+
+        TarjetaPlanes(S, c, alAgregar = { hoja = HojaPlan.UnPlan(null) }, alEditar = { hoja = HojaPlan.UnPlan(it) },
+            alActivar = { p, on -> almacen.activarPlan(p.id, on); alCambiar()
+                aviso(if (on) "Activado: se descuentan ${dinero(p.cuota)} de este período" else "Desactivado: la plata vuelve a tu disponible") },
+            alPagado = { p, v -> almacen.marcarPlanPagado(p.id, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") })
 
         TarjetaCuotas(S)
 
@@ -128,6 +136,9 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             alGuardar = { n, t, g0, f -> almacen.guardarMeta(h.m?.id, n, t, g0, f); alCambiar(); hoja = null; aviso("Meta guardada") },
             alAportar = { monto -> h.m?.let { almacen.aportar(it.id, it.n, monto) }; alCambiar(); hoja = null; aviso("Apartaste ${dinero(monto)}") },
             alQuitar = { h.m?.let { almacen.quitarMeta(it.id) }; alCambiar(); hoja = null; aviso("Meta borrada") })
+        is HojaPlan.UnPlan -> HojaPlanEditar(h.p, { hoja = null },
+            alGuardar = { n, t, m -> almacen.guardarPlan(h.p?.id, n, t, m); alCambiar(); hoja = null; aviso("Plan guardado") },
+            alBorrar = { h.p?.let { almacen.borrarPlan(it.id) }; alCambiar(); hoja = null; aviso("Plan borrado") })
         null -> {}
     }
 }

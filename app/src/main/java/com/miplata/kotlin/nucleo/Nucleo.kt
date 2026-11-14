@@ -49,8 +49,12 @@ object Nucleo {
         S.ajustes.forEach { descuentos += Descuento(it.amt, it.desde) }
         S.items.filter { it.d != null }.forEach { descuentos += Descuento(-montoBase(it), it.d) }
         S.items.forEach { i -> i.x.forEach { descuentos += Descuento(-it.amt, it.desde) } }
+        /* Mis planes activos: como un gasto prioritario (desde el cobro, o desde el día en que se activaron) */
+        val planesActivos = S.planes.filter { it.activo && !it.fin }
+        val planesBase = planesActivos.filter { it.desde == null || it.desde <= S.start }.sumOf { it.cuota }
+        planesActivos.filter { it.desde != null && it.desde > S.start }.forEach { descuentos += Descuento(-it.cuota, it.desde) }
         val aportes = S.spent.filter { it.esMeta }.sumOf { it.amt }
-        val dispBase = S.sueldo + S.previo - totalBase - aportes
+        val dispBase = S.sueldo + S.previo - totalBase - planesBase - aportes
         var disp = dispBase + descuentos.sumOf { it.amt }
 
         val dias = max(1L, Fechas.dia(S.end) - inicio).toInt()

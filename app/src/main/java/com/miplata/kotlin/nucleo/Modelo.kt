@@ -21,6 +21,27 @@ data class Item(
     val extra: JsonObject = JsonObject(emptyMap()), // otros datos (alias de MP, código, IPC...) que se conservan
 )
 
+/** "Mis planes": un gasto que tenés en la cabeza (arreglar el radiador, comprar algo).
+    Desactivado no toca tus números. Activado funciona como un gasto prioritario: se descuenta
+    desde el día que lo activás. Se puede repartir en varios meses (una cuota por período). */
+data class Plan(
+    val id: Long,
+    val n: String,
+    val total: Double,
+    val meses: Int = 1,
+    val activo: Boolean = false,
+    val desde: String? = null,       // día desde el que se descuenta en este período (null = desde el cobro)
+    val hechas: Int = 0,             // cuotas de períodos anteriores ya descontadas
+    val p: Boolean = false,          // pagado este período
+    val fin: Boolean = false,        // cumplido: ya se descontaron todas las cuotas
+) {
+    private val m get() = meses.coerceAtLeast(1)
+    private val cuotaComun get() = Math.round(total / m).toDouble()
+    /** Lo que se descuenta en este período (la última cuota redondea para que cierre justo). */
+    val cuota: Double get() = if (hechas >= m - 1) total - cuotaComun * (m - 1) else cuotaComun
+    val cuotaNumero: Int get() = (hechas + 1).coerceAtMost(m)
+}
+
 data class Movimiento(
     val id: Long,
     val date: String,
@@ -63,6 +84,7 @@ data class Estado(
     val ajustes: List<Ajuste> = emptyList(),
     val cuentas: List<Cuenta> = emptyList(),
     val metas: List<Meta> = emptyList(),
+    val planes: List<Plan> = emptyList(),
     val ingresos: List<Ingreso> = emptyList(),
     val proximos: List<Proximo> = emptyList(),
     val objetivo: Double = 0.0,
@@ -140,6 +162,11 @@ data class Estado(
             },
             cuentas = o.lista("cuentas").map { Cuenta(it["n"].texto() ?: "", it["m"].num(), it["x"].verdadero()) },
             metas = o.lista("metas").map { Meta(it["id"].num().toLong(), it["n"].texto() ?: "", it["t"].num(), it["g0"].num(), it["f"].texto() ?: "") },
+            planes = o.lista("planes").map {
+                Plan(it["id"].num().toLong(), it["n"].texto() ?: "", it["total"].num(), it["meses"].num().toInt().coerceAtLeast(1),
+                    it["activo"].verdadero(), it["desde"].texto()?.takeIf { s -> s.isNotEmpty() }, it["hechas"].num().toInt(),
+                    it["p"].verdadero(), it["fin"].verdadero())
+            },
             ingresos = o.lista("ingresos").map { Ingreso(it["cat"].texto() ?: "Sueldo", it["a"].num()) },
             proximos = o.lista("proximos").map { Proximo(it["n"].texto() ?: "", it["a"].num()) },
             objetivo = o["objetivo"].num(),

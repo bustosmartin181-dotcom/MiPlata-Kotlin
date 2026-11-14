@@ -67,6 +67,10 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.8" to listOf("🎯 Mis planes (en Plan): anotá los gastos que tenés en mente, como arreglar el auto o una compra grande",
+        "Con ❌ no tocan tu plata. Con ✅ se descuentan como un gasto prioritario, repartidos entre los días que quedan desde hoy",
+        "Se pueden pagar en varios meses: cada período se descuenta una cuota, hasta que el plan queda cumplido",
+        "Marcá Pendiente o Pagado igual que en los gastos importantes"),
     "10.7" to listOf("✨ Bienvenida nueva en 6 pantallas, como la Mi plata original: Bienvenido, Así funciona, Tu plata tu decisión, ¿De dónde viene tu plata?, Gastos importantes y ¡Listo!",
         "Las pantallas entran deslizando y se van llenando de a poco; los números corren hasta su valor",
         "🎬 La demo automática recorre las 6 pantallas (ya no se queda quieta en la primera)",

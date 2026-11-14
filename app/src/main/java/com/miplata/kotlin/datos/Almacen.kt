@@ -146,6 +146,32 @@ class Almacen(private val carpeta: File) {
     fun cambiarMontoItem(k: Int, monto: Double) = cambiarTodo { com.miplata.kotlin.nucleo.Periodo.cambiarMonto(it, k, monto, Fechas.hoy()) }
 
     /** Gasto importante nuevo: con el período empezado se descuenta desde hoy (como la app original). */
+    /* ---------- Mis planes ---------- */
+    private fun cambiarPlanes(f: (MutableList<JsonObject>) -> Unit) = cambiar(moverCuenta = false) {
+        val l = (this["planes"] as? JsonArray)?.mapNotNull { it as? JsonObject }?.toMutableList() ?: mutableListOf()
+        f(l); this["planes"] = JsonArray(l)
+    }
+    private fun cambiarPlan(id: Long, f: (MutableMap<String, JsonElement>) -> Unit) = cambiarPlanes { l ->
+        val i = l.indexOfFirst { it["id"].num().toLong() == id }
+        if (i >= 0) { val m = l[i].toMutableMap(); f(m); l[i] = JsonObject(m) }
+    }
+    fun guardarPlan(id: Long?, nombre: String, total: Double, meses: Int) = if (id == null) cambiarPlanes { l ->
+        l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "n" to JsonPrimitive(nombre), "total" to num(total),
+            "meses" to JsonPrimitive(meses.coerceIn(1, 24)), "activo" to JsonPrimitive(false), "hechas" to JsonPrimitive(0), "p" to JsonPrimitive(false)))
+    } else cambiarPlan(id) { it["n"] = JsonPrimitive(nombre); it["total"] = num(total); it["meses"] = JsonPrimitive(meses.coerceIn(1, 24)) }
+    fun borrarPlan(id: Long) = cambiarPlanes { l -> l.removeAll { it["id"].num().toLong() == id } }
+    /** Activar: se descuenta desde hoy (o desde el cobro si el período todavía no empezó). Desactivar: la plata vuelve. */
+    fun activarPlan(id: Long, on: Boolean) {
+        val o = crudo ?: return
+        val hoy = Fechas.hoy(); val start = o["start"].texto() ?: hoy; val end = o["end"].texto() ?: hoy
+        val desde = if (Fechas.dia(hoy) > Fechas.dia(start)) Fechas.iso(minOf(Fechas.dia(hoy), Fechas.dia(end) - 1)) else null
+        cambiarPlan(id) { m ->
+            m["activo"] = JsonPrimitive(on); m["p"] = JsonPrimitive(false)
+            if (on && desde != null) m["desde"] = JsonPrimitive(desde) else m.remove("desde")
+        }
+    }
+    fun marcarPlanPagado(id: Long, pagado: Boolean) = cambiarPlan(id) { it["p"] = JsonPrimitive(pagado) }
+
     fun agregarItem(): Int {
         var indice = 0
         cambiarTodo { o ->
