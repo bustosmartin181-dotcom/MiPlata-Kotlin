@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,6 +62,9 @@ object Colabora {
         return ahora - p.getLong("ultima", 0) >= CADA && ahora >= p.getLong("silencio", 0)
     }
     fun mostrada(ctx: Context) = prefs(ctx).edit().putLong("ultima", System.currentTimeMillis()).apply()
+    /** Dónde dejó el usuario el corazón (desplazamiento desde abajo a la derecha, en píxeles). */
+    fun posicion(ctx: Context) = Offset(prefs(ctx).getFloat("x", 0f), prefs(ctx).getFloat("y", 0f))
+    fun guardarPosicion(ctx: Context, o: Offset) = prefs(ctx).edit().putFloat("x", o.x).putFloat("y", o.y).apply()
     fun yaColaboro(ctx: Context) = prefs(ctx).edit().putLong("silencio", System.currentTimeMillis() + SILENCIO).apply()
 }
 
@@ -111,10 +117,22 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
             transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) using SizeTransform(clip = false) }) { f ->
             when (f) {
                 /* Siempre en Hoy: el corazoncito flotante; al tocarlo se convierte en el cartel */
-                Fase.NADA -> Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, end = 18.dp),
-                    contentAlignment = Alignment.BottomEnd) {
+                Fase.NADA -> BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().padding(top = 8.dp, bottom = 96.dp, start = 12.dp, end = 18.dp)) {
+                    var desp by remember { mutableStateOf(Colabora.posicion(ctx)) }
+                    var tam by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+                    val maxX = constraints.maxWidth.toFloat(); val maxY = constraints.maxHeight.toFloat()
+                    fun limitar(o: Offset) = Offset(o.x.coerceIn(-(maxX - tam.width).coerceAtLeast(0f), 0f), o.y.coerceIn(-(maxY - tam.height).coerceAtLeast(0f), 0f))
                     if (corazon) Corazon(abrir,
-                        Modifier.demo("colabora.corazon", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
+                        Modifier.align(Alignment.BottomEnd)
+                            .offset { IntOffset(desp.x.toInt(), desp.y.toInt()) }
+                            .onSizeChanged { tam = it; desp = limitar(desp) }
+                            .pointerInput(maxX, maxY) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress) },
+                                    onDragEnd = { Colabora.guardarPosicion(ctx, desp) },
+                                    onDragCancel = { Colabora.guardarPosicion(ctx, desp) }) { cambio, d -> cambio.consume(); desp = limitar(desp + d) }
+                            }
+                            .demo("colabora.corazon", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
                             boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
                             resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
                 }
@@ -140,13 +158,19 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
 /** La burbuja chica: verde, con un reflejo que pasa y el corazón latiendo. */
 @Composable
 private fun Corazon(alTocar: () -> Unit, modifier: Modifier) {
-    val latido by rememberInfiniteTransition(label = "corazon")
-        .animateFloat(1f, 1.15f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "latido")
-    Box(modifier.size(56.dp).shadow(10.dp, CircleShape, ambientColor = VERDE_2, spotColor = VERDE_2)
-        .clip(CircleShape).background(Brush.linearGradient(listOf(VERDE_1, VERDE_2)))
-        .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
-        .clickable(onClickLabel = "Ayudá al creador", onClick = alTocar), contentAlignment = Alignment.Center) {
-        Text("💚", fontSize = 24.sp, modifier = Modifier.scale(latido))
+    val anim = rememberInfiniteTransition(label = "corazon")
+    val latido by anim.animateFloat(1f, 1.18f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "latido")
+    val x by anim.animateFloat(-400f, 900f, infiniteRepeatable(tween(2600, easing = LinearEasing)), label = "brillo")
+    val reflejo = Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.40f), Color.Transparent),
+        start = Offset(x, 0f), end = Offset(x + 140f, 110f))
+    Row(modifier.shadow(10.dp, RoundedCornerShape(50), ambientColor = VERDE_2, spotColor = VERDE_2)
+        .clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(VERDE_1, VERDE_2))).background(reflejo)
+        .border(1.5.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
+        .clickable(onClickLabel = "Ayudá al creador", onClick = alTocar)
+        .padding(start = 12.dp, end = 16.dp, top = 9.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("💚", fontSize = 22.sp, modifier = Modifier.scale(latido))
+        Spacer(Modifier.width(8.dp))
+        Text("Ayudá al creador", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
     }
 }
 
