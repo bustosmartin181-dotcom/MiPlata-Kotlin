@@ -87,6 +87,15 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
         if (fase == Fase.BURBUJA) fase = Fase.NADA
     }
     LaunchedEffect(fase) { alCambiarAbierto(fase == Fase.CARTEL) }
+    /* En la demo automática: 1 = aparece la burbuja, 2 = se abre el cartel, 0 = se cierra */
+    LaunchedEffect(Demo.colabora) {
+        if (!Demo.corriendo) return@LaunchedEffect
+        when (Demo.colabora) {
+            1 -> { fase = Fase.BURBUJA; restante.snapTo(1f); restante.animateTo(0.6f, tween(4000, easing = LinearEasing)) }
+            2 -> fase = Fase.CARTEL
+            else -> fase = Fase.NADA
+        }
+    }
 
     val abrir = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress); fase = Fase.CARTEL }
     val cerrar = { fase = Fase.NADA }
@@ -105,7 +114,7 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
                 Fase.BURBUJA -> Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, start = 20.dp, end = 20.dp),
                     contentAlignment = Alignment.BottomCenter) {
                     Burbuja(restante.value, abrir, cerrar,
-                        Modifier.sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
+                        Modifier.demo("colabora.burbuja", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
                             boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
                             resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
                 }

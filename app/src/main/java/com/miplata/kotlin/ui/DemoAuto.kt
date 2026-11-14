@@ -57,6 +57,7 @@ object Demo {
     var parpadeo by mutableStateOf(true)
     var resaltado by mutableStateOf<String?>(null)
     var vitrina by mutableStateOf(false)             // pantalla final "Y además…"
+    var colabora by mutableIntStateOf(0)             // burbuja "Ayudá al creador" (1 burbuja, 2 cartel)
     val toques = mutableStateListOf<Toque>()
     val registros = mutableMapOf<String, Registro>()
     val lugares = mutableMapOf<String, Rect>()
@@ -118,7 +119,7 @@ object Demo {
         } catch (e: Exception) {          // si algo falla, la demo se corta pero la app no se cierra
             if (e is kotlinx.coroutines.CancellationException) throw e
         } finally {
-            cuenta = 0; frase = null; cursor = null; resaltado = null; bienvenida = false; vitrina = false; toques.clear()
+            cuenta = 0; frase = null; cursor = null; resaltado = null; bienvenida = false; vitrina = false; colabora = 0; toques.clear()
             corriendo = false; cancelada = false
             alTerminar()
         }
@@ -349,8 +350,15 @@ suspend fun Demo.guionMiPlata(a: AccionesDemo) {
 
     decir("Y además…")
     vitrina = true; pausa(9000)
+    vitrina = false; pausa(300)
 
-    decir("Gratis 👉 link en mi bio"); pausa(4000)
+    decir("Si te sirve, podés darle una mano al creador 💚")
+    colabora = 1; pausa(2500)
+    tocar("colabora.burbuja", mover = false); pausa(5500)
+    colabora = 0; pausa(700)
+
+    decir("Gratis 👉 link en mi bio")
+    vitrina = true; pausa(4000)
     vitrina = false
 }
 
