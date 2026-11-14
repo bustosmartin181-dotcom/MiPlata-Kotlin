@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -48,3 +51,11 @@ jobs:
         with:
           name: MiPlata-APK
           path: MiPlata-*.apk
+
+      - name: Publicar el APK como versión descargable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v10.0.${{ github.run_number }}
+          name: Mi plata 10.0.${{ github.run_number }}
+          body: APK firmado con la clave fija; se instala encima de la versión anterior.
+          files: MiPlata-*.apk
