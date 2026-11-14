@@ -414,7 +414,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             "taller" -> HojaTaller(taller, { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ },
                 alImportar = { importarTaller.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                alFoto = { elegirFoto = true }, leyendoFoto = leyendoFoto, alPermisoAvisos = { asegurarNotis() })
+                alFoto = { elegirFoto = true }, leyendoFoto = leyendoFoto, alPermisoAvisos = { asegurarNotis() },
+                alPedidos = { hojaHoy = "pedidos" },
+                alProbarAviso = { if (!AvisoReserva.hayPermiso(ctx)) asegurarNotis()
+                    else com.miplata.kotlin.aviso.AvisoTaller.mostrar(ctx, "🥐 Hora del desayuno", "Así te va a llegar. Tocá para tomar los pedidos de los muchachos.") })
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
     }
