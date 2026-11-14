@@ -363,7 +363,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         alAbrirMP = ::abrirMP,
         alYaColabore = { Colabora.yaColaboro(ctx); aviso("¡Gracias de corazón! 💚") },
         alCambiarAbierto = { colaboraAbierta = it },
-        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina)
+        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina && !Demo.bienvenida)
 
     CapaDemo()
 }
