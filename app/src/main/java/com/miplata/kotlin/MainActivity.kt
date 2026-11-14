@@ -77,6 +77,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     val nombre = remember(vuelta) { almacen.crudo?.get("nombre").texto()?.takeIf { it.isNotBlank() } ?: "" }
     var pestana by rememberSaveable { mutableStateOf(Pestana.HOY) }
     var hojaAbierta by remember { mutableStateOf(false) }
+    var conDictado by remember { mutableStateOf(false) }           // abrir la ventanita escuchando
+    var ordenandoBloques by remember { mutableStateOf(false) }     // ✏️ en Hoy
     var editando by remember { mutableStateOf<Movimiento?>(null) }
     var hojaHoy by remember { mutableStateOf("") }
     var colaboraAbierta by remember { mutableStateOf(false) }          // "fondo", "cuentas", "pase", "pin"
@@ -204,14 +206,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     /* Con el cartel "Ayudá al creador" abierto, la app queda borrosa detrás (Android 12 o más nuevo) */
     val borroso by androidx.compose.animation.core.animateDpAsState(if (colaboraAbierta) 14.dp else 0.dp, label = "borroso")
     Scaffold(modifier = Modifier.blur(borroso), containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
-        if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it }) { editando = null; hojaAbierta = true }
+        if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it; ordenandoBloques = false }) { editando = null; conDictado = false; hojaAbierta = true }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
             if (estado == null || Demo.bienvenida) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
                 if (Demo.corriendo) { almacen.entrarDemo(estadoDemo(almacen.crudo)); Demo.bienvenida = false; pestana = Pestana.HOY; vuelta++ }
                 else { almacen.empezarDeCero(n, sueldo, ini, fin, gastos); vuelta++; aviso("¡Bienvenido a Mi plata!") } }
             else {
-                val tocar: (Movimiento) -> Unit = { editando = it; hojaAbierta = true }
+                val tocar: (Movimiento) -> Unit = { editando = it; conDictado = false; hojaAbierta = true }
                 when (pestana) {
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
@@ -223,6 +225,12 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alOjo = { if (Privacidad.mostrando || estado.pin.isEmpty()) Privacidad.mostrando = !Privacidad.mostrando else pidiendoPinOjo = true },
                         alCompartir = { hojaHoy = "resumen" },
                         alIA = { hojaHoy = "ia" },
+                        alAnotar = { editando = null; conDictado = false; hojaAbierta = true },
+                        alDictar = { editando = null; conDictado = true; hojaAbierta = true },
+                        alPlanes = { pestana = Pestana.PLAN },
+                        editandoBloques = ordenandoBloques && !Demo.corriendo,
+                        alEditarBloques = { ordenandoBloques = !ordenandoBloques },
+                        alTerminarEdicion = { ordenandoBloques = false },
                         alSalirDemo = { almacen.salirDemo(); vuelta++; aviso("Volviste a tus datos") },
                         alReproducirDemo = ::reproducirDemo,
                         avisoCopia = run {
@@ -346,7 +354,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
 
     if (hojaAbierta) HojaAnotar(
         editando = editando,
-        alCerrar = { hojaAbierta = false },
+        dictarAlAbrir = conDictado,
+        alCerrar = { hojaAbierta = false; conDictado = false },
         alGuardar = { m ->
             almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
             hojaAbierta = false; vuelta++
@@ -363,7 +372,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         alAbrirMP = ::abrirMP,
         alYaColabore = { Colabora.yaColaboro(ctx); aviso("¡Gracias de corazón! 💚") },
         alCambiarAbierto = { colaboraAbierta = it },
-        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina && !Demo.bienvenida)
+        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina && !Demo.bienvenida && !ordenandoBloques)
 
     CapaDemo()
 }

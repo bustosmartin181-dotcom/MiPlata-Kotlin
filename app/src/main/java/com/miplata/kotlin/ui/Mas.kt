@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "10.9" to listOf("🧩 Hoy en bloques, como el panel de tu Samsung: el grande con lo que te queda hoy, los chiquitos de a dos y accesos rápidos (Anotar, Dictar, Mercado Pago, Mis planes, Preguntale a tu plata y Compartir)",
+        "Tocá ✏️ arriba para ordenarlos: flechitas para subir o bajar, ⊖ para ocultar y ⊕ para volver a agregar. La app recuerda cómo los dejaste"),
     "10.8" to listOf("🎯 Mis planes (en Plan): anotá los gastos que tenés en mente, como arreglar el auto o una compra grande",
         "Con ❌ no tocan tu plata. Con ✅ se descuentan como un gasto prioritario, repartidos entre los días que quedan desde hoy",
         "Se pueden pagar en varios meses: cada período se descuenta una cuota, hasta que el plan queda cumplido",

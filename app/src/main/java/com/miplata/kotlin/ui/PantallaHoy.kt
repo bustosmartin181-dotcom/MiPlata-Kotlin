@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +32,9 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
                 alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
-                avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {}) {
+                avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
+                alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {},
+                editandoBloques: Boolean = false, alEditarBloques: () -> Unit = {}, alTerminarEdicion: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -51,6 +54,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             }
             if (S.ocultar) IconButton(onClick = alOjo) { Icon(if (Privacidad.oculto) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
                 contentDescription = if (Privacidad.oculto) "Mostrar montos" else "Ocultar montos", tint = k.suave) }
+            IconButton(onClick = alEditarBloques) { Icon(Icons.Outlined.Edit, contentDescription = "Ordenar bloques", tint = if (editandoBloques) k.verde else k.suave) }
             IconButton(onClick = alIA) { Text("✨", fontSize = 20.sp) }
             IconButton(onClick = alCompartir) { Icon(Icons.Outlined.Share, contentDescription = "Compartir resumen", tint = k.suave) }
             if (racha.racha > 0) Row(
@@ -97,95 +101,92 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             }
         }
 
-        /* Lo principal: cuánto te queda hoy */
-        Column(Modifier.fillMaxWidth().background(fondoHero, RoundedCornerShape(26.dp)).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Te queda para hoy", color = sobreHero.copy(alpha = 0.85f), fontSize = 15.sp)
-            Text(dineroCentavos(numeroAnimado(c.quedaHoy)), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
-            val barra by androidx.compose.animation.core.animateFloatAsState(fraccion, androidx.compose.animation.core.tween(900), label = "barra")
-            LinearProgressIndicator(progress = { barra }, modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
-            Text("Presupuesto ${dinero(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
-            c.manana?.let {
-                val luz = Demo.resaltado == "hoy.manana"
-                Text("Mañana tendrás ${dinero(it)}", Modifier.demo("hoy.manana")
-                    .then(if (luz) Modifier.border(3.dp, sobreHero, RoundedCornerShape(10.dp)).background(sobreHero.copy(alpha = 0.18f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp) else Modifier),
-                    color = sobreHero, fontSize = if (luz) 21.sp else 16.sp, fontWeight = if (luz) FontWeight.Bold else FontWeight.SemiBold)
-            }
-            if (c.fondo.activo && c.fondo.hoySuma > 0)
-                Text("Lo que no gastes hoy va a tu fondo: ${dinero(c.fondo.hoySuma)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
-        }
-
-        /* Dos números de un vistazo */
-        Row(Modifier.height(IntrinsicSize.Min).demo("hoy.minis").luz("hoy.minis"), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (c.fondo.activo) {
-                Mini("Disponible", dinero(c.fondo.disponible), Modifier.weight(1f).clickable(onClick = alAbrirCuentas))
-                Mini("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), Modifier.weight(1f).clickable(onClick = alAbrirFondo),
-                    extra = if (S.rendOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
-            } else {
-                Mini("Saldo del período", dinero(c.saldo), Modifier.weight(1f).clickable(onClick = alAbrirCuentas),
-                    extra = if (S.rendDispOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
-                Mini("Días que faltan", c.faltan.toString(), Modifier.weight(1f))
-            }
-        }
-        Text("Faltan ${c.faltan} días (con hoy) · base del día ${dinero(c.baseHoy)}", fontSize = 13.sp, color = k.suave,
-            modifier = Modifier.padding(horizontal = 4.dp))
-
-        /* Comparar con las cuentas */
-        val cc = Nucleo.conciliar(S, c)
-        Row(Modifier.fillMaxWidth().demo("hoy.cuentas", alAbrirCuentas).luz("hoy.cuentas").background(k.tarjeta, RoundedCornerShape(18.dp)).clickable(onClick = alAbrirCuentas).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Mis cuentas", fontWeight = FontWeight.SemiBold, color = k.texto)
-                Text(if (cc.hayCuentas) "En cuentas: ${dinero(cc.total)}" else "Cargá tu saldo de Mercado Pago para comparar", fontSize = 13.sp, color = k.suave)
-            }
-            if (cc.hayCuentas) {
-                val ok = Math.abs(cc.diferencia) < 1
-                Text(if (ok) "Coincide" else dinero(cc.diferencia), fontWeight = FontWeight.Bold, color = if (ok) k.verde else k.naranja)
-            }
-        }
-
-        /* Me deben */
+        /* ---------- Bloques, como el panel de One UI: con ✏️ se suben, bajan, ocultan o agregan ---------- */
         val debo = deudas(S)
-        if (debo.isNotEmpty()) Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron) }
+        val cc = Nucleo.conciliar(S, c)
+        val anteriores = c.fondo.total - S.resPasado          // de días ya cerrados, sin pasar a la reserva
+        /* Lo de hoy se suma recién desde 2 horas antes del aviso de la noche (con aviso a las 22, desde las 20):
+           a la mañana o a la madrugada todavía es tu plata para gastar en el día. */
+        val (hAviso, mAviso) = S.resHora.split(":").map { it.toIntOrNull() ?: 0 }
+        val ahora = LocalTime.now()
+        val esDeNoche = ahora >= LocalTime.of(hAviso.coerceIn(0, 23), mAviso.coerceIn(0, 59)).minusHours(2) && ahora.hour >= 12
+        val conHoy = anteriores + (if (esDeNoche) c.fondo.hoySuma else 0.0)
+        val hayBloque: (String) -> Boolean = { id -> when (id) {
+            "medeben" -> debo.isNotEmpty()
+            "fondo" -> c.fondo.activo
+            "reserva" -> c.fondo.activo && (conHoy >= 1 || conHoy <= -1)
+            else -> true } }
 
-        /* Mi fondo de ahorro, con cómo fue creciendo */
-        if (c.fondo.activo) Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }
-
-        /* Para pasar a tu reserva (fondo de ahorro), justo abajo del fondo, como en Mi plata.
-           "Ya lo pasé" se puede tocar también a la noche, cuando pasás lo de hoy (antes de que cierre el día). */
-        if (c.fondo.activo) {
-            val anteriores = c.fondo.total - S.resPasado          // de días ya cerrados, sin pasar
-            /* Lo de hoy se suma recién desde 2 horas antes del aviso de la noche (con aviso a las 22, desde las 20):
-               a la mañana o a la madrugada todavía es tu plata para gastar en el día. */
-            val (hAviso, mAviso) = S.resHora.split(":").map { it.toIntOrNull() ?: 0 }
-            val ahora = LocalTime.now()
-            val esDeNoche = ahora >= LocalTime.of(hAviso, mAviso).minusHours(2) && ahora.hour >= 12
-            val conHoy = anteriores + (if (esDeNoche) c.fondo.hoySuma else 0.0)
-            if (conHoy >= 1 || conHoy <= -1) Column(Modifier.fillMaxWidth().demo("hoy.reserva").luz("hoy.reserva")
-                .border(1.5.dp, k.verde, RoundedCornerShape(22.dp)).background(k.tarjeta, RoundedCornerShape(22.dp)).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🏦 Para pasar a tu reserva", color = k.suave, fontSize = 16.sp)
-                if (conHoy >= 1) {
-                    Text(dinero(conHoy), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
-                    Text(when {
-                        anteriores >= 1 && esDeNoche && c.fondo.hoySuma >= 1 -> "${dinero(anteriores)} de días anteriores + ${dinero(c.fondo.hoySuma)} que te sobran hoy."
-                        anteriores >= 1 -> "Es lo que fue al fondo y todavía no pasaste a tu reserva."
-                        anteriores <= -1 -> "Ya pasaste una parte de lo de hoy. Te falta esto."
-                        else -> "Es lo que te sobra hoy. Pasalo a la noche, cuando ya no vayas a gastar."
-                    }, fontSize = 14.sp, color = k.suave)
-                    BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
-                    Button(onClick = { alYaPase(conHoy) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
-                } else Text("Pasaste a la reserva ${dinero(-conHoy)} de más (o sacaste del fondo). Retirá esa plata de la reserva para que coincida.",
-                    fontSize = 14.sp, color = k.naranja)
+        BloquesHoy(editandoBloques, alTerminar = alTerminarEdicion, hay = hayBloque) { id ->
+            when (id) {
+                /* Lo principal: cuánto te queda hoy */
+                "hoy" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.fillMaxWidth().background(fondoHero, RoundedCornerShape(26.dp)).padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Te queda para hoy", color = sobreHero.copy(alpha = 0.85f), fontSize = 15.sp)
+                        Text(dineroCentavos(numeroAnimado(c.quedaHoy)), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
+                        val barra by androidx.compose.animation.core.animateFloatAsState(fraccion, androidx.compose.animation.core.tween(900), label = "barra")
+                        LinearProgressIndicator(progress = { barra }, modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
+                        Text("Presupuesto ${dinero(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
+                        c.manana?.let {
+                            val luz = Demo.resaltado == "hoy.manana"
+                            Text("Mañana tendrás ${dinero(it)}", Modifier.demo("hoy.manana")
+                                .then(if (luz) Modifier.border(3.dp, sobreHero, RoundedCornerShape(10.dp)).background(sobreHero.copy(alpha = 0.18f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp) else Modifier),
+                                color = sobreHero, fontSize = if (luz) 21.sp else 16.sp, fontWeight = if (luz) FontWeight.Bold else FontWeight.SemiBold)
+                        }
+                        if (c.fondo.activo && c.fondo.hoySuma > 0)
+                            Text("Lo que no gastes hoy va a tu fondo: ${dinero(c.fondo.hoySuma)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
+                    }
+                    Text("Faltan ${c.faltan} días (con hoy) · base del día ${dinero(c.baseHoy)}", fontSize = 13.sp, color = k.suave,
+                        modifier = Modifier.padding(horizontal = 4.dp))
+                }
+                /* Dos números de un vistazo */
+                "saldo" -> if (c.fondo.activo)
+                    Mini("Disponible", dinero(c.fondo.disponible), Modifier.fillMaxWidth().clickable(onClick = alAbrirCuentas))
+                else Mini("Saldo del período", dinero(c.saldo), Modifier.fillMaxWidth().demo("hoy.minis").luz("hoy.minis").clickable(onClick = alAbrirCuentas),
+                    extra = if (S.rendDispOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
+                "dias" -> if (c.fondo.activo)
+                    Mini("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0),
+                        Modifier.fillMaxWidth().demo("hoy.minis").luz("hoy.minis").clickable(onClick = alAbrirFondo),
+                        extra = if (S.rendOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
+                else Mini("Días que faltan", c.faltan.toString(), Modifier.fillMaxWidth())
+                /* Comparar con las cuentas */
+                "cuentas" -> {
+                    val ok = cc.hayCuentas && Math.abs(cc.diferencia) < 1
+                    Mini("Mis cuentas", if (!cc.hayCuentas) "Cargá tu saldo" else if (ok) "Coincide" else dinero(cc.diferencia),
+                        Modifier.fillMaxWidth().demo("hoy.cuentas", alAbrirCuentas).luz("hoy.cuentas").clickable(onClick = alAbrirCuentas),
+                        extra = if (cc.hayCuentas) "En cuentas: ${dinero(cc.total)}" else "de Mercado Pago para comparar",
+                        colorValor = if (!cc.hayCuentas) k.suave else if (ok) k.verde else k.naranja)
+                }
+                "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir)
+                "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron) }
+                /* Mi fondo de ahorro, con cómo fue creciendo */
+                "fondo" -> Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }
+                /* Para pasar a tu reserva: "Ya lo pasé" se puede tocar también a la noche, antes de que cierre el día */
+                "reserva" -> Column(Modifier.fillMaxWidth().demo("hoy.reserva").luz("hoy.reserva")
+                    .border(1.5.dp, k.verde, RoundedCornerShape(22.dp)).background(k.tarjeta, RoundedCornerShape(22.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("🏦 Para pasar a tu reserva", color = k.suave, fontSize = 16.sp)
+                    if (conHoy >= 1) {
+                        Text(dinero(conHoy), fontSize = 34.sp, fontFamily = Serif, fontWeight = FontWeight.Bold, color = k.verde)
+                        Text(when {
+                            anteriores >= 1 && esDeNoche && c.fondo.hoySuma >= 1 -> "${dinero(anteriores)} de días anteriores + ${dinero(c.fondo.hoySuma)} que te sobran hoy."
+                            anteriores >= 1 -> "Es lo que fue al fondo y todavía no pasaste a tu reserva."
+                            anteriores <= -1 -> "Ya pasaste una parte de lo de hoy. Te falta esto."
+                            else -> "Es lo que te sobra hoy. Pasalo a la noche, cuando ya no vayas a gastar."
+                        }, fontSize = 14.sp, color = k.suave)
+                        BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
+                        Button(onClick = { alYaPase(conHoy) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
+                    } else Text("Pasaste a la reserva ${dinero(-conHoy)} de más (o sacaste del fondo). Retirá esa plata de la reserva para que coincida.",
+                        fontSize = 14.sp, color = k.naranja)
+                }
+                /* Gastos y entradas del período */
+                "movimientos" -> TarjetaGastosYEntradas(S, alTocarMovimiento)
+                "frase" -> Text("“${fraseDelDia(hoy)}”", fontStyle = FontStyle.Italic, color = k.suave, fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
             }
         }
-
-        /* Gastos y entradas del período */
-        TarjetaGastosYEntradas(S, alTocarMovimiento)
-
-        Text("“${fraseDelDia(hoy)}”", fontStyle = FontStyle.Italic, color = k.suave, fontSize = 14.sp,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
         Spacer(Modifier.height(90.dp))
     }
 }
@@ -193,11 +194,11 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
 fun formatoTasa(t: Double): String = if (t % 1.0 == 0.0) t.toLong().toString() else t.toString().replace('.', ',')
 
 @Composable
-fun Mini(titulo: String, valor: String, modifier: Modifier = Modifier, extra: String? = null) {
+fun Mini(titulo: String, valor: String, modifier: Modifier = Modifier, extra: String? = null, colorValor: Color? = null) {
     val k = LocalColores.current
     Column(modifier.fillMaxHeight().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(titulo, fontSize = 13.sp, color = k.suave)
-        Text(valor, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        Text(valor, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorValor ?: k.texto)
         extra?.let { Text(it, fontSize = 12.sp, color = k.verde, fontWeight = FontWeight.SemiBold) }
     }
 }
