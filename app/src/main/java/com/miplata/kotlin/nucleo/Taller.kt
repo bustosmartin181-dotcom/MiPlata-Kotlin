@@ -26,6 +26,10 @@ data class Taller(
     /** Hasta qué hora se estira el desayuno / la merienda: ahí te recuerda a quién cobrarle. */
     val cobroManana: String = "10:40",
     val cobroTarde: String = "19:00",
+    /** Pedidos por día: fecha → (id del muchacho o "yo") → (cosa → cantidad). */
+    val pedidos: Map<String, Map<String, Map<String, Int>>> = emptyMap(),
+    /** Lo que ya tildaste en el negocio, por día. */
+    val tildes: Map<String, List<String>> = emptyMap(),
 ) {
     val activos get() = muchachos.filter { it.activo }
 
@@ -34,6 +38,32 @@ data class Taller(
 
     /** Ventana de compra de ese día (desde, hasta) o null si no trabaja. */
     fun ventana(fecha: String): Pair<String, String>? = when (turno(fecha)) { "M" -> manana; "T" -> tarde; else -> null }
+
+    fun pedidosDe(fecha: String): Map<String, Map<String, Int>> = pedidos[fecha] ?: emptyMap()
+
+    /** Cuánto sale lo que pidió alguien. */
+    fun costo(pedido: Map<String, Int>): Double = pedido.entries.sumOf { (precios[it.key] ?: 0.0) * it.value }
+
+    /** "1 Yogur, 2 Tortitas" */
+    fun texto(pedido: Map<String, Int>): String = pedido.filter { it.value > 0 }.entries.joinToString(", ") { "${it.value} ${it.key}" }
+
+    /** Lista para comprar: todo junto, sumado por cosa. */
+    fun listaCompra(fecha: String): Map<String, Int> {
+        val l = sortedMapOf<String, Int>()
+        pedidosDe(fecha).values.forEach { p -> p.forEach { (cosa, n) -> if (n > 0) l[cosa] = (l[cosa] ?: 0) + n } }
+        return l
+    }
+
+    /** Cambia la cantidad de una cosa en el pedido de alguien. Borra lo que queda en 0 y pedidos de hace más de 30 días. */
+    fun conCantidad(fecha: String, quien: String, cosa: String, cant: Int): Taller {
+        val dia = pedidosDe(fecha).toMutableMap()
+        val p = (dia[quien] ?: emptyMap()).toMutableMap()
+        if (cant <= 0) p.remove(cosa) else p[cosa] = cant
+        if (p.isEmpty()) dia.remove(quien) else dia[quien] = p
+        val limite = runCatching { Fechas.iso(Fechas.dia(fecha) - 30) }.getOrDefault("")
+        val todos = (pedidos + (fecha to dia)).filter { it.value.isNotEmpty() && it.key >= limite }
+        return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite })
+    }
 
     /** Hora del recordatorio para cobrar ese día. */
     fun horaCobro(fecha: String): String? = when (turno(fecha)) { "M" -> cobroManana; "T" -> cobroTarde; else -> null }
@@ -53,6 +83,9 @@ data class Taller(
         "tarde" to JsonArray(listOf(JsonPrimitive(tarde.first), JsonPrimitive(tarde.second))),
         "aviso" to JsonPrimitive(aviso),
         "cobroManana" to JsonPrimitive(cobroManana), "cobroTarde" to JsonPrimitive(cobroTarde),
+        "pedidos" to JsonObject(pedidos.toSortedMap().mapValues { (_, dia) -> JsonObject(dia.mapValues { (_, p) ->
+            JsonObject(p.mapValues { JsonPrimitive(it.value) }) }) }),
+        "tildes" to JsonObject(tildes.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
     ))
 
     companion object {
@@ -76,6 +109,9 @@ data class Taller(
                 aviso = (o["aviso"] as? JsonPrimitive)?.booleanOrNull != false,
                 cobroManana = o["cobroManana"].texto()?.takeIf { Regex("""\d{1,2}:\d{2}""").matches(it) } ?: "10:40",
                 cobroTarde = o["cobroTarde"].texto()?.takeIf { Regex("""\d{1,2}:\d{2}""").matches(it) } ?: "19:00",
+                pedidos = (o["pedidos"] as? JsonObject)?.mapValues { (_, dia) -> (dia as? JsonObject)?.mapValues { (_, p) ->
+                    (p as? JsonObject)?.mapValues { it.value.num().toInt() }?.filterValues { it > 0 } ?: emptyMap() } ?: emptyMap() } ?: emptyMap(),
+                tildes = (o["tildes"] as? JsonObject)?.mapValues { (_, l) -> (l as? JsonArray)?.mapNotNull { it.texto() } ?: emptyList() } ?: emptyMap(),
             )
         }
 

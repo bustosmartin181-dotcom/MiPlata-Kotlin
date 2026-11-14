@@ -44,4 +44,21 @@ class TallerTest {
         val o = JsonObject(mapOf("taller" to t.aJson()))
         assertEquals(t, Taller.de(o))
     }
+
+    @Test fun pedidosYListaParaComprar() {
+        var t = Taller(precios = mapOf("Tortitas" to 350.0, "Yogur" to 3100.0, "Salame" to 1600.0))
+        val f = "2026-11-14"
+        t = t.conCantidad(f, "ariel", "Yogur", 1)
+        t = t.conCantidad(f, "matias", "Tortitas", 4).conCantidad(f, "matias", "Salame", 1)
+        t = t.conCantidad(f, "yo", "Tortitas", 3)
+        assertEquals(mapOf("Salame" to 1, "Tortitas" to 7, "Yogur" to 1), t.listaCompra(f))
+        assertEquals(3000.0, t.costo(t.pedidosDe(f)["matias"]!!), 0.0)
+        assertEquals("4 Tortitas, 1 Salame", t.texto(t.pedidosDe(f)["matias"]!!))
+        t = t.conCantidad(f, "ariel", "Yogur", 0)
+        assertFalse(t.pedidosDe(f).containsKey("ariel"))
+        assertEquals(t, Taller.de(JsonObject(mapOf("taller" to t.aJson()))))
+        // los pedidos viejos (más de 30 días) se borran solos
+        t = t.conCantidad("2026-12-20", "yo", "Yogur", 1)
+        assertFalse(t.pedidos.containsKey(f))
+    }
 }

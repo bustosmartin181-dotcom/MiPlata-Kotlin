@@ -66,17 +66,94 @@ fun PartesTaller(t: Taller, partes: SnapshotStateMap<String, String>, total: Dou
     }
 }
 
-/** Cartel arriba de Hoy en el horario de compra. */
+/** Cartel arriba de Hoy en el horario del desayuno / la merienda. */
 @Composable
-fun CartelTaller(turno: String, alAnotar: () -> Unit) {
+fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit) {
     val k = LocalColores.current
-    Row(Modifier.fillMaxWidth().border(1.5.dp, k.naranja, RoundedCornerShape(18.dp)).background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically) {
+    val lista = t.listaCompra(fecha)
+    val cuantos = t.pedidosDe(fecha).keys.size
+    Row(Modifier.fillMaxWidth().border(1.5.dp, k.naranja, RoundedCornerShape(18.dp)).background(k.tarjeta, RoundedCornerShape(18.dp))
+        .clickable(onClick = alPedidos).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda", fontWeight = FontWeight.Bold, color = k.naranja)
-            Text("¿Qué compraste para los muchachos?", fontSize = 13.sp, color = k.suave)
+            Text(if (lista.isEmpty()) "Tomá los pedidos de los muchachos" else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.pedidosDe(fecha).values.sumOf { t.costo(it) })}",
+                fontSize = 13.sp, color = k.suave)
         }
-        Button(onClick = alAnotar) { Text("Anotar") }
+        Button(onClick = alPedidos) { Text(if (lista.isEmpty()) "Pedidos" else "Ver") }
+    }
+}
+
+/** El desayuno de hoy: 1) tomar los pedidos, 2) lista para comprar con tildes, 3) "Ya pagué". */
+@Composable
+fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: () -> Unit) {
+    val k = LocalColores.current
+    val dia = t.pedidosDe(fecha)
+    val turno = t.turno(fecha)
+    var abierto by remember { mutableStateOf<String?>(null) }
+    var otraCosa by remember { mutableStateOf<String?>(null) }      // para quién se agrega una cosa nueva
+    val gente = listOf("yo" to "Yo") + t.activos.map { it.id to it.mostrar }
+    Hoja(alCerrar, (if (turno == "T") "☕ Merienda" else "🥐 Desayuno") + " · " + Fechas.diaYMes(fecha)) {
+        Subtitulo("Tocá a cada uno y sumá lo que quiere. Abajo te queda la lista para el negocio.")
+        gente.forEach { (id, nombre) ->
+            val p = dia[id] ?: emptyMap()
+            Column(Modifier.fillMaxWidth().bordeBloque(14).background(if (p.isNotEmpty()) k.verdeClaro else k.tarjeta, RoundedCornerShape(14.dp))
+                .clickable { abierto = if (abierto == id) null else id }.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(nombre, fontWeight = FontWeight.SemiBold, color = k.texto, modifier = Modifier.weight(1f))
+                    if (p.isNotEmpty()) Text(pesos(t.costo(p)), fontWeight = FontWeight.SemiBold, color = k.texto)
+                }
+                if (p.isNotEmpty()) Text(t.texto(p), fontSize = 13.sp, color = k.suave)
+                if (abierto == id) {
+                    Spacer(Modifier.height(6.dp))
+                    t.precios.toSortedMap().forEach { (cosa, precio) ->
+                        val n = p[cosa] ?: 0
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(cosa, color = k.texto, fontSize = 14.sp); Text(pesos(precio), color = k.suave, fontSize = 12.sp)
+                            }
+                            IconButton(onClick = { alGuardar(t.conCantidad(fecha, id, cosa, n - 1)) }, enabled = n > 0) { Text("−", fontSize = 22.sp) }
+                            Text("$n", fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.width(24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                            IconButton(onClick = { alGuardar(t.conCantidad(fecha, id, cosa, n + 1)) }) { Text("+", fontSize = 22.sp) }
+                        }
+                    }
+                    TextButton(onClick = { otraCosa = id }) { Text("+ Otra cosa (con su precio)") }
+                }
+            }
+        }
+        val lista = t.listaCompra(fecha)
+        if (lista.isNotEmpty()) {
+            HorizontalDivider(color = k.linea)
+            Text("🛒 Para comprar", fontWeight = FontWeight.Bold, color = k.texto, fontSize = 17.sp)
+            val tildadas = t.tildes[fecha] ?: emptyList()
+            lista.forEach { (cosa, n) ->
+                val ok = cosa in tildadas
+                Row(Modifier.fillMaxWidth().clickable {
+                    alGuardar(t.copy(tildes = t.tildes + (fecha to if (ok) tildadas - cosa else tildadas + cosa))) }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(ok, null)
+                    Text("$n  $cosa", color = if (ok) k.suave else k.texto, fontSize = 16.sp, modifier = Modifier.weight(1f),
+                        textDecoration = if (ok) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                    Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                }
+            }
+            Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
+            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Ya pagué: anotar", fontSize = 16.sp) }
+            Subtitulo("Te muestra cuánto le toca a cada uno. Si pagaste un poco distinto, corregí el total y la diferencia va a tu parte.")
+        }
+    }
+    otraCosa?.let { quien ->
+        var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
+        AlertDialog(onDismissRequest = { otraCosa = null }, title = { Text("Otra cosa") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(nombre, { nombre = it }, label = { Text("¿Qué es?") }, placeholder = { Text("Ej: Medialunas") }, singleLine = true)
+                CampoMonto(precio, { precio = it }, "Precio de una")
+                Subtitulo("Queda guardada en la lista de precios para la próxima.")
+            } },
+            confirmButton = { TextButton(onClick = {
+                val n = nombre.trim().replaceFirstChar { it.uppercase() }
+                if (n.isNotEmpty() && aNumero(precio) > 0) {
+                    alGuardar(t.copy(precios = t.precios + (n to aNumero(precio))).conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null }
+            }) { Text("Agregar") } },
+            dismissButton = { TextButton(onClick = { otraCosa = null }) { Text("Cancelar") } })
     }
 }
 

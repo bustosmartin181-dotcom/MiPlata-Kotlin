@@ -84,8 +84,8 @@ object AvisoTaller {
         }
         if (S.hayCompraTaller(hoy)) return            // ya lo anotaste: no molesta
         when (tipo) {
-            "inicio" -> mostrar(ctx, "🥐 Hora del $comida", "Tocá para anotar lo que compraste para los muchachos.")
-            "fin" -> mostrar(ctx, "¿Anotaste la compra del taller?", "Todavía no anotaste nada del $comida de hoy. Tocá para cargarlo.")
+            "inicio" -> mostrar(ctx, if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda", "Tocá para tomar los pedidos de los muchachos.")
+            "fin" -> mostrar(ctx, "¿Anotaste la compra del taller?", "Todavía no anotaste lo que pagaste del $comida de hoy. Tocá y poné \"Ya pagué\".")
         }
     }
 

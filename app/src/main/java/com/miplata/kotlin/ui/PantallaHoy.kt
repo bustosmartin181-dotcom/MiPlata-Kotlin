@@ -82,8 +82,12 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         var hora by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(horaAhora()) }
         androidx.compose.runtime.LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); hora = horaAhora() } }
         val turnoHoy = taller.turno(hoy)
-        if (turnoHoy != null && taller.activos.isNotEmpty() && !S.demo && taller.enVentana(hoy, hora) && !S.hayCompraTaller(hoy))
-            CartelTaller(turnoHoy, alAnotarTaller)
+        /* Desde que empieza el desayuno/merienda hasta que se termina de estirar (10:40 / 19:00), mientras no anotaste la compra */
+        val desdeTaller = taller.ventana(hoy)?.first
+        val hastaTaller = taller.horaCobro(hoy)
+        if (turnoHoy != null && desdeTaller != null && hastaTaller != null && taller.activos.isNotEmpty() && !S.demo && !S.hayCompraTaller(hoy) &&
+            Taller.minutos(hora) >= Taller.minutos(desdeTaller) && Taller.minutos(hora) <= Taller.minutos(hastaTaller))
+            CartelTaller(turnoHoy, taller, hoy, alAnotarTaller)
 
         /* Cerca del cobro: atajo para empezar el período nuevo */
         val diasAlFin = Fechas.dia(S.end) - Fechas.dia(hoy)

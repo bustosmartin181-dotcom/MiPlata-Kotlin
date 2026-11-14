@@ -34,6 +34,8 @@ data class NuevoMovimiento(
     val meLoDevuelven: Boolean, val fecha: String, val editarId: Long?,
     /** Compra del taller: lo que le toca a cada muchacho (vacío = gasto común). */
     val partesTaller: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>> = emptyList(),
+    /** Qué llevó cada muchacho (id → "1 Yogur"), para verlo en Me deben. */
+    val queLlevo: Map<String, String> = emptyMap(),
 )
 
 /** Saca monto y detalle de lo dictado: "2800 negocio Telma", "2 mil 800 en el negocio de la Telma", "2.500 pesos en nafta".
@@ -67,6 +69,8 @@ fun HojaAnotar(
     notaInicial: String = "",
     taller: com.miplata.kotlin.nucleo.Taller = com.miplata.kotlin.nucleo.Taller(),
     tallerAlAbrir: Boolean = false,
+    partesIniciales: Map<String, String> = emptyMap(),
+    queLlevo: Map<String, String> = emptyMap(),
 ) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
@@ -81,7 +85,7 @@ fun HojaAnotar(
     var error by remember { mutableStateOf<String?>(null) }
     val hayTaller = editando == null && taller.activos.isNotEmpty() && !Demo.corriendo
     var modoTaller by remember { mutableStateOf(hayTaller && tallerAlAbrir) }
-    val partes = remember { mutableStateMapOf<String, String>() }
+    val partes = remember { mutableStateMapOf<String, String>().apply { putAll(partesIniciales) } }
     val foco = remember { FocusRequester() }
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -94,7 +98,7 @@ fun HojaAnotar(
         if (n <= 0) error = if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
         else if (modoTaller && !entrada && lista.isEmpty()) error = "Elegí quiénes entraron y cuánto le toca a cada uno"
         else if (lista.sumOf { it.second } > n + 0.005) error = "Lo de los muchachos suma más que el total"
-        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista))
+        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo))
     }
 
     if (escuchando) androidx.compose.ui.window.Dialog(onDismissRequest = { escuchando = false },

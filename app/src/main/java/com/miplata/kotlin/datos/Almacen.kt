@@ -123,7 +123,8 @@ class Almacen(private val carpeta: File) {
 
     /** Una compra para los muchachos: tu parte como gasto común y la de cada uno en "Me deben".
         En total baja de Mercado Pago lo que pagaste (miParte + la de todos). */
-    fun anotarTaller(fecha: String, miParte: Double, detalle: String, partes: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>>) = cambiar {
+    fun anotarTaller(fecha: String, miParte: Double, detalle: String, partes: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>>,
+                     queLlevo: Map<String, String> = emptyMap()) = cambiar {
         val lista = spent()
         var id = nuevoId(crudo)
         val marca = "taller" to JsonPrimitive(1)
@@ -131,7 +132,7 @@ class Almacen(private val carpeta: File) {
             "note" to JsonPrimitive(("Taller · mi parte " + detalle).trim()), "cat" to JsonPrimitive("Comida"), marca))
         partes.filter { it.second > 0 }.forEach { (m, monto) ->
             lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(monto),
-                "note" to JsonPrimitive("Taller · ${m.mostrar}"), "cat" to JsonPrimitive("Comida"), "dev" to JsonPrimitive(1),
+                "note" to JsonPrimitive("Taller · ${m.mostrar}" + (queLlevo[m.id]?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")), "cat" to JsonPrimitive("Comida"), "dev" to JsonPrimitive(1),
                 "tp" to JsonPrimitive(m.id), marca))
         }
         this["spent"] = JsonArray(lista)
