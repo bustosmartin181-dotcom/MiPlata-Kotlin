@@ -52,6 +52,8 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    // El lector de texto de la foto (ML Kit) necesita sus modelos sin comprimir dentro del APK
+    androidResources { noCompress += listOf("tflite", "binarypb", "fb", "bincfg", "pb") }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
@@ -68,6 +70,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     // Leer la foto de la planilla del taller en el teléfono, sin internet
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -259,13 +259,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     if (faltan > 0) lecturaFoto = "Leí $m de mañana, $t de tarde y $f francos. No pude leer $faltan días: completalos tocando. Revisá toda la lista." to crudo
                     else aviso("Horario cargado: $m mañana, $t tarde, $f francos. Revisalo.")
                 }
-            }.onFailure { aviso("No pude leer la foto. Probá otra, derecha y con buena luz, o tocá cada día.") }
+            }.onFailure { e -> lecturaFoto = "No pude leer la foto: falló el lector de texto del teléfono. Mientras lo arreglo, cargá los días tocando." to
+                ("ERROR: " + (e.message ?: e.javaClass.simpleName) + "\n" + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " Android " + android.os.Build.VERSION.RELEASE) }
         }
     }
     lecturaFoto?.let { (msg, crudo) -> AlertDialog(onDismissRequest = { lecturaFoto = null }, title = { Text("Foto de la planilla") },
         text = { Text(msg + "\n\nSi querés que lo mejore, mandale a Claude lo que leyó el teléfono.") },
         confirmButton = { TextButton(onClick = { lecturaFoto = null }) { Text("Entendido") } },
-        dismissButton = { TextButton(onClick = { lecturaFoto = null; compartirTexto("Lo que leyó Mi plata de la planilla:\n" + crudo) }) { Text("Compartir lo que leyó") } }) }
+        dismissButton = { TextButton(onClick = { lecturaFoto = null; compartirTexto("Lo que leyó Mi plata de la planilla:\n" + crudo) }) { Text("Compartir el detalle") } }) }
     var elegirFoto by remember { mutableStateOf(false) }
     val archivoFoto = remember { java.io.File(ctx.cacheDir, "planilla.jpg") }
     val uriFoto = remember { androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".archivos", archivoFoto) }
