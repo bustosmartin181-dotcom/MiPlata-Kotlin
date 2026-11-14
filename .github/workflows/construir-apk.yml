@@ -3,7 +3,7 @@ name: Construir APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, taller]
+    branches: [main]
 
 jobs:
   apk:
