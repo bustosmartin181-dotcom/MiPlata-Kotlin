@@ -70,7 +70,7 @@ val NOVEDADES = listOf(
     "10.7" to listOf("✨ Bienvenida nueva en 6 pantallas, como la Mi plata original: Bienvenido, Así funciona, Tu plata tu decisión, ¿De dónde viene tu plata?, Gastos importantes y ¡Listo!",
         "Las pantallas entran deslizando y se van llenando de a poco; los números corren hasta su valor",
         "🎬 La demo automática recorre las 6 pantallas (ya no se queda quieta en la primera)",
-        "🎬 La demo muestra la burbuja \"Ayudá al creador\" 💚 y su cartel con corazones",
+        "💚 En Hoy queda siempre a mano un corazoncito flotante: al tocarlo se abre el cartel \"Ayudá al creador\" (también aparece en la demo)",
         "🎬 Y después muestra las buenas funciones: Mis cuentas con Mercado Pago, Me deben, fondo de ahorro con rendimiento, la reserva, pagar con Mercado Pago, los colores 🇦🇷 y una pantalla final con todo lo demás",
         "En Hoy, el número grande y la barra se mueven cuando anotás un gasto"),
     "10.6" to listOf("🎤 El widget \"Dictar gasto\" escucha ahí mismo, sin abrir ventanas: el aro del micrófono se ilumina con tu voz y abajo se escribe lo que decís",

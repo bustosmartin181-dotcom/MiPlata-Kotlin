@@ -70,7 +70,7 @@ private val VERDE_2 = Color(0xFF22C55E)
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit, alYaColabore: () -> Unit,
-                     alCambiarAbierto: (Boolean) -> Unit) {
+                     alCambiarAbierto: (Boolean) -> Unit, corazon: Boolean = false) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val vibrar = LocalHapticFeedback.current
     var fase by remember { mutableStateOf(Fase.NADA) }
@@ -110,7 +110,14 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
         AnimatedContent(fase, Modifier.fillMaxSize(), label = "colabora",
             transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) using SizeTransform(clip = false) }) { f ->
             when (f) {
-                Fase.NADA -> Box(Modifier.fillMaxSize())
+                /* Siempre en Hoy: el corazoncito flotante; al tocarlo se convierte en el cartel */
+                Fase.NADA -> Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, end = 18.dp),
+                    contentAlignment = Alignment.BottomEnd) {
+                    if (corazon) Corazon(abrir,
+                        Modifier.demo("colabora.corazon", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
+                            boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
+                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
+                }
                 Fase.BURBUJA -> Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, start = 20.dp, end = 20.dp),
                     contentAlignment = Alignment.BottomCenter) {
                     Burbuja(restante.value, abrir, cerrar,
@@ -131,6 +138,18 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
 }
 
 /** La burbuja chica: verde, con un reflejo que pasa y el corazón latiendo. */
+@Composable
+private fun Corazon(alTocar: () -> Unit, modifier: Modifier) {
+    val latido by rememberInfiniteTransition(label = "corazon")
+        .animateFloat(1f, 1.15f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "latido")
+    Box(modifier.size(56.dp).shadow(10.dp, CircleShape, ambientColor = VERDE_2, spotColor = VERDE_2)
+        .clip(CircleShape).background(Brush.linearGradient(listOf(VERDE_1, VERDE_2)))
+        .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+        .clickable(onClickLabel = "Ayudá al creador", onClick = alTocar), contentAlignment = Alignment.Center) {
+        Text("💚", fontSize = 24.sp, modifier = Modifier.scale(latido))
+    }
+}
+
 @Composable
 private fun Burbuja(restante: Float, alTocar: () -> Unit, alCerrar: () -> Unit, modifier: Modifier) {
     val brillo = rememberInfiniteTransition(label = "brillo")

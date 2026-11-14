@@ -353,8 +353,8 @@ suspend fun Demo.guionMiPlata(a: AccionesDemo) {
     vitrina = false; pausa(300)
 
     decir("Si te sirve, podés darle una mano al creador 💚")
-    colabora = 1; pausa(2500)
-    tocar("colabora.burbuja", mover = false); pausa(5500)
+    resaltar("colabora.corazon", 1800)
+    tocar("colabora.corazon", mover = false); pausa(5500)
     colabora = 0; pausa(700)
 
     decir("Gratis 👉 link en mi bio")

@@ -362,7 +362,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         alCopiar = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
         alAbrirMP = ::abrirMP,
         alYaColabore = { Colabora.yaColaboro(ctx); aviso("¡Gracias de corazón! 💚") },
-        alCambiarAbierto = { colaboraAbierta = it })
+        alCambiarAbierto = { colaboraAbierta = it },
+        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina)
 
     CapaDemo()
 }
