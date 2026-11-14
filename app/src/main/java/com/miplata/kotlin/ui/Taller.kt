@@ -160,18 +160,15 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
 /** Ajustes → Compras del taller: muchachos, precios, horario y avisos. */
 @Composable
 fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alImportar: () -> Unit, alFoto: () -> Unit,
-               leyendoFoto: Boolean, alPermisoAvisos: () -> Unit, alPedidos: () -> Unit = {}, alProbarAviso: () -> Unit = {}) {
+               leyendoFoto: Boolean, alPermisoAvisos: () -> Unit) {
     val k = LocalColores.current
     var editando by remember { mutableStateOf<Muchacho?>(null) }
     var nuevo by remember { mutableStateOf(false) }
     var horario by remember { mutableStateOf(false) }
     Hoja(alCerrar, "🔧 Compras del taller") {
         Subtitulo("Cuando comprás para los muchachos, tu parte va como gasto tuyo y la de cada uno queda en \"Me deben\". Cuando te pagan, tocás \"Me lo pagaron\".")
-        Button(onClick = alPedidos, Modifier.fillMaxWidth()) { Text("🥐 Abrir los pedidos de hoy") }
-        Subtitulo("Se abre solo a la hora del desayuno o la merienda; con este botón lo abrís cuando quieras (por si compran fuera de horario).")
         Interruptor("Avisarme a la hora de comprar", t.aviso, { alGuardar(t.copy(aviso = it)); if (it) alPermisoAvisos() },
             "Al empezar el desayuno o la merienda, y otra vez al terminar si no anotaste nada")
-        if (t.aviso) OutlinedButton(onClick = alProbarAviso, Modifier.fillMaxWidth()) { Text("Probar el aviso ahora") }
         OutlinedButton(onClick = { horario = true }, Modifier.fillMaxWidth()) {
             val hoy = Fechas.hoy()
             Text("🗓️ Mi horario" + when (t.turno(hoy)) { "M" -> " · hoy mañana"; "T" -> " · hoy tarde"; else -> if (t.horario.isEmpty()) " · sin cargar" else " · hoy franco" })
