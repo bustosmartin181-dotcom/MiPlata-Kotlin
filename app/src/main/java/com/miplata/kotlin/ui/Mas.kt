@@ -72,6 +72,7 @@ val NOVEDADES = listOf(
         "🎬 La demo automática recorre las 6 pantallas (ya no se queda quieta en la primera)",
         "💚 En Hoy queda siempre a mano el botón flotante \"Ayudá al creador\", con brillo y latido: al tocarlo se abre el cartel (también aparece en la demo)",
         "Dejándolo apretado lo movés a donde quieras de la pantalla, y la app se acuerda del lugar",
+        "Al tocarlo, el cartel sale creciendo desde el corazón, como una ventana, y al cerrarlo vuelve a achicarse hacia él",
         "🎬 Y después muestra las buenas funciones: Mis cuentas con Mercado Pago, Me deben, fondo de ahorro con rendimiento, la reserva, pagar con Mercado Pago, los colores 🇦🇷 y una pantalla final con todo lo demás",
         "En Hoy, el número grande y la barra se mueven cuando anotás un gasto"),
     "10.6" to listOf("🎤 El widget \"Dictar gasto\" escucha ahí mismo, sin abrir ventanas: el aro del micrófono se ilumina con tu voz y abajo se escribe lo que decís",

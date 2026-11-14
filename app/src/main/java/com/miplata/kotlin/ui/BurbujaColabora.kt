@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -73,7 +77,6 @@ private enum class Fase { NADA, BURBUJA, CARTEL }
 private val VERDE_1 = Color(0xFF0E9F6E)
 private val VERDE_2 = Color(0xFF22C55E)
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit, alYaColabore: () -> Unit,
                      alCambiarAbierto: (Boolean) -> Unit, corazon: Boolean = false) {
@@ -93,65 +96,77 @@ fun ColaboraFlotante(puede: Boolean, alCopiar: () -> Unit, alAbrirMP: () -> Unit
         if (fase == Fase.BURBUJA) fase = Fase.NADA
     }
     LaunchedEffect(fase) { alCambiarAbierto(fase == Fase.CARTEL) }
+    /* El cartel sale creciendo desde el corazón (o la burbuja), como una ventana de Windows,
+       y al cerrarlo se achica de vuelta hacia ahí. */
+    val alcance = rememberCoroutineScope()
+    val abierto = remember { Animatable(0f) }
+    var origen by remember { mutableStateOf<Offset?>(null) }       // centro del botón tocado, en la pantalla
+    var marco by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }   // dónde queda el cartel
+    val abrir: () -> Unit = {
+        vibrar.performHapticFeedback(HapticFeedbackType.LongPress); fase = Fase.CARTEL
+        alcance.launch { abierto.animateTo(1f, tween(650, easing = FastOutSlowInEasing)) }
+    }
+    val cerrar: () -> Unit = {
+        if (fase == Fase.CARTEL) alcance.launch { abierto.animateTo(0f, tween(420, easing = FastOutSlowInEasing)); fase = Fase.NADA }
+        else fase = Fase.NADA
+    }
     /* En la demo automática: 1 = aparece la burbuja, 2 = se abre el cartel, 0 = se cierra */
     LaunchedEffect(Demo.colabora) {
         if (!Demo.corriendo) return@LaunchedEffect
         when (Demo.colabora) {
             1 -> { fase = Fase.BURBUJA; restante.snapTo(1f); restante.animateTo(0.6f, tween(4000, easing = LinearEasing)) }
-            2 -> fase = Fase.CARTEL
-            else -> fase = Fase.NADA
+            2 -> abrir()
+            else -> cerrar()
         }
     }
 
-    val abrir = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress); fase = Fase.CARTEL }
-    val cerrar = { fase = Fase.NADA }
-
     /* fondo oscuro detrás del cartel (el borroso lo pone la app sobre todo lo demás) */
     val sinOnda = remember { MutableInteractionSource() }
-    val oscuro by animateFloatAsState(if (fase == Fase.CARTEL) 0.45f else 0f, tween(400), label = "oscuro")
+    val oscuro = 0.45f * abierto.value
     if (oscuro > 0.01f) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = oscuro))
         .clickable(sinOnda, null) { cerrar() })
 
-    SharedTransitionLayout(Modifier.fillMaxSize()) {
-        AnimatedContent(fase, Modifier.fillMaxSize(), label = "colabora",
-            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) using SizeTransform(clip = false) }) { f ->
-            when (f) {
-                /* Siempre en Hoy: el corazoncito flotante; al tocarlo se convierte en el cartel */
-                Fase.NADA -> BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().padding(top = 8.dp, bottom = 96.dp, start = 12.dp, end = 18.dp)) {
-                    var desp by remember { mutableStateOf(Colabora.posicion(ctx)) }
-                    var tam by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
-                    val maxX = constraints.maxWidth.toFloat(); val maxY = constraints.maxHeight.toFloat()
-                    fun limitar(o: Offset) = Offset(o.x.coerceIn(-(maxX - tam.width).coerceAtLeast(0f), 0f), o.y.coerceIn(-(maxY - tam.height).coerceAtLeast(0f), 0f))
-                    if (corazon) Corazon(abrir,
-                        Modifier.align(Alignment.BottomEnd)
-                            .offset { IntOffset(desp.x.toInt(), desp.y.toInt()) }
-                            .onSizeChanged { tam = it; desp = limitar(desp) }
-                            .pointerInput(maxX, maxY) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress) },
-                                    onDragEnd = { Colabora.guardarPosicion(ctx, desp) },
-                                    onDragCancel = { Colabora.guardarPosicion(ctx, desp) }) { cambio, d -> cambio.consume(); desp = limitar(desp + d) }
-                            }
-                            .demo("colabora.corazon", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
-                            boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
-                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
-                }
-                Fase.BURBUJA -> Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, start = 20.dp, end = 20.dp),
-                    contentAlignment = Alignment.BottomCenter) {
-                    Burbuja(restante.value, abrir, cerrar,
-                        Modifier.demo("colabora.burbuja", accion = { Demo.colabora = 2 }).sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
-                            boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
-                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
-                }
-                Fase.CARTEL -> Box(Modifier.fillMaxSize().systemBarsPadding().padding(20.dp), contentAlignment = Alignment.Center) {
-                    Cartel(alCopiar, alAbrirMP, { alYaColabore(); cerrar() }, cerrar,
-                        Modifier.sharedBounds(rememberSharedContentState("colabora"), this@AnimatedContent,
-                            boundsTransform = { _, _ -> spring(dampingRatio = 0.75f, stiffness = 260f) },
-                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds))
-                    Corazones()
-                }
-            }
+    val guardarOrigen = Modifier.onGloballyPositioned { origen = it.boundsInRoot().center }
+
+    /* Debajo: el corazón fijo (o la burbuja del aviso). Mientras el cartel se abre, se desvanece. */
+    Box(Modifier.fillMaxSize().alpha(1f - abierto.value)) {
+        if (fase == Fase.BURBUJA) Box(Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 96.dp, start = 20.dp, end = 20.dp),
+            contentAlignment = Alignment.BottomCenter) {
+            Burbuja(restante.value, abrir, cerrar, guardarOrigen.demo("colabora.burbuja", accion = { Demo.colabora = 2 }))
         }
+        else BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().padding(top = 8.dp, bottom = 96.dp, start = 12.dp, end = 18.dp)) {
+            var desp by remember { mutableStateOf(Colabora.posicion(ctx)) }
+            var tam by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+            val maxX = constraints.maxWidth.toFloat(); val maxY = constraints.maxHeight.toFloat()
+            fun limitar(o: Offset) = Offset(o.x.coerceIn(-(maxX - tam.width).coerceAtLeast(0f), 0f), o.y.coerceIn(-(maxY - tam.height).coerceAtLeast(0f), 0f))
+            if (corazon) Corazon(abrir,
+                Modifier.align(Alignment.BottomEnd)
+                    .offset { IntOffset(desp.x.toInt(), desp.y.toInt()) }
+                    .onSizeChanged { tam = it; desp = limitar(desp) }
+                    .then(guardarOrigen)
+                    .pointerInput(maxX, maxY) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { vibrar.performHapticFeedback(HapticFeedbackType.LongPress) },
+                            onDragEnd = { Colabora.guardarPosicion(ctx, desp) },
+                            onDragCancel = { Colabora.guardarPosicion(ctx, desp) }) { cambio, d -> cambio.consume(); desp = limitar(desp + d) }
+                    }
+                    .demo("colabora.corazon", accion = { Demo.colabora = 2 }))
+        }
+    }
+
+    /* Encima: el cartel, creciendo desde el botón */
+    if (fase == Fase.CARTEL || abierto.value > 0f) Box(Modifier.fillMaxSize().systemBarsPadding().padding(20.dp), contentAlignment = Alignment.Center) {
+        val v = abierto.value
+        Cartel(alCopiar, alAbrirMP, { alYaColabore(); cerrar() }, cerrar,
+            Modifier.onGloballyPositioned { marco = it.boundsInRoot() }.graphicsLayer {
+                val m = marco; val o = origen
+                transformOrigin = if (m != null && o != null && m.width > 0 && m.height > 0)
+                    TransformOrigin((o.x - m.left) / m.width, (o.y - m.top) / m.height) else TransformOrigin.Center
+                val e = 0.06f + 0.94f * v
+                scaleX = e; scaleY = e
+                alpha = (v * 1.6f).coerceAtMost(1f)
+            })
+        if (fase == Fase.CARTEL && v > 0.5f) Corazones()
     }
 }
 
