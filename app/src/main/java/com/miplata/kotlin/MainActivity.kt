@@ -232,15 +232,15 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             else { almacen.guardarTaller(nuevo); vuelta++; aviso("Listo: ${nuevo.activos.size} muchachos y ${nuevo.precios.size} precios") }
         }
     }
-    /** Lee la foto de la planilla con Gemini y carga el horario del mes. */
+    /** Lee la foto de la planilla en el teléfono (sin internet) y carga el horario del mes. */
     fun leerFoto(uri: android.net.Uri) {
         leyendoFoto = true
         alcance.launch {
             val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                val bytes = achicarFoto(ctx, uri)
                 val hoy = java.time.LocalDate.now()
-                val (mesLeido, dias) = com.miplata.kotlin.ia.Gemini.leerHorario(ctx, bytes, hoy.year, hoy.monthValue)
-                val mes = mesLeido ?: hoy.monthValue
+                val leido = com.miplata.kotlin.nucleo.LeerPlanilla.leer(com.miplata.kotlin.foto.LectorFoto.piezas(ctx, uri))
+                val dias = leido.entradas
+                val mes = leido.mes ?: hoy.monthValue
                 val anio = if (mes < hoy.monthValue - 6) hoy.year + 1 else if (mes > hoy.monthValue + 6) hoy.year - 1 else hoy.year
                 val primero = java.time.LocalDate.of(anio, mes, 1)
                 (1..primero.lengthOfMonth()).filter { dias.containsKey(it) }.associate { d ->
@@ -248,10 +248,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             } }
             leyendoFoto = false
             r.onSuccess { h ->
-                if (h.isEmpty()) aviso("No encontré días en la foto. Probá de nuevo.")
+                if (h.isEmpty()) aviso("No encontré los días en la foto. Sacala derecha, con buena luz y que se vean los días (01-nov, 02-nov…).")
                 else { val t = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo); almacen.guardarTaller(t.copy(horario = t.horario + h)); vuelta++
                     aviso("Horario cargado: ${h.values.count { it == "M" }} mañana, ${h.values.count { it == "T" }} tarde, ${h.values.count { it == "F" }} francos. Revisalo.") }
-            }.onFailure { aviso(it.message ?: "No pude leer la foto") }
+            }.onFailure { aviso("No pude leer la foto. Probá otra, derecha y con buena luz, o tocá cada día.") }
         }
     }
     var elegirFoto by remember { mutableStateOf(false) }
@@ -260,7 +260,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     val sacarFoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) leerFoto(uriFoto) }
     val galeria = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) leerFoto(uri) }
     if (elegirFoto) AlertDialog(onDismissRequest = { elegirFoto = false }, title = { Text("Foto de la planilla") },
-        text = { Text("Sacala derecha, con buena luz y que se vean todos los días del mes. La lee Gemini con tu clave.") },
+        text = { Text("Sacala derecha, con buena luz y que se vean todos los días del mes. Se lee en el teléfono, sin internet.") },
         confirmButton = { TextButton(onClick = { elegirFoto = false; runCatching { sacarFoto.launch(uriFoto) }.onFailure { aviso("No pude abrir la cámara") } }) { Text("📷 Sacar foto") } },
         dismissButton = { TextButton(onClick = { elegirFoto = false; galeria.launch("image/*") }) { Text("🖼️ De la galería") } })
     /* Se tocó el aviso del taller */
@@ -493,17 +493,4 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         }
         Boton(Pestana.DIAS); Boton(Pestana.AJUSTES)
     }
-}
-
-/** Achica la foto (máx. 2000 px) para mandarla rápido y sin gastar datos de más. */
-fun achicarFoto(ctx: android.content.Context, uri: android.net.Uri): ByteArray {
-    val opciones = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    ctx.contentResolver.openInputStream(uri)!!.use { android.graphics.BitmapFactory.decodeStream(it, null, opciones) }
-    var escala = 1
-    while (maxOf(opciones.outWidth, opciones.outHeight) / escala > 2400) escala *= 2
-    val bmp = ctx.contentResolver.openInputStream(uri)!!.use {
-        android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = escala }) }!!
-    val lado = maxOf(bmp.width, bmp.height)
-    val final = if (lado > 2000) android.graphics.Bitmap.createScaledBitmap(bmp, bmp.width * 2000 / lado, bmp.height * 2000 / lado, true) else bmp
-    return java.io.ByteArrayOutputStream().also { final.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
 }
