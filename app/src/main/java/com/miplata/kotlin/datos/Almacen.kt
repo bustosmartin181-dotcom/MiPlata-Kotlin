@@ -158,7 +158,10 @@ class Almacen(private val carpeta: File) {
     fun guardarPlan(id: Long?, nombre: String, total: Double, meses: Int) = if (id == null) cambiarPlanes { l ->
         l += JsonObject(mapOf("id" to JsonPrimitive(System.currentTimeMillis()), "n" to JsonPrimitive(nombre), "total" to num(total),
             "meses" to JsonPrimitive(meses.coerceIn(1, 24)), "activo" to JsonPrimitive(false), "hechas" to JsonPrimitive(0), "p" to JsonPrimitive(false)))
-    } else cambiarPlan(id) { it["n"] = JsonPrimitive(nombre); it["total"] = num(total); it["meses"] = JsonPrimitive(meses.coerceIn(1, 24)) }
+    } else cambiarPlan(id) {
+        it["n"] = JsonPrimitive(nombre); it["total"] = num(total); it["meses"] = JsonPrimitive(meses.coerceIn(1, 24))
+        if (total <= 0) { it["activo"] = JsonPrimitive(false); it.remove("desde") }     // sin monto no se puede descontar
+    }
     fun borrarPlan(id: Long) = cambiarPlanes { l -> l.removeAll { it["id"].num().toLong() == id } }
     /** Activar: se descuenta desde hoy (o desde el cobro si el período todavía no empezó). Desactivar: la plata vuelve. */
     fun activarPlan(id: Long, on: Boolean) {

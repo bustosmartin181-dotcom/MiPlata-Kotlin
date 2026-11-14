@@ -45,10 +45,12 @@ private fun FilaPlan(p: Plan, c: Calculo, alEditar: () -> Unit, alActivar: (Bool
         .clickable(onClick = alEditar).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(p.n.ifBlank { "Plan" }, Modifier.weight(1f), fontWeight = FontWeight.Bold, color = k.texto, fontSize = 16.sp)
-            Text(dinero(p.total), fontWeight = FontWeight.Bold, color = k.texto)
+            if (p.total > 0) Text(dinero(p.total), fontWeight = FontWeight.Bold, color = k.texto)
+            else Text("Monto a definir", fontWeight = FontWeight.SemiBold, color = k.naranja, fontSize = 14.sp)
         }
         Text(when {
             p.fin -> "✅ Cumplido" + if (p.meses > 1) " · ${p.meses} cuotas" else ""
+            p.total <= 0 -> "Cuando sepas cuánto sale, tocalo y cargá el monto para poder activarlo."
             p.meses > 1 -> "En ${p.meses} meses · cuota ${p.cuotaNumero} de ${p.meses}: ${dinero(p.cuota)}"
             else -> "Un solo pago"
         }, fontSize = 13.sp, color = k.suave)
@@ -60,7 +62,8 @@ private fun FilaPlan(p: Plan, c: Calculo, alEditar: () -> Unit, alActivar: (Bool
             if (p.activo) {
                 OutlinedButton(onClick = { alActivar(false) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = k.rojo)) { Text("❌ Desactivar") }
                 FilterChip(selected = p.p, onClick = { alPagado(!p.p) }, label = { Text(if (p.p) "✅ Pagado" else "Pendiente") })
-            } else Button(onClick = { alActivar(true) }) { Text("✅ Activar") }
+            } else if (p.total > 0) Button(onClick = { alActivar(true) }) { Text("✅ Activar") }
+            else OutlinedButton(onClick = alEditar) { Text("✏️ Poner monto") }
         }
     }
 }
@@ -73,7 +76,7 @@ fun HojaPlanEditar(plan: Plan?, alCerrar: () -> Unit, alGuardar: (String, Double
     var meses by remember { mutableIntStateOf(plan?.meses ?: 1) }
     Hoja(alCerrar, if (plan == null) "Nuevo plan" else "Editar plan") {
         OutlinedTextField(nombre, { nombre = it }, Modifier.fillMaxWidth(), label = { Text("¿Qué querés hacer o comprar?") }, singleLine = true)
-        CampoMonto(monto, { monto = it }, "¿Cuánto sale?")
+        CampoMonto(monto, { monto = it }, "¿Cuánto sale? (si no sabés, dejalo vacío)")
         Text("¿En cuántos meses lo querés pagar?", color = k.texto, fontWeight = FontWeight.SemiBold)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             listOf(1, 2, 3, 4, 6, 12).forEach { m -> FilterChip(selected = meses == m, onClick = { meses = m }, label = { Text(if (m == 1) "1 mes" else "$m") }) }
@@ -81,7 +84,9 @@ fun HojaPlanEditar(plan: Plan?, alCerrar: () -> Unit, alGuardar: (String, Double
         val total = aNumero(monto)
         if (total > 0) Text(if (meses == 1) "Se descuenta todo en el período en que lo actives." else "≈ ${dinero(total / meses)} por mes, durante $meses períodos.", fontSize = 13.sp, color = k.suave)
         if (plan?.activo == true) Text("Está activo: si cambiás el monto, se ajusta lo que se descuenta.", fontSize = 13.sp, color = k.naranja)
-        Button(onClick = { if (total > 0) alGuardar(nombre.trim(), total, meses) }, Modifier.fillMaxWidth(), enabled = total > 0) { Text("Guardar") }
+        if (total <= 0 && nombre.isNotBlank()) Text("Se guarda como \"Monto a definir\". Lo vas a poder activar cuando le cargues cuánto sale.", fontSize = 13.sp, color = k.suave)
+        val sePuede = total > 0 || nombre.isNotBlank()
+        Button(onClick = { if (sePuede) alGuardar(nombre.trim(), total.coerceAtLeast(0.0), meses) }, Modifier.fillMaxWidth(), enabled = sePuede) { Text("Guardar") }
         if (plan != null) TextButton(onClick = alBorrar, Modifier.fillMaxWidth()) { Text("Borrar plan", color = k.rojo) }
     }
 }
