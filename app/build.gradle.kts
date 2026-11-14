@@ -53,7 +53,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
     // El lector de texto de la foto (ML Kit) necesita sus modelos sin comprimir dentro del APK
-    androidResources { noCompress += listOf("tflite", "binarypb", "fb", "bincfg", "pb") }
+    androidResources { noCompress += listOf("tflite", "binarypb", "fb", "bincfg", "pb", "conv_model", "lstm_model") }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 
