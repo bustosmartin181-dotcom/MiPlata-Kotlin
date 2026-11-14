@@ -233,27 +233,39 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         }
     }
     /** Lee la foto de la planilla en el teléfono (sin internet) y carga el horario del mes. */
+    /** Resultado de la última foto: mensaje + lo que leyó el teléfono (para mandármelo si salió mal). */
+    var lecturaFoto by remember { mutableStateOf<Pair<String, String>?>(null) }
     fun leerFoto(uri: android.net.Uri) {
         leyendoFoto = true
         alcance.launch {
             val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val hoy = java.time.LocalDate.now()
-                val leido = com.miplata.kotlin.nucleo.LeerPlanilla.leer(com.miplata.kotlin.foto.LectorFoto.piezas(ctx, uri))
-                val dias = leido.entradas
-                val mes = leido.mes ?: hoy.monthValue
+                val piezas = com.miplata.kotlin.foto.LectorFoto.piezas(ctx, uri)
+                val crudo = piezas.joinToString("\n") { "${it.texto}\t${it.x.toInt()}\t${it.y.toInt()}" }
+                val mes = com.miplata.kotlin.nucleo.LeerPlanilla.leer(piezas).mes ?: hoy.monthValue
                 val anio = if (mes < hoy.monthValue - 6) hoy.year + 1 else if (mes > hoy.monthValue + 6) hoy.year - 1 else hoy.year
                 val primero = java.time.LocalDate.of(anio, mes, 1)
-                (1..primero.lengthOfMonth()).filter { dias.containsKey(it) }.associate { d ->
-                    primero.withDayOfMonth(d).toString() to com.miplata.kotlin.nucleo.Taller.turnoPorEntrada(dias[d]) }
+                val dias = com.miplata.kotlin.nucleo.LeerPlanilla.leer(piezas, primero.lengthOfMonth()).entradas
+                Triple(primero, dias.mapKeys { primero.withDayOfMonth(it.key).toString() }.mapValues { com.miplata.kotlin.nucleo.Taller.turnoPorEntrada(it.value) }, crudo)
             } }
             leyendoFoto = false
-            r.onSuccess { h ->
-                if (h.isEmpty()) aviso("No encontré los días en la foto. Sacala derecha, con buena luz y que se vean los días (01-nov, 02-nov…).")
-                else { val t = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo); almacen.guardarTaller(t.copy(horario = t.horario + h)); vuelta++
-                    aviso("Horario cargado: ${h.values.count { it == "M" }} mañana, ${h.values.count { it == "T" }} tarde, ${h.values.count { it == "F" }} francos. Revisalo.") }
+            r.onSuccess { (primero, h, crudo) ->
+                val m = h.values.count { it == "M" }; val t = h.values.count { it == "T" }; val f = h.values.count { it == "F" }
+                if (m + t == 0) lecturaFoto = "No pude leer las horas de la planilla, así que no cambié nada. Probá otra foto (derecha, con buena luz, que entre toda la tabla) o tocá cada día." to crudo
+                else {
+                    val tl = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo); val delMes = primero.toString().take(7)   // la foto nueva reemplaza lo que había de ese mes
+                    almacen.guardarTaller(tl.copy(horario = tl.horario.filterKeys { !it.startsWith(delMes) } + h)); vuelta++
+                    val faltan = primero.lengthOfMonth() - h.size
+                    if (faltan > 0) lecturaFoto = "Leí $m de mañana, $t de tarde y $f francos. No pude leer $faltan días: completalos tocando. Revisá toda la lista." to crudo
+                    else aviso("Horario cargado: $m mañana, $t tarde, $f francos. Revisalo.")
+                }
             }.onFailure { aviso("No pude leer la foto. Probá otra, derecha y con buena luz, o tocá cada día.") }
         }
     }
+    lecturaFoto?.let { (msg, crudo) -> AlertDialog(onDismissRequest = { lecturaFoto = null }, title = { Text("Foto de la planilla") },
+        text = { Text(msg + "\n\nSi querés que lo mejore, mandale a Claude lo que leyó el teléfono.") },
+        confirmButton = { TextButton(onClick = { lecturaFoto = null }) { Text("Entendido") } },
+        dismissButton = { TextButton(onClick = { lecturaFoto = null; compartirTexto("Lo que leyó Mi plata de la planilla:\n" + crudo) }) { Text("Compartir lo que leyó") } }) }
     var elegirFoto by remember { mutableStateOf(false) }
     val archivoFoto = remember { java.io.File(ctx.cacheDir, "planilla.jpg") }
     val uriFoto = remember { androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".archivos", archivoFoto) }
