@@ -58,7 +58,7 @@ fun TarjetaColabora(alCopiar: () -> Unit, alAbrirMP: () -> Unit) {
 fun ColumnScope.ContenidoColabora(alCopiar: () -> Unit, alAbrirMP: () -> Unit) {
     val k = LocalColores.current
     run {
-        Subtitulo("Hola, soy Martín Enrique Bustos. Hice Mi plata para llegar a fin de mes sin Excel, y la comparto gratis y sin publicidad. " +
+        Subtitulo("Hola, soy Martín Enrique Bustos. Hice Mi plata para llegar a fin de mes sin papeles ni lapiceras sacando cuentas, y la comparto gratis y sin publicidad. " +
             "Si te sirve y querés darme una mano para seguir mejorándola, cualquier aporte suma. ¡Gracias de corazón!")
         Text("Alias", fontSize = 13.sp, color = k.suave)
         Text(MercadoPago.ALIAS_CREADOR, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
