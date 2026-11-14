@@ -1,5 +1,6 @@
 package com.miplata.kotlin.ui
 
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,62 +34,76 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
     val k = LocalColores.current
     val c = Nucleo.calcular(S, Fechas.hoy())
     var hoja by remember { mutableStateOf<HojaPlan?>(if (abrirPeriodoNuevo) HojaPlan.Nuevo else null) }
+    var ordenando by remember { mutableStateOf(false) }      // ✏️: ordenar las tarjetas
     LaunchedEffect(abrirPeriodoNuevo) { if (abrirPeriodoNuevo) { hoja = HojaPlan.Nuevo; alAbrirPeriodo() } }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Plan del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.weight(1f))
+            IconButton(onClick = { ordenando = !ordenando }) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Edit, "Ordenar bloques", tint = if (ordenando) k.verde else k.suave) }
             FilledTonalButton(onClick = { hoja = HojaPlan.Nuevo }) { Text("Período nuevo") }
         }
 
-        Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {
-            Renglon("Período", "${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)}")
-            Renglon("Ingresos", dinero(S.sueldo))
-            if (S.previo != 0.0) Renglon("Saldo previo", dinero(S.previo))
-            Renglon("Gastos importantes", dinero(c.total))
-            Renglon("Falta pagar", dinero(c.porPagar), colorDer = if (c.porPagar > 0) k.naranja else k.verde)
-            val enPlanes = S.planes.filter { it.activo && !it.fin }.sumOf { it.cuota }
-            if (enPlanes > 0) Renglon("Mis planes activos", dinero(enPlanes))
-            HorizontalDivider(color = k.linea)
-            Renglon("Para el día a día", dinero(S.sueldo + S.previo - c.total - enPlanes))
-            Text("Tocá para cambiar fechas o saldo previo", fontSize = 12.sp, color = k.suave)
-        }
-
-        Tarjeta(Modifier.clickable { hoja = HojaPlan.Ingresos }) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Ingresos"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
-            S.ingresos.forEach { Renglon(it.cat, dinero(it.a), negrita = false) }
-            if (S.ingresos.size > 1) Renglon("Total", dinero(S.sueldo))
-        }
-
-        Box(Modifier.demo("plan.pagar").luz("plan.pagar")) { TarjetaPagarAlCobrar(S,
-            alPagado = { i, v -> almacen.marcarPagado(i, v); alCambiar() },
-            alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
-            alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) },
-            alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) }) }
-
-        TarjetaPlanes(S, c, alAgregar = { hoja = HojaPlan.UnPlan(null) }, alEditar = { hoja = HojaPlan.UnPlan(it) },
-            alActivar = { p, on -> almacen.activarPlan(p.id, on); alCambiar()
-                aviso(if (on) "Activado: se descuentan ${dinero(p.cuota)} de este período" else "Desactivado: la plata vuelve a tu disponible") },
-            alPagado = { p, v -> almacen.marcarPlanPagado(p.id, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") })
-
-        TarjetaCuotas(S)
-
-        TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
-
-        Tarjeta(Modifier.clickable { hoja = HojaPlan.Proximos }) {
-            Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Para el próximo período"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
-            if (S.proximos.isEmpty()) Subtitulo("Anotá gastos que ya sabés que vas a tener cuando cobres.")
-            S.proximos.forEach { Renglon(it.n.ifBlank { "Sin nombre" }, dinero(it.a), negrita = false) }
-            S.items.filter { it.f != false && it.extra["prox"] != null }.forEach {
-                Renglon(it.n + " (próximo)", dinero(it.extra["prox"].num()), negrita = false)
+        BloquesPantalla(Bloques.PLAN, ordenando && !Demo.corriendo, alTerminar = { ordenando = false }) { id ->
+            when (id) {
+                "resumen" -> {
+                Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {
+                    Renglon("Período", "${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)}")
+                    Renglon("Ingresos", dinero(S.sueldo))
+                    if (S.previo != 0.0) Renglon("Saldo previo", dinero(S.previo))
+                    Renglon("Gastos importantes", dinero(c.total))
+                    Renglon("Falta pagar", dinero(c.porPagar), colorDer = if (c.porPagar > 0) k.naranja else k.verde)
+                    val enPlanes = S.planes.filter { it.activo && !it.fin }.sumOf { it.cuota }
+                    if (enPlanes > 0) Renglon("Mis planes activos", dinero(enPlanes))
+                    HorizontalDivider(color = k.linea)
+                    Renglon("Para el día a día", dinero(S.sueldo + S.previo - c.total - enPlanes))
+                    Text("Tocá para cambiar fechas o saldo previo", fontSize = 12.sp, color = k.suave)
+                }
+                }
+                "ingresos" -> {
+                Tarjeta(Modifier.clickable { hoja = HojaPlan.Ingresos }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Ingresos"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
+                    S.ingresos.forEach { Renglon(it.cat, dinero(it.a), negrita = false) }
+                    if (S.ingresos.size > 1) Renglon("Total", dinero(S.sueldo))
+                }
+                }
+                "pagar" -> {
+                Box(Modifier.demo("plan.pagar").luz("plan.pagar")) { TarjetaPagarAlCobrar(S,
+                    alPagado = { i, v -> almacen.marcarPagado(i, v); alCambiar() },
+                    alDetalles = { i -> hoja = HojaPlan.Detalle(i) },
+                    alAgregar = { val n = almacen.agregarItem(); alCambiar(); hoja = HojaPlan.Gasto(n, true) },
+                    alPagarMP = alPagarMP, alIPC = { i -> hoja = HojaPlan.IPC(i) }) }
+                }
+                "planes" -> {
+                TarjetaPlanes(S, c, alAgregar = { hoja = HojaPlan.UnPlan(null) }, alEditar = { hoja = HojaPlan.UnPlan(it) },
+                    alActivar = { p, on -> almacen.activarPlan(p.id, on); alCambiar()
+                        aviso(if (on) "Activado: se descuentan ${dinero(p.cuota)} de este período" else "Desactivado: la plata vuelve a tu disponible") },
+                    alPagado = { p, v -> almacen.marcarPlanPagado(p.id, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") })
+                }
+                "cuotas" -> TarjetaCuotas(S)
+                "metas" -> {
+                TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
+                }
+                "proximos" -> {
+                Tarjeta(Modifier.clickable { hoja = HojaPlan.Proximos }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Titulo("Para el próximo período"); Spacer(Modifier.weight(1f)); Text("Editar", color = k.verde, fontWeight = FontWeight.SemiBold) }
+                    if (S.proximos.isEmpty()) Subtitulo("Anotá gastos que ya sabés que vas a tener cuando cobres.")
+                    S.proximos.forEach { Renglon(it.n.ifBlank { "Sin nombre" }, dinero(it.a), negrita = false) }
+                    S.items.filter { it.f != false && it.extra["prox"] != null }.forEach {
+                        Renglon(it.n + " (próximo)", dinero(it.extra["prox"].num()), negrita = false)
+                    }
+                }
+                }
+                "cobraste" -> {
+                Tarjeta {
+                    Titulo("¿Cobraste?")
+                    Subtitulo("Cuando cobres, empezá el período nuevo. El actual termina el ${Fechas.diaYMes(S.end)}.")
+                    Button(onClick = { hoja = HojaPlan.Nuevo }, Modifier.fillMaxWidth()) { Text("Empezar período nuevo") }
+                }
+                }
             }
-        }
-
-        Tarjeta {
-            Titulo("¿Cobraste?")
-            Subtitulo("Cuando cobres, empezá el período nuevo. El actual termina el ${Fechas.diaYMes(S.end)}.")
-            Button(onClick = { hoja = HojaPlan.Nuevo }, Modifier.fillMaxWidth()) { Text("Empezar período nuevo") }
         }
     }
 

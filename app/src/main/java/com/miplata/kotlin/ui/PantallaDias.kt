@@ -1,6 +1,11 @@
 package com.miplata.kotlin.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.material3.*
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,22 +29,38 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
     val c = Nucleo.calcular(S, hoy)
     val dias = Nucleo.diasDelPeriodo(S, hoy, c)
     var abierto by remember { mutableStateOf(c.hoyIdx) }
-    val lista = rememberLazyListState(initialFirstVisibleItemIndex = if (Demo.corriendo) 0 else maxOf(0, c.hoyIdx))
+    var ordenando by remember { mutableStateOf(false) }      // ✏️: ordenar los bloques
+    val scroll = rememberScrollState()
+    var contenido by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    var tarjetaHoy by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
+    var yaFue by remember { mutableStateOf(false) }
+    /* Al abrir, la lista arranca mostrando el día de hoy (como antes) */
+    LaunchedEffect(contenido, tarjetaHoy) {
+        val col = contenido; val h = tarjetaHoy
+        if (!yaFue && !Demo.corriendo && col != null && h != null && h.isAttached && col.isAttached) {
+            yaFue = true; scroll.scrollTo((col.localPositionOf(h, androidx.compose.ui.geometry.Offset.Zero).y - 40).toInt().coerceAtLeast(0))
+        }
+    }
 
-    LazyColumn(state = lista, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 110.dp),
+    Column(Modifier.fillMaxSize().verticalScroll(scroll).onGloballyPositioned { contenido = it }.padding(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item {
-            Column(Modifier.padding(bottom = 6.dp)) {
+        Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Text("Días del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
                 Text("Del ${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)} · lo que sobra pasa al día siguiente", fontSize = 13.sp, color = k.suave)
             }
+            IconButton(onClick = { ordenando = !ordenando }) {
+                Icon(androidx.compose.material.icons.Icons.Outlined.Edit, "Ordenar bloques", tint = if (ordenando) k.verde else k.suave) }
         }
-        item { TarjetaObjetivo(S, alObjetivo, alRecalibrar, alQuitarRecal) }
-        items(dias, key = { it.iso }) { d ->
+        BloquesPantalla(Bloques.DIAS, ordenando && !Demo.corriendo, alTerminar = { ordenando = false }) { id ->
+            when (id) {
+                "objetivo" -> TarjetaObjetivo(S, alObjetivo, alRecalibrar, alQuitarRecal)
+                "lista" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { dias.forEach { d ->
             val futuro = d.i > c.hoyIdx
             val esHoy = d.i == c.hoyIdx
             val colorSobra = when { futuro -> k.suave; d.sobra < 0 -> k.rojo; else -> k.verde }
             Column(Modifier.fillMaxWidth()
+                .then(if (esHoy) Modifier.onGloballyPositioned { tarjetaHoy = it } else Modifier)
                 .background(if (esHoy) k.verdeClaro else k.tarjeta, RoundedCornerShape(16.dp))
                 .clickable { abierto = if (abierto == d.i) -1 else d.i }
                 .padding(14.dp)) {
@@ -62,6 +83,8 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
                     if (movs.isEmpty()) Text("Sin movimientos", fontSize = 13.sp, color = k.suave, modifier = Modifier.padding(top = 6.dp))
                     movs.forEach { FilaMovimiento(it) { alTocarMovimiento(it) } }
                 }
+            }
+                } }
             }
         }
     }
