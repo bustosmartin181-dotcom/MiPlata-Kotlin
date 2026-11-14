@@ -2,6 +2,8 @@ package com.miplata.kotlin.datos
 
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Nucleo
+import com.miplata.kotlin.nucleo.hayCompraTaller
+import com.miplata.kotlin.nucleo.deudasTallerDe
 import com.miplata.kotlin.ui.interpretarDictado
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -165,5 +167,26 @@ class AlmacenTest {
         // gasto olvidado anotado desde Mis cuentas: no toca la cuenta
         a.anotar(700.0, "Gasto sin anotar", null, false, false, moverCuenta = false)
         assertEquals(498000.0, mp(), 1e-6)
+    }
+
+    /** Compra del taller de $9.650 con tu parte de $1.050: baja el límite solo tu parte,
+        la cuenta baja el total, y cuando te pagan la cuenta queda como si nunca hubieras puesto su parte. */
+    @Test fun compraDelTaller() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100000.0, true)))
+        val antes = Nucleo.calcular(a.estado!!, hoy)
+        val ariel = com.miplata.kotlin.nucleo.Muchacho("a", "Ariel", "Chuña")
+        val pedro = com.miplata.kotlin.nucleo.Muchacho("p", "Pedro")
+        a.anotarTaller(hoy, 1050.0, "", listOf(ariel to 3100.0, pedro to 700.0))
+        val S = a.estado!!
+        val c = Nucleo.calcular(S, hoy)
+        assertEquals(antes.quedaHoy - 1050, c.quedaHoy, 1e-6)
+        assertEquals(100000.0 - 4850, S.cuentas[0].m, 1e-6)
+        assertTrue(S.hayCompraTaller(hoy))
+        val deben = S.deudasTallerDe(hoy)
+        assertEquals(listOf("Taller · Ariel (Chuña)", "Taller · Pedro"), deben.map { it.note })
+        a.marcarDevuelto(deben[0].id)
+        assertEquals(100000.0 - 4850 + 3100, a.estado!!.cuentas[0].m, 1e-6)
+        assertEquals(1, a.estado!!.deudasTallerDe(hoy).size)
     }
 }
