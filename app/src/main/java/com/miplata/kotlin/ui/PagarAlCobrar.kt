@@ -40,8 +40,16 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
     val visibles = S.items.withIndex().filter { (_, it) -> it.n.isNotBlank() || it.a != 0.0 }
     val pendientes = visibles.count { !it.value.p }; val pagados = visibles.count { it.value.p }
     val totalPendiente = visibles.filter { !it.value.p }.sumOf { it.value.a }
+    val pleg = rememberPlegado("pagar", abiertoAlPrincipio = false)
     Tarjeta {
-        Text("🧾 Pagar al cobrar · ${visibles.size} gastos", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        CabeceraPlegable(pleg) {
+            Text("🧾 Pagar al cobrar · ${visibles.size} gastos", Modifier.weight(1f), fontSize = 19.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        }
+        if (!pleg.abierto) {
+            Text(if (pendientes > 0) "Falta pagar ${dinero(totalPendiente)} · $pendientes pendiente${if (pendientes > 1) "s" else ""}" else "¡Todo pagado! 🎉",
+                color = if (pendientes > 0) k.naranja else k.verde, fontWeight = FontWeight.SemiBold)
+            return@Tarjeta
+        }
         Subtitulo("Lo primero que se paga cuando cobrás. Marcá 🔁 en los fijos de todos los meses; si el monto cambia (luz, gas), marcá también ✏️ y el mes que viene aparecen con el monto vacío.")
         Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF00A6E8), Color(0xFF0B6FB8))), RoundedCornerShape(20.dp)).padding(18.dp)) {
             Text("Total pendiente este mes", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp)

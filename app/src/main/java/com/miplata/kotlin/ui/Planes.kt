@@ -25,10 +25,18 @@ import com.miplata.kotlin.nucleo.Plan
 fun TarjetaPlanes(S: Estado, c: Calculo, alAgregar: () -> Unit, alEditar: (Plan) -> Unit,
                   alActivar: (Plan, Boolean) -> Unit, alPagado: (Plan, Boolean) -> Unit) {
     val k = LocalColores.current
+    val pleg = rememberPlegado("planes")
     Tarjeta {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Titulo("🎯 Mis planes"); Spacer(Modifier.weight(1f))
+            CabeceraPlegable(pleg, Modifier.weight(1f)) { Titulo("🎯 Mis planes"); Spacer(Modifier.weight(1f)) }
             TextButton(onClick = alAgregar) { Text("+ Agregar", fontWeight = FontWeight.SemiBold) }
+        }
+        if (!pleg.abierto) {
+            val act = S.planes.filter { it.activo && !it.fin }
+            Text(if (S.planes.isEmpty()) "Todavía no anotaste planes" else "${S.planes.size} plan${if (S.planes.size > 1) "es" else ""}" +
+                (if (act.isNotEmpty()) " · activos ${dinero(act.sumOf { it.cuota })}" else " · ninguno activo"),
+                color = k.suave, fontWeight = FontWeight.SemiBold)
+            return@Tarjeta
         }
         Subtitulo("Gastos que tenés en mente. Con ❌ no tocan tu plata; con ✅ se descuentan como un gasto prioritario, repartidos entre los días que quedan.")
         if (S.planes.isEmpty()) Text("Ej.: arreglar el radiador del auto · $100.000", fontSize = 13.sp, color = k.suave)

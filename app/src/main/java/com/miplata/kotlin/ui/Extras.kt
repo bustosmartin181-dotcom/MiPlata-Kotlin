@@ -107,8 +107,14 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
 fun TarjetaMetas(S: Estado, alAbrir: (Meta?) -> Unit) {
     val k = LocalColores.current
     val metas = S.metas.filter { it.n.isNotBlank() || it.t > 0 }
+    val pleg = rememberPlegado("metas")
     Tarjeta {
-        Titulo("Metas")
+        CabeceraPlegable(pleg) { Titulo("Metas de ahorro"); Spacer(Modifier.weight(1f)) }
+        if (!pleg.abierto) {
+            Text(if (metas.isEmpty()) "Sin metas" else "${metas.size} meta${if (metas.size > 1) "s" else ""} · juntado ${dinero(metas.sumOf { Nucleo.juntadoEnMeta(S, it) })}",
+                color = k.suave, fontWeight = FontWeight.SemiBold)
+            return@Tarjeta
+        }
         if (metas.isEmpty()) Subtitulo("Juntá para algo: vacaciones, un arreglo del auto… Lo que apartás sale de tu plata disponible.")
         metas.forEach { m ->
             val juntado = Nucleo.juntadoEnMeta(S, m)
