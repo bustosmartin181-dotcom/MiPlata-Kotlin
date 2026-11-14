@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         almacen = Almacen(applicationContext)
+        com.miplata.kotlin.ui.Bordes.cargar(applicationContext)
         bloqueada.value = pidePin()
         almacen.estado?.let { apariencia.value = it.color to it.tema }
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""

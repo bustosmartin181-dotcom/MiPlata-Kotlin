@@ -61,7 +61,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
             val colorSobra = when { futuro -> k.suave; d.sobra < 0 -> k.rojo; else -> k.verde }
             Column(Modifier.fillMaxWidth()
                 .then(if (esHoy) Modifier.onGloballyPositioned { tarjetaHoy = it } else Modifier)
-                .background(if (esHoy) k.verdeClaro else k.tarjeta, RoundedCornerShape(16.dp))
+                .bordeBloque(16).background(if (esHoy) k.verdeClaro else k.tarjeta, RoundedCornerShape(16.dp))
                 .clickable { abierto = if (abierto == d.i) -1 else d.i }
                 .padding(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

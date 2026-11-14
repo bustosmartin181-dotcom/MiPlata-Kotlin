@@ -65,6 +65,9 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
             Text("Color", color = k.suave, fontSize = 13.sp)
             SelectorColor(S.color, a.color)
+            val ctxB = androidx.compose.ui.platform.LocalContext.current
+            Interruptor("Línea de color en el borde de los bloques", Bordes.activos, { Bordes.guardar(ctxB, it) },
+                "Para ver bien dónde empieza y termina cada bloque")
         }
 
         var eligiendoHoraRec by remember { mutableStateOf(false) }

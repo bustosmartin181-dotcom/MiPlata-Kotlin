@@ -92,7 +92,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         S.items.filter { it -> Ipc.de(it)?.let { d -> Ipc.toca(d, hoy, ipcConocidos) } == true }.forEach { it ->
             Row(Modifier.fillMaxWidth().demo("hoy.ipc")
                 .then(if (Demo.resaltado == "hoy.ipc") Modifier.border(3.dp, k.naranja, RoundedCornerShape(18.dp)) else Modifier)
-                .background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                .bordeBloque(18).background(k.tarjeta, RoundedCornerShape(18.dp)).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("📈 Toca actualizar: ${it.n}", fontWeight = FontWeight.Bold, color = k.naranja)
                     Text("Ya salió la inflación que se usa. Calculá el monto nuevo para pagar desde ${mesYAnio(Ipc.de(it)!!.prox)}.", fontSize = 13.sp, color = k.suave)
@@ -196,7 +196,7 @@ fun formatoTasa(t: Double): String = if (t % 1.0 == 0.0) t.toLong().toString() e
 @Composable
 fun Mini(titulo: String, valor: String, modifier: Modifier = Modifier, extra: String? = null, colorValor: Color? = null) {
     val k = LocalColores.current
-    Column(modifier.fillMaxHeight().background(k.tarjeta, RoundedCornerShape(18.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier.fillMaxHeight().bordeBloque(18).background(k.tarjeta, RoundedCornerShape(18.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(titulo, fontSize = 13.sp, color = k.suave)
         Text(valor, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorValor ?: k.texto)
         extra?.let { Text(it, fontSize = 12.sp, color = k.verde, fontWeight = FontWeight.SemiBold) }
