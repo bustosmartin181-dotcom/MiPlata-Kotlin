@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +35,8 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
                 alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {},
-                editandoBloques: Boolean = false, alEditarBloques: () -> Unit = {}, alTerminarEdicion: () -> Unit = {}) {
+                editandoBloques: Boolean = false, alEditarBloques: () -> Unit = {}, alTerminarEdicion: () -> Unit = {},
+                taller: Taller = Taller(), alAnotarTaller: () -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -75,6 +77,13 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             TextButton(onClick = alSalirDemo, colors = ButtonDefaults.textButtonColors(contentColor = Color.White)) { Text("Salir") }
         }
         avisoCopia?.invoke()
+
+        /* Compras del taller: en el horario del desayuno o la merienda aparece solo (se revisa cada 30 segundos) */
+        var hora by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(horaAhora()) }
+        androidx.compose.runtime.LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000); hora = horaAhora() } }
+        val turnoHoy = taller.turno(hoy)
+        if (turnoHoy != null && taller.activos.isNotEmpty() && !S.demo && taller.enVentana(hoy, hora) && !S.hayCompraTaller(hoy))
+            CartelTaller(turnoHoy, alAnotarTaller)
 
         /* Cerca del cobro: atajo para empezar el período nuevo */
         val diasAlFin = Fechas.dia(S.end) - Fechas.dia(hoy)

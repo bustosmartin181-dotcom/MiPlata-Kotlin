@@ -55,6 +55,11 @@
         </receiver>
         <service android:name=".widget.ServicioVoz" android:exported="false" android:foregroundServiceType="microphone" />
         <receiver android:name=".widget.ReceptorVoz" android:exported="false" />
+        <!-- Para sacar la foto de la planilla del taller con la cámara -->
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.archivos"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/archivos" />
+        </provider>
         <receiver android:name=".aviso.ReceptorAviso" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

@@ -44,6 +44,8 @@ class MainActivity : ComponentActivity() {
     val bloqueada = mutableStateOf(false)
     /** color y modo (claro/oscuro/auto) del tema elegido */
     val apariencia = mutableStateOf("verde" to "auto")
+    /** Se tocó el aviso del taller: abrir la ventanita en modo Taller */
+    val pedidoTaller = mutableStateOf(false)
 
     private fun pidePin() = almacen.estado?.let { it.pin.isNotEmpty() && it.pinApp } ?: false
 
@@ -55,7 +57,12 @@ class MainActivity : ComponentActivity() {
         bloqueada.value = pidePin()
         almacen.estado?.let { apariencia.value = it.color to it.tema }
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
-        setContent { TemaMiPlata(apariencia.value.first, apariencia.value.second) { App(almacen, version, bloqueada) { apariencia.value = it } } }
+        if (intent?.getBooleanExtra(com.miplata.kotlin.aviso.AvisoTaller.EXTRA_ABRIR, false) == true) pedidoTaller.value = true
+        setContent { TemaMiPlata(apariencia.value.first, apariencia.value.second) { App(almacen, version, bloqueada, pedidoTaller) { apariencia.value = it } } }
+    }
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(com.miplata.kotlin.aviso.AvisoTaller.EXTRA_ABRIR, false)) pedidoTaller.value = true
     }
     override fun onStop() { super.onStop(); enSegundoPlanDesde = System.currentTimeMillis() }
     override fun onStart() {
@@ -70,7 +77,8 @@ enum class Pestana(val titulo: String, val icono: ImageVector) {
 }
 
 @Composable
-fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alCambiarTema: (Pair<String, String>) -> Unit = {}) {
+fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, pedidoTaller: MutableState<Boolean> = mutableStateOf(false),
+        alCambiarTema: (Pair<String, String>) -> Unit = {}) {
     val ctx = LocalContext.current
     val k = LocalColores.current
     var vuelta by remember { mutableIntStateOf(0) }          // sube cada vez que cambian los datos
@@ -86,12 +94,23 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     var errorPin by remember { mutableStateOf<String?>(null) }
     var irAPeriodoNuevo by remember { mutableStateOf(false) }
     var pendientePase by remember { mutableDoubleStateOf(0.0) }
+    val taller = remember(vuelta) { com.miplata.kotlin.nucleo.Taller.de(almacen.crudo) }
+    var tallerAlAbrir by remember { mutableStateOf(false) }
+    var leyendoFoto by remember { mutableStateOf(false) }
+    /** El + abre en modo Taller solo si es la hora de comprar para los muchachos */
+    fun abrirAnotar(dictar: Boolean = false) {
+        editando = null; conDictado = dictar
+        tallerAlAbrir = !dictar && taller.enVentana(Fechas.hoy(), horaAhora()) && almacen.estado?.demo != true
+        hojaAbierta = true
+    }
+    fun abrirTaller() { editando = null; conDictado = false; tallerAlAbrir = true; hojaAbierta = true }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
     LaunchedEffect(vuelta) {
         runCatching { AvisoReserva.programar(ctx) }
         runCatching { AvisoReserva.programarRecordatorio(ctx) }
+        runCatching { com.miplata.kotlin.aviso.AvisoTaller.programar(ctx) }
         com.miplata.kotlin.widget.Widget.actualizar(ctx)
         if (vuelta > 0) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.miplata.kotlin.datos.CopiaAutomatica.guardar(ctx) }
     }
@@ -191,6 +210,49 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     val abrirImportar = { importar.launch(arrayOf("application/json", "text/plain", "*/*")) }
     val abrirExportar = { exportar.launch("mi-plata-copia-${Fechas.hoy()}.json") }
 
+    /* ---------- Compras del taller ---------- */
+    val importarTaller = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val texto = runCatching { ctx.contentResolver.openInputStream(uri)!!.bufferedReader().readText() }.getOrNull()
+            val nuevo = texto?.let { com.miplata.kotlin.nucleo.Taller.importarCompras(it, taller) }
+            if (nuevo == null) aviso("Ese archivo no es una copia de Compras del taller")
+            else { almacen.guardarTaller(nuevo); vuelta++; aviso("Listo: ${nuevo.activos.size} muchachos y ${nuevo.precios.size} precios") }
+        }
+    }
+    /** Lee la foto de la planilla con Gemini y carga el horario del mes. */
+    fun leerFoto(uri: android.net.Uri) {
+        leyendoFoto = true
+        alcance.launch {
+            val r = runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val bytes = achicarFoto(ctx, uri)
+                val hoy = java.time.LocalDate.now()
+                val (mesLeido, dias) = com.miplata.kotlin.ia.Gemini.leerHorario(ctx, bytes, hoy.year, hoy.monthValue)
+                val mes = mesLeido ?: hoy.monthValue
+                val anio = if (mes < hoy.monthValue - 6) hoy.year + 1 else if (mes > hoy.monthValue + 6) hoy.year - 1 else hoy.year
+                val primero = java.time.LocalDate.of(anio, mes, 1)
+                (1..primero.lengthOfMonth()).filter { dias.containsKey(it) }.associate { d ->
+                    primero.withDayOfMonth(d).toString() to com.miplata.kotlin.nucleo.Taller.turnoPorEntrada(dias[d]) }
+            } }
+            leyendoFoto = false
+            r.onSuccess { h ->
+                if (h.isEmpty()) aviso("No encontré días en la foto. Probá de nuevo.")
+                else { val t = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo); almacen.guardarTaller(t.copy(horario = t.horario + h)); vuelta++
+                    aviso("Horario cargado: ${h.values.count { it == "M" }} mañana, ${h.values.count { it == "T" }} tarde, ${h.values.count { it == "F" }} francos. Revisalo.") }
+            }.onFailure { aviso(it.message ?: "No pude leer la foto") }
+        }
+    }
+    var elegirFoto by remember { mutableStateOf(false) }
+    val archivoFoto = remember { java.io.File(ctx.cacheDir, "planilla.jpg") }
+    val uriFoto = remember { androidx.core.content.FileProvider.getUriForFile(ctx, ctx.packageName + ".archivos", archivoFoto) }
+    val sacarFoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) leerFoto(uriFoto) }
+    val galeria = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) leerFoto(uri) }
+    if (elegirFoto) AlertDialog(onDismissRequest = { elegirFoto = false }, title = { Text("Foto de la planilla") },
+        text = { Text("Sacala derecha, con buena luz y que se vean todos los días del mes. La lee Gemini con tu clave.") },
+        confirmButton = { TextButton(onClick = { elegirFoto = false; runCatching { sacarFoto.launch(uriFoto) }.onFailure { aviso("No pude abrir la cámara") } }) { Text("📷 Sacar foto") } },
+        dismissButton = { TextButton(onClick = { elegirFoto = false; galeria.launch("image/*") }) { Text("🖼️ De la galería") } })
+    /* Se tocó el aviso del taller */
+    LaunchedEffect(pedidoTaller.value) { if (pedidoTaller.value && estado != null) { pedidoTaller.value = false; pestana = Pestana.HOY; abrirTaller() } }
+
     if (bloqueada.value && estado != null) {
         PantallaBloqueo(errorPin) { pin ->
             val espera = com.miplata.kotlin.datos.Seguridad.segundosDeEspera(ctx)
@@ -207,7 +269,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
     /* Con el cartel "Ayudá al creador" abierto, la app queda borrosa detrás (Android 12 o más nuevo) */
     val borroso by androidx.compose.animation.core.animateDpAsState(if (colaboraAbierta) 14.dp else 0.dp, label = "borroso")
     Scaffold(modifier = Modifier.blur(borroso), containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
-        if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it; ordenandoBloques = false }) { editando = null; conDictado = false; hojaAbierta = true }
+        if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it; ordenandoBloques = false }) { abrirAnotar() }
     }) { relleno ->
         Box(Modifier.padding(relleno).fillMaxSize()) {
             if (estado == null || Demo.bienvenida) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
@@ -226,8 +288,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         alOjo = { if (Privacidad.mostrando || estado.pin.isEmpty()) Privacidad.mostrando = !Privacidad.mostrando else pidiendoPinOjo = true },
                         alCompartir = { hojaHoy = "resumen" },
                         alIA = { hojaHoy = "ia" },
-                        alAnotar = { editando = null; conDictado = false; hojaAbierta = true },
-                        alDictar = { editando = null; conDictado = true; hojaAbierta = true },
+                        alAnotar = { abrirAnotar() },
+                        alDictar = { abrirAnotar(dictar = true) },
+                        taller = taller, alAnotarTaller = { abrirTaller() },
                         alPlanes = { pestana = Pestana.PLAN },
                         editandoBloques = ordenandoBloques && !Demo.corriendo,
                         alEditarBloques = { ordenandoBloques = !ordenandoBloques },
@@ -268,6 +331,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
                         abrirPin = { hojaHoy = "pin" },
                         copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
                         abrirMP = ::abrirMP,
+                        abrirTaller = { hojaHoy = "taller" },
                         abrirWebIA = { runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
                             android.net.Uri.parse("https://aistudio.google.com/apikey"))) } },
                         avisar = ::aviso,
@@ -332,6 +396,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
             "resumen" -> HojaResumen(com.miplata.kotlin.exportar.Exportar.resumenTexto(estado, Fechas.hoy()), { hojaHoy = "" },
                 alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
                 alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
+            "taller" -> HojaTaller(taller, { hojaHoy = "" },
+                alGuardar = { almacen.guardarTaller(it); vuelta++ },
+                alImportar = { importarTaller.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                alFoto = { elegirFoto = true }, leyendoFoto = leyendoFoto, alPermisoAvisos = { asegurarNotis() })
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
     }
@@ -358,10 +426,18 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, alC
         dictarAlAbrir = conDictado,
         alCerrar = { hojaAbierta = false; conDictado = false },
         alGuardar = { m ->
-            almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
-            hojaAbierta = false; vuelta++
-            aviso(when { m.entrada -> "Entrada anotada: +${pesos(m.monto)}"; m.meLoDevuelven -> "Anotado en \"Me deben\""; else -> "Gasto anotado" })
+            if (m.partesTaller.isNotEmpty()) {
+                val deEllos = m.partesTaller.sumOf { it.second }
+                almacen.anotarTaller(m.fecha, m.monto - deEllos, m.nota, m.partesTaller)
+                hojaAbierta = false; vuelta++
+                aviso("Taller anotado: te deben ${pesos(deEllos)}")
+            } else {
+                almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
+                hojaAbierta = false; vuelta++
+                aviso(when { m.entrada -> "Entrada anotada: +${pesos(m.monto)}"; m.meLoDevuelven -> "Anotado en \"Me deben\""; else -> "Gasto anotado" })
+            }
         },
+        taller = taller, tallerAlAbrir = tallerAlAbrir,
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
     )
@@ -403,3 +479,15 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
     }
 }
 
+/** Achica la foto (máx. 2000 px) para mandarla rápido y sin gastar datos de más. */
+fun achicarFoto(ctx: android.content.Context, uri: android.net.Uri): ByteArray {
+    val opciones = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    ctx.contentResolver.openInputStream(uri)!!.use { android.graphics.BitmapFactory.decodeStream(it, null, opciones) }
+    var escala = 1
+    while (maxOf(opciones.outWidth, opciones.outHeight) / escala > 2400) escala *= 2
+    val bmp = ctx.contentResolver.openInputStream(uri)!!.use {
+        android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = escala }) }!!
+    val lado = maxOf(bmp.width, bmp.height)
+    val final = if (lado > 2000) android.graphics.Bitmap.createScaledBitmap(bmp, bmp.width * 2000 / lado, bmp.height * 2000 / lado, true) else bmp
+    return java.io.ByteArrayOutputStream().also { final.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) }.toByteArray()
+}

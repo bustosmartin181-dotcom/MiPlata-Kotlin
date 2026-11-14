@@ -31,6 +31,7 @@ class AccionesAjustes(
     val demo: (Boolean) -> Unit = {},
     val reproducirDemo: () -> Unit = {},
     val abrirWebIA: () -> Unit = {}, val avisar: (String) -> Unit = {},
+    val abrirTaller: () -> Unit = {},
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,6 +69,12 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             val ctxB = androidx.compose.ui.platform.LocalContext.current
             Interruptor("Línea de color en el borde de los bloques", Bordes.activos, { Bordes.guardar(ctxB, it) },
                 "Para ver bien dónde empieza y termina cada bloque")
+        }
+
+        Tarjeta {
+            Titulo("🔧 Compras del taller")
+            Subtitulo("Los muchachos, los precios y tu horario. A la hora del desayuno o la merienda la app se pone en modo Taller sola.")
+            Button(onClick = a.abrirTaller, Modifier.fillMaxWidth()) { Text("Abrir Compras del taller") }
         }
 
         var eligiendoHoraRec by remember { mutableStateOf(false) }

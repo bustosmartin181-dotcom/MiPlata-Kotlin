@@ -128,8 +128,10 @@ class ReceptorAviso : BroadcastReceiver() {
         when (intent.action) {
             "com.miplata.kotlin.AVISO_RESERVA" -> AvisoReserva.texto(ctx)?.let { AvisoReserva.mostrar(ctx, it) }
             "com.miplata.kotlin.RECORDATORIO" -> AvisoReserva.textoRecordatorio(ctx)?.let { AvisoReserva.mostrar(ctx, it, recordatorio = true) }
+            else -> if (AvisoTaller.esAccion(intent.action)) runCatching { AvisoTaller.alRecibir(ctx, intent.getStringExtra("tipo")) }
         }
         AvisoReserva.programar(ctx)   // los de mañana (y vuelve a programar al prender el teléfono)
         AvisoReserva.programarRecordatorio(ctx)
+        runCatching { AvisoTaller.programar(ctx) }
     }
 }

@@ -104,6 +104,60 @@ $contexto"""
         throw ErrorIA(ultimoError)
     }
 
+    /** Lee la foto de la planilla de asistencia del taller. Devuelve día del mes → hora de entrada ("" = franco).
+        Llamar fuera del hilo principal. */
+    fun leerHorario(ctx: Context, jpeg: ByteArray, anio: Int, mes: Int): Pair<Int?, Map<Int, String>> {
+        val clave = clave(ctx).ifEmpty { throw ErrorIA("Para leer la foto falta tu clave de Gemini: cargala en Ajustes → Inteligencia artificial. Mientras tanto podés tocar cada día.") }
+        if (!hayInternet(ctx)) throw ErrorIA("Sin conexión a internet. Para leer la foto hace falta internet.")
+        val pedido = """Esta es la foto de una planilla de asistencia de un taller (probablemente del mes $mes de $anio; fijate el mes escrito en la planilla).
+Tiene una fila por día con columnas MAÑANA (entra/sale), TARDE (entra/sale) y NOCHE.
+Para cada día del mes decime a qué hora ENTRA (la primera hora escrita en la fila, de la columna que sea).
+Si la fila no tiene horas, es franco: poné "".
+Respondé SOLO con JSON, sin texto extra, así (mes = número del mes de la planilla): {"mes":11,"dias":[{"d":1,"entra":"08:00"},{"d":2,"entra":"07:00"},{"d":8,"entra":""}]}"""
+        val cuerpo = JsonObject(mapOf(
+            "contents" to JsonArray(listOf(JsonObject(mapOf("role" to JsonPrimitive("user"), "parts" to JsonArray(listOf(
+                JsonObject(mapOf("inline_data" to JsonObject(mapOf("mime_type" to JsonPrimitive("image/jpeg"),
+                    "data" to JsonPrimitive(android.util.Base64.encodeToString(jpeg, android.util.Base64.NO_WRAP)))))),
+                JsonObject(mapOf("text" to JsonPrimitive(pedido))))))))),
+            "generationConfig" to JsonObject(mapOf("temperature" to JsonPrimitive(0), "responseMimeType" to JsonPrimitive("application/json"))),
+        )).toString()
+        val recordado = prefs(ctx).getString("modelo", null)
+        var ultimo = "No pude leer la foto."
+        for (modelo in listOfNotNull(recordado) + MODELOS.filter { it != recordado }) {
+            val c = (URL("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"; doOutput = true; connectTimeout = 15_000; readTimeout = 90_000
+                setRequestProperty("Content-Type", "application/json"); setRequestProperty("x-goog-api-key", clave)
+            }
+            try {
+                c.outputStream.use { it.write(cuerpo.toByteArray()) }
+                val codigo = c.responseCode
+                val texto = (if (codigo in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+                when {
+                    codigo in 200..299 -> {
+                        val salida = Json.parseToJsonElement(texto).jsonObject["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
+                            ?.get("content")?.jsonObject?.get("parts")?.jsonArray?.mapNotNull { it.jsonObject["text"]?.jsonPrimitive?.contentOrNull }?.joinToString("") ?: ""
+                        val json = salida.substringAfter("```json").substringAfter("```").substringBeforeLast("```").trim().ifEmpty { salida }
+                        val raiz = runCatching { Json.parseToJsonElement(json.substring(json.indexOf('{'))).jsonObject }.getOrNull()
+                        val dias = raiz?.get("dias") as? JsonArray
+                            ?: throw ErrorIA("No pude entender la planilla. Probá con otra foto, derecha y con buena luz.")
+                        val mesLeido = (raiz["mes"] as? JsonPrimitive)?.intOrNull?.takeIf { it in 1..12 }
+                        return mesLeido to dias.mapNotNull { e -> val o = e as? JsonObject ?: return@mapNotNull null
+                            val d = (o["d"] as? JsonPrimitive)?.intOrNull ?: return@mapNotNull null
+                            d to ((o["entra"] as? JsonPrimitive)?.contentOrNull ?: "") }.toMap()
+                    }
+                    codigo == 404 || (codigo == 400 && texto.contains("not found", true)) -> { ultimo = "Modelo no disponible"; continue }
+                    codigo == 429 -> throw ErrorIA("Llegaste al límite gratis de Gemini por ahora. Probá de nuevo en un rato.")
+                    codigo == 401 || codigo == 403 || (codigo == 400 && texto.contains("API key", true)) ->
+                        throw ErrorIA("La clave de Gemini no es válida. Revisala en Ajustes → Inteligencia artificial.")
+                    else -> { ultimo = "Gemini respondió con un error ($codigo)."; continue }
+                }
+            } catch (e: ErrorIA) { throw e }
+            catch (e: Exception) { throw ErrorIA(explicar(ctx, e)) }
+            finally { c.disconnect() }
+        }
+        throw ErrorIA(ultimo)
+    }
+
     /** Resumen de tus datos para que la IA pueda responder. */
     fun contexto(S: Estado): String {
         val hoy = Fechas.hoy(); val c = Nucleo.calcular(S, hoy)

@@ -32,6 +32,8 @@ import com.miplata.kotlin.nucleo.Movimiento
 data class NuevoMovimiento(
     val monto: Double, val nota: String, val categoria: String?, val entrada: Boolean,
     val meLoDevuelven: Boolean, val fecha: String, val editarId: Long?,
+    /** Compra del taller: lo que le toca a cada muchacho (vacío = gasto común). */
+    val partesTaller: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>> = emptyList(),
 )
 
 /** Saca monto y detalle de lo dictado: "2800 negocio Telma", "2 mil 800 en el negocio de la Telma", "2.500 pesos en nafta".
@@ -63,6 +65,8 @@ fun HojaAnotar(
     dictarAlAbrir: Boolean = false,
     montoInicial: String = "",
     notaInicial: String = "",
+    taller: com.miplata.kotlin.nucleo.Taller = com.miplata.kotlin.nucleo.Taller(),
+    tallerAlAbrir: Boolean = false,
 ) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
@@ -75,6 +79,9 @@ fun HojaAnotar(
     var fecha by remember { mutableStateOf(editando?.date ?: hoy) }
     var calendario by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val hayTaller = editando == null && taller.activos.isNotEmpty() && !Demo.corriendo
+    var modoTaller by remember { mutableStateOf(hayTaller && tallerAlAbrir) }
+    val partes = remember { mutableStateMapOf<String, String>() }
     val foco = remember { FocusRequester() }
     val estado = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -83,8 +90,11 @@ fun HojaAnotar(
     LaunchedEffect(Unit) { if (Demo.corriendo) return@LaunchedEffect; if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
     val guardarClick: () -> Unit = {
         val n = aNumero(monto)
-        if (n <= 0) error = "Escribí un monto"
-        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven, fecha, editando?.id))
+        val lista = if (modoTaller && !entrada) taller.activos.filter { partes.containsKey(it.id) }.map { it to aNumero(partes[it.id] ?: "") }.filter { it.second > 0 } else emptyList()
+        if (n <= 0) error = if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
+        else if (modoTaller && !entrada && lista.isEmpty()) error = "Elegí quiénes entraron y cuánto le toca a cada uno"
+        else if (lista.sumOf { it.second } > n + 0.005) error = "Lo de los muchachos suma más que el total"
+        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista))
     }
 
     if (escuchando) androidx.compose.ui.window.Dialog(onDismissRequest = { escuchando = false },
@@ -113,14 +123,22 @@ fun HojaAnotar(
                     textStyle = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = Serif, color = k.texto),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
                     isError = error != null, supportingText = error?.let { { Text(it) } },
-                    label = { Text("Monto") },
+                    label = { Text(if (modoTaller && !entrada) "Total que pagaste" else "Monto") },
                 )
                 Spacer(Modifier.width(8.dp))
                 FilledTonalIconButton(onClick = { lanzarDictado() }, modifier = Modifier.size(56.dp)) { Icon(Icons.Outlined.Mic, contentDescription = "Dictar por voz") }
             }
             OutlinedTextField(nota, { nota = it }, Modifier.fillMaxWidth().demo("an.nota", escribir = { nota = it }), label = { Text("Detalle") }, visualTransformation = cursorDemo("an.nota"),
                 placeholder = { Text(if (entrada) "Ej: me devolvió Orlando" else "Ej: tortas") }, singleLine = true)
-            if (!entrada) {
+            if (!entrada && hayTaller) Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(modoTaller, { modoTaller = it; error = null })
+                Column {
+                    Text("🔧 Compra del taller", color = k.texto, fontWeight = FontWeight.SemiBold)
+                    Text("Para los muchachos: cada uno queda en \"Me deben\"", fontSize = 12.sp, color = k.suave)
+                }
+            }
+            if (!entrada && modoTaller) PartesTaller(taller, partes, aNumero(monto))
+            if (!entrada && !modoTaller) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CATEGORIAS.forEach { cat ->
                         FilterChip(selected = categoria == cat, onClick = { categoria = if (categoria == cat) null else cat }, label = { Text(cat) },

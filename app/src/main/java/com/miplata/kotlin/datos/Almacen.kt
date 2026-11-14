@@ -118,6 +118,25 @@ class Almacen(private val carpeta: File) {
         })
     }
 
+    /* ---------- Compras del taller ---------- */
+    fun guardarTaller(t: com.miplata.kotlin.nucleo.Taller) = cambiar(moverCuenta = false) { this["taller"] = t.aJson() }
+
+    /** Una compra para los muchachos: tu parte como gasto común y la de cada uno en "Me deben".
+        En total baja de Mercado Pago lo que pagaste (miParte + la de todos). */
+    fun anotarTaller(fecha: String, miParte: Double, detalle: String, partes: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>>) = cambiar {
+        val lista = spent()
+        var id = nuevoId(crudo)
+        val marca = "taller" to JsonPrimitive(1)
+        if (miParte > 0) lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(miParte),
+            "note" to JsonPrimitive(("Taller · mi parte " + detalle).trim()), "cat" to JsonPrimitive("Comida"), marca))
+        partes.filter { it.second > 0 }.forEach { (m, monto) ->
+            lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(monto),
+                "note" to JsonPrimitive("Taller · ${m.mostrar}"), "cat" to JsonPrimitive("Comida"), "dev" to JsonPrimitive(1),
+                "tp" to JsonPrimitive(m.id), marca))
+        }
+        this["spent"] = JsonArray(lista)
+    }
+
     /** Marca o desmarca un gasto importante como pagado. */
     fun marcarPagado(indice: Int, pagado: Boolean) = cambiar {
         val items = (this["items"] as? JsonArray)?.toMutableList() ?: return@cambiar
