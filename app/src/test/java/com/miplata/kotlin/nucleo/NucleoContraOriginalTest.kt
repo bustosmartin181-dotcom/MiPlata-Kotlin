@@ -73,7 +73,15 @@ class NucleoContraOriginalTest {
 
         val co = x["conciliar"]!!.jsonObject; val cr = Nucleo.conciliar(S, c)
         if (co["hayCuentas"]!!.jsonPrimitive.boolean != cr.hayCuentas) errores += "$nom · conciliar.hayCuentas"
-        igual("$nom · conciliar.total", co["total"], cr.total); igual("$nom · conciliar.diferencia", co["diferencia"], cr.diferencia)
+        igual("$nom · conciliar.total", co["total"], cr.total)
+        /* La diferencia ya no es igual a la app original: allá lo sacado del fondo para gastar se restaba dos veces.
+           Ahora: total en cuentas − (disponible + fondo de ahorro + metas). */
+        val esperado = cr.total - Nucleo.deberiaTener(S, c)
+        if (Math.abs(esperado - cr.diferencia) > 0.01) errores += "$nom · conciliar.diferencia: $esperado vs ${cr.diferencia}"
+        if (c.fondo.activo) {
+            val porPantalla = c.fondo.disponible + c.fondo.total + S.spent.filter { it.esMeta }.sumOf { it.amt } + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)
+            igual("$nom · deberíaTener = disponible + fondo", kotlinx.serialization.json.JsonPrimitive(porPantalla), Nucleo.deberiaTener(S, c))
+        }
 
         val ra = x["racha"]!!.jsonObject; val rr = Nucleo.rachaEnVerde(S, hoy)
         igual("$nom · racha", ra["racha"], rr.racha.toDouble())

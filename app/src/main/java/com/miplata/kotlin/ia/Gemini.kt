@@ -134,11 +134,19 @@ $contexto"""
         /* Cuánta plata debería tener en total (Mercado Pago + banco + efectivo), igual que "Mis cuentas" */
         val f = c.fondo
         val enMetas = S.spent.filter { it.esMeta }.sumOf { it.amt }
-        val delFondo = if (f.activo) f.fondoPrev - f.usos + (if (f.rendEnMP) f.rend else 0.0) else 0.0
-        val deberia = c.saldo + enMetas + delFondo
-        b.appendLine("PLATA QUE DEBERÍA TENER HOY EN TOTAL sumando todas sus cuentas (Mercado Pago, banco y efectivo): ${pesos(deberia)}" +
-            " (saldo del período ${pesos(c.saldo)}" + (if (enMetas > 0) " + apartado en metas ${pesos(enMetas)}" else "") +
-            (if (delFondo != 0.0) " + fondo de ahorro ${pesos(delFondo)}" else "") + "). Si casi toda su plata está en Mercado Pago, eso es lo que debería ver en Mercado Pago.")
+        val deberia = Nucleo.deberiaTener(S, c)
+        b.appendLine("PLATA QUE DEBERÍA TENER HOY EN TOTAL sumando todas sus cuentas (Mercado Pago, reserva, banco y efectivo): ${pesos(deberia)}" +
+            (if (f.activo) " (disponible para gastar ${pesos(f.disponible)} + fondo de ahorro ${pesos(f.total + if (f.rendEnMP) f.rend else 0.0)}" else " (saldo del período ${pesos(c.saldo)}") +
+            (if (enMetas > 0) " + apartado en metas ${pesos(enMetas)}" else "") + ").")
+        if (f.activo) {
+            val res = Nucleo.saldoReserva(S); val falta = Nucleo.faltaPasar(S, c)
+            b.appendLine("FONDO DE AHORRO Y RESERVA: el fondo de ahorro se guarda en la cuenta \"Reserva\" de Mercado Pago, pero la persona lo pasa a mano." +
+                (if (res != null) " En la Reserva tiene ${pesos(res)}." else "") +
+                (if (falta >= 1) " Le faltan pasar ${pesos(falta)} a la reserva (siguen en Mercado Pago, así que en Mercado Pago debería tener ${pesos(f.disponible + falta)})."
+                 else if (falta <= -1) " En la reserva hay ${pesos(-falta)} más que el fondo: es plata para gastar (en Mercado Pago debería tener ${pesos(f.disponible + falta)})."
+                 else " Coinciden: en Mercado Pago debería tener ${pesos(f.disponible)}.") +
+                " Si no coinciden, NO es un error de la app: es plata que todavía no movió entre cuentas.")
+        }
         val meDeben = S.spent.filter { it.dev == 1 }
         if (meDeben.isNotEmpty()) b.appendLine("Le deben ${pesos(meDeben.sumOf { it.amt })} (ya salió de su cuenta; cuando se lo devuelvan y lo marque, el saldo sube): " +
             meDeben.joinToString { "${it.note} ${pesos(it.amt)}" })

@@ -223,8 +223,28 @@ object Nucleo {
         val f = c.fondo
         return Conciliacion(
             hayCuentas = cuentas.any { it.m > 0 }, total = total,
-            diferencia = total - c.saldo - apartadoEnMetas - (if (f.activo) f.fondoPrev - f.usos + (if (f.rendEnMP) f.rend else 0.0) else 0.0),
+            diferencia = total - deberiaTener(S, c),
         )
+    }
+
+    /** Toda la plata que deberías tener sumando tus cuentas: lo disponible para gastar + el fondo de ahorro (+ lo apartado en metas).
+        Sacar del fondo "para gastar" no cambia el total: la plata pasa de la reserva a Mercado Pago, y el gasto ya baja el saldo. */
+    fun deberiaTener(S: Estado, c: Calculo): Double {
+        val apartadoEnMetas = S.spent.filter { it.esMeta }.sumOf { it.amt }
+        val f = c.fondo
+        return if (!f.activo) c.saldo + apartadoEnMetas
+        else f.disponible + f.total + apartadoEnMetas + (if (f.rendEnMP) f.rend else 0.0)
+    }
+
+    /** Saldo cargado en la cuenta "Reserva" de Mis cuentas (null si no hay). */
+    fun saldoReserva(S: Estado): Double? = S.cuentas.firstOrNull { it.n.lowercase().contains("reserva") && !it.excluida }?.m
+
+    /** Fondo de ahorro de días ya cerrados que todavía no pasaste a la reserva (sigue en Mercado Pago).
+        Si cargaste la Reserva en Mis cuentas se compara con ese saldo real; si no, con lo que marcaste como "Ya lo pasé". */
+    fun faltaPasar(S: Estado, c: Calculo): Double {
+        val res = saldoReserva(S) ?: return c.fondo.total - S.resPasado
+        /* Si en la reserva hay un poco más, son los rendimientos que paga Mercado Pago: no hay que sacarlos. */
+        return max(0.0, c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0) - res)
     }
 
     data class Racha(val racha: Int, val ultimos: List<Boolean>)

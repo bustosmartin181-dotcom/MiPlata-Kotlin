@@ -72,7 +72,7 @@ object AvisoReserva {
         val c = Nucleo.calcular(S, Fechas.hoy())
         if (!c.fondo.activo) return null
         val sobra = c.fondo.hoySuma
-        val total = c.fondo.total - S.resPasado + sobra
+        val total = Nucleo.faltaPasar(S, c) + sobra
         if (sobra < 1) return null
         return "Hoy te sobraron ${pesos(sobra)}. Pasalos a tu reserva de Mercado Pago" +
             (if (total - sobra >= 1) " (en total, ${pesos(total)})." else ".")

@@ -117,7 +117,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         /* ---------- Bloques, como el panel de One UI: con ✏️ se suben, bajan, ocultan o agregan ---------- */
         val debo = deudas(S)
         val cc = Nucleo.conciliar(S, c)
-        val anteriores = c.fondo.total - S.resPasado          // de días ya cerrados, sin pasar a la reserva
+        val anteriores = Nucleo.faltaPasar(S, c)              // de días ya cerrados, sin pasar a la reserva
         /* Lo de hoy se suma recién desde 2 horas antes del aviso de la noche (con aviso a las 22, desde las 20):
            a la mañana o a la madrugada todavía es tu plata para gastar en el día. */
         val (hAviso, mAviso) = S.resHora.split(":").map { it.toIntOrNull() ?: 0 }

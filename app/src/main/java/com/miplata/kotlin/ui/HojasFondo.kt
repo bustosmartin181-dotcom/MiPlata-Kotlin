@@ -1,6 +1,8 @@
 package com.miplata.kotlin.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.*
@@ -99,6 +101,26 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
             Renglon("Disponible para gastar", dinero(c.fondo.disponible), negrita = false)
             Renglon("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0), negrita = false)
         } else Renglon("Saldo según la app", dinero(c.saldo), negrita = false)
+        val reserva = prueba.cuentas.firstOrNull { it.n.lowercase().contains("reserva") && !it.excluida }
+        if (c.fondo.activo && reserva != null) {
+            val fondoTodo = c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)
+            val falta = fondoTodo - reserva.m
+            Column(Modifier.fillMaxWidth().background(k.verdeClaro, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("🐷 Fondo y reserva", fontWeight = FontWeight.Bold, color = k.texto)
+                Renglon("En ${reserva.n.ifBlank { "la reserva" }} tenés", dinero(reserva.m), negrita = false)
+                Renglon("Tu fondo de ahorro es", dinero(fondoTodo), negrita = false)
+                Text(when {
+                    Math.abs(falta) < 1 -> "Coinciden: todo tu fondo ya está en la reserva. 👌"
+                    falta > 0 -> "Te faltan pasar ${dinero(falta)} a la reserva: todavía están en Mercado Pago. Cuando los pases, tocá \"Ya lo pasé\" en Hoy."
+                    falta > -3000 -> "En la reserva hay ${dinero(-falta)} más que tu fondo: son los rendimientos de Mercado Pago. Está bien así. 👌"
+                    else -> "En la reserva hay ${dinero(-falta)} más que tu fondo. Si no son rendimientos, esa plata es para gastar: podés volverla a Mercado Pago."
+                }, fontSize = 13.sp, color = k.texto)
+                val mp = prueba.cuentas.firstOrNull { it != reserva && !it.excluida && it.n.lowercase().contains("mercado") }
+                if (mp != null) Text("Así, en ${mp.n} deberías tener ${dinero(c.fondo.disponible + falta)} (lo disponible ${dinero(c.fondo.disponible)}" +
+                    (if (falta >= 1) " + lo que falta pasar ${dinero(falta)}" else if (falta <= -1) " − lo que sobra en la reserva ${dinero(-falta)}" else "") + ").",
+                    fontSize = 13.sp, color = k.suave)
+            }
+        }
         if (cc.hayCuentas) {
             Renglon("Total en cuentas", dinero(cc.total))
             val ok = Math.abs(cc.diferencia) < 1

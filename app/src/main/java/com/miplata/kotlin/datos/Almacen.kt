@@ -239,14 +239,21 @@ class Almacen(private val carpeta: File) {
     /** Sacar plata del fondo. para = "hoy" (suma al límite de hoy) o "cubre" (cubre gastos ya hechos). */
     fun usarFondo(monto: Double, nota: String, para: String) = cambiarTodo { o ->
         val l = lista(o, "fondoUsos")
+        /* la plata sale de la reserva y vuelve a Mercado Pago: también baja lo "ya pasado a la reserva" (se guarda cuánto, para poder deshacerlo) */
+        val pasado = o["resPasado"].num()
+        val baja = Math.min(monto, Math.max(0.0, pasado))
         l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
-            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy")))
-        moverEnCuentas(JsonObject(o + ("fondoUsos" to JsonArray(l))), -monto)     // la plata sale de la reserva y vuelve a Mercado Pago
+            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy"),
+            "resBaja" to com.miplata.kotlin.nucleo.num(baja)))
+        moverEnCuentas(JsonObject(o + mapOf("fondoUsos" to JsonArray(l),
+            "resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(pasado - baja)))), -monto)
     }
     fun quitarUsoFondo(i: Int) = cambiarTodo { o -> val l = lista(o, "fondoUsos")
         if (i !in l.indices) return@cambiarTodo o
-        val monto = (l.removeAt(i) as? JsonObject)?.get("amt").num()
-        moverEnCuentas(JsonObject(o + ("fondoUsos" to JsonArray(l))), monto)                // se deshace: vuelve a la reserva
+        val uso = l.removeAt(i) as? JsonObject
+        val monto = uso?.get("amt").num()
+        moverEnCuentas(JsonObject(o + mapOf("fondoUsos" to JsonArray(l),                   // se deshace: vuelve a la reserva
+            "resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + uso?.get("resBaja").num())))), monto)
     }
 
     /** "Ya lo pasé a la reserva": además, en Mis cuentas, la plata pasa de Mercado Pago a la Reserva. */
