@@ -40,6 +40,7 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
     var pensando by remember { mutableStateOf(false) }
     val lista = rememberLazyListState()
     val hayClave = Gemini.clave(ctx).isNotEmpty()
+    var enVivo by remember { mutableStateOf(false) }
 
     fun enviar(p: String) {
         if (p.isBlank() || pensando) return
@@ -53,6 +54,7 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
         }
     }
 
+    if (enVivo) { CharlaEnVivo(S) { enVivo = false }; return }
     androidx.activity.compose.BackHandler(onBack = alCerrar)
     /* Pantalla completa sobre la app (no una ventana aparte), así respeta la barra de abajo y el teclado */
     Box(Modifier.fillMaxSize().background(k.fondo)
@@ -72,6 +74,9 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
                     Button(onClick = alIrAAjustes, Modifier.fillMaxWidth()) { Text("Ir a Ajustes") }
                 }
                 return@Column
+            }
+            Button(onClick = { enVivo = true }, Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(52.dp)) {
+                Text("🎙️ Charlar en vivo", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
             LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = lista, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (mensajes.isEmpty()) item {

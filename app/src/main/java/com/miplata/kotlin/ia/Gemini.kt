@@ -46,19 +46,28 @@ object Gemini {
     private val MODELOS = listOf("gemini-flash-latest", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash")
 
     data class Mensaje(val deVos: Boolean, val texto: String)
+
+    /** Lo que se le explica a Gemini antes de cada charla (por escrito o en voz). */
+    fun instrucciones(contexto: String, porVoz: Boolean): String = """Sos el asistente de "Mi plata", una app argentina para administrar la plata día a día.
+Hablás en español rioplatense (vos), claro, cálido y corto: 2 a 6 oraciones o una lista breve. Plata en pesos con punto de miles, por ejemplo $20.859.
+Respondé SOLO con los datos de abajo; si algo no está, decilo. No inventes gastos ni números. Si hacés cuentas, mostralas simples.
+No podés cambiar datos de la app: si te piden anotar algo, explicá que se hace con el botón +.
+Cómo funciona la app: lo que queda después de los gastos importantes se reparte por día hasta el próximo cobro; lo que sobra un día pasa al siguiente (o al fondo de ahorro si está activo); si te pasás, se descuenta del día siguiente.
+""" + (if (porVoz) """ESTÁS HABLANDO EN VOZ ALTA, como en una charla por teléfono con un amigo: frases cortas y naturales, nada de listas, viñetas, emojis ni símbolos.
+Decí los montos como se dicen en Argentina ("veinte mil ochocientos pesos", "casi treinta lucas" si viene al caso). Si te interrumpen, cortá y escuchá.
+Hablá siempre en español con acento y modismos argentinos (rioplatense), con voseo.
+""" else "") + """
+DATOS DE LA PERSONA (hoy ${Fechas.hoy()}):
+$contexto"""
+
+    /** Lo mismo que se le explica al usuario cuando falla la conexión (para la charla en vivo también). */
+    fun explicarError(ctx: Context, e: Throwable): String = explicar(ctx, e)
     class ErrorIA(mensaje: String) : Exception(mensaje)
 
     /** Hace la pregunta. Llamar fuera del hilo principal. */
     fun preguntar(ctx: Context, contexto: String, historial: List<Mensaje>, pregunta: String): String {
         val clave = clave(ctx).ifEmpty { throw ErrorIA("Falta tu clave de Gemini: cargala en Ajustes → Inteligencia artificial.") }
-        val sistema = """Sos el asistente de "Mi plata", una app argentina para administrar la plata día a día.
-Hablás en español rioplatense (vos), claro, cálido y corto: 2 a 6 oraciones o una lista breve. Plata en pesos con punto de miles, por ejemplo $20.859.
-Respondé SOLO con los datos de abajo; si algo no está, decilo. No inventes gastos ni números. Si hacés cuentas, mostralas simples.
-No podés cambiar datos de la app: si te piden anotar algo, explicá que se hace con el botón +.
-Cómo funciona la app: lo que queda después de los gastos importantes se reparte por día hasta el próximo cobro; lo que sobra un día pasa al siguiente (o al fondo de ahorro si está activo); si te pasás, se descuenta del día siguiente.
-
-DATOS DE LA PERSONA (hoy ${Fechas.hoy()}):
-$contexto"""
+        val sistema = instrucciones(contexto, porVoz = false)
         val contenidos = (historial.takeLast(10) + Mensaje(true, pregunta)).map { m ->
             JsonObject(mapOf("role" to JsonPrimitive(if (m.deVos) "user" else "model"),
                 "parts" to JsonArray(listOf(JsonObject(mapOf("text" to JsonPrimitive(m.texto)))))))
