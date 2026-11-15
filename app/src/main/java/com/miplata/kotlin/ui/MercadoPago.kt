@@ -32,6 +32,11 @@ object MercadoPago {
     /** Abre directo la pantalla "Transferir" de Mercado Pago, usando el mismo atajo que muestra el teléfono
         al mantener apretado su ícono. Si no lo encuentra, abre Mercado Pago normal. true = entró directo a Transferir. */
     fun abrirTransferir(ctx: Context): Boolean {
+        /* 1) El link de "Transferir" de la web, entregado directo a la app de Mercado Pago (no al navegador) */
+        val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.mercadopago.com.ar/withdraw")).setPackage(PAQUETE)
+        if (ctx.packageManager.resolveActivity(web, 0) != null &&
+            runCatching { ctx.startActivity(web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return true
+        /* 2) El atajo "Transferir" del ícono, si Mercado Pago lo deja usar */
         val i = runCatching { intentDeAtajo(ctx, listOf("transf")) }.getOrNull()
         if (i != null && runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return true
         abrir(ctx)
