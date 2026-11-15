@@ -19,6 +19,15 @@ class Almacen(private val carpeta: File) {
 
     var crudo: JsonObject? = leer()
         private set
+    private var leidoEn = archivo.lastModified()
+
+    /** Si otra parte de la app (el aviso, el widget) cambió los datos, los vuelve a leer. true = hubo cambios. */
+    fun recargarSiCambio(): Boolean {
+        val m = archivo.lastModified()
+        if (m == leidoEn) return false
+        crudo = leer(); leidoEn = m
+        return true
+    }
 
     val estado: Estado? get() = crudo?.let { runCatching { Estado.desdeJson(it) }.getOrNull() }
 
@@ -31,6 +40,7 @@ class Almacen(private val carpeta: File) {
         tmp.writeText(nuevo.toString())
         tmp.renameTo(archivo)
         crudo = nuevo
+        leidoEn = archivo.lastModified()
     }
 
     /** Importa una copia .json. Devuelve un mensaje de error o null si salió bien. */

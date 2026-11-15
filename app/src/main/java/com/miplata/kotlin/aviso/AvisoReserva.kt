@@ -20,6 +20,7 @@ import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.ui.pesos
 import java.util.Calendar
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.coroutines.launch
 
 /* Aviso de la reserva: cada noche, a la hora elegida, una notificación con lo que te sobró del día
    para que lo pases a tu reserva de Mercado Pago. A diferencia de la versión web, el monto se calcula
@@ -28,6 +29,7 @@ object AvisoReserva {
     private const val CANAL = "reserva"
     private const val ID_NOTI = 7100
     private const val ID_PRUEBA = 7199
+    const val YA_PASE = "com.miplata.kotlin.YA_PASE"
 
     fun hayPermiso(ctx: Context) = Build.VERSION.SDK_INT < 33 ||
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -67,15 +69,35 @@ object AvisoReserva {
     fun alarmasExactas(ctx: Context) = Build.VERSION.SDK_INT < 31 || ctx.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 
     /** Texto del aviso con los números de este momento. null = hoy no hay nada para pasar. */
-    fun texto(ctx: Context): String? {
+    fun texto(ctx: Context): String? = datos(ctx)?.first
+
+    /** Texto del aviso y el monto total a pasar (lo de hoy + lo que quedó de días anteriores). */
+    fun datos(ctx: Context): Pair<String, Double>? {
         val S = Almacen(ctx).estado ?: return null
         val c = Nucleo.calcular(S, Fechas.hoy())
         if (!c.fondo.activo) return null
         val sobra = c.fondo.hoySuma
         val total = Nucleo.faltaPasar(S, c) + sobra
         if (sobra < 1) return null
-        return "Hoy te sobraron ${pesos(sobra)}. Pasalos a tu reserva de Mercado Pago" +
-            (if (total - sobra >= 1) " (en total, ${pesos(total)})." else ".")
+        return ("Hoy te sobraron ${pesos(sobra)}. Pasalos a tu reserva de Mercado Pago" +
+            (if (total - sobra >= 1) " (en total, ${pesos(total)})." else ".") +
+            " Tocá \"Abrir Mercado Pago\", reservalos en Ahorro y después \"Ya lo pasé\".") to total
+    }
+
+    /** Botón "Ya lo pasé" del aviso: lo anota en la app (y en Mis cuentas pasa de Mercado Pago a la Reserva) sin abrirla. */
+    fun yaLoPase(ctx: Context, monto: Double) {
+        if (monto < 1) return
+        Almacen(ctx).sumarPasado(monto)
+        if (!hayPermiso(ctx)) return
+        canal(ctx)
+        val n = NotificationCompat.Builder(ctx, CANAL)
+            .setSmallIcon(R.drawable.ic_noti)
+            .setContentTitle("Mi plata · ✅ Listo")
+            .setContentText("Anotado: pasaste ${pesos(monto)} a tu reserva.")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Anotado: pasaste ${pesos(monto)} a tu reserva. En Mis cuentas ya bajó Mercado Pago y subió Reserva MP."))
+            .setContentIntent(PendingIntent.getActivity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE))
+            .setAutoCancel(true).setTimeoutAfter(15_000).build()
+        ctx.getSystemService(NotificationManager::class.java).notify(ID_NOTI, n)
     }
 
     /* ---- Recordatorio diario: "¿Anotaste tus gastos de hoy?" ---- */
@@ -103,16 +125,26 @@ object AvisoReserva {
         else "¿Anotaste todo lo de hoy? Llevás ${pesos(c.gastoHoy)} y te quedan ${pesos(c.quedaHoy)}."
     }
 
-    fun mostrar(ctx: Context, cuerpo: String, prueba: Boolean = false, recordatorio: Boolean = false) {
+    fun mostrar(ctx: Context, cuerpo: String, prueba: Boolean = false, recordatorio: Boolean = false, monto: Double = 0.0) {
         if (!hayPermiso(ctx)) return
         canal(ctx)
         val abrir = PendingIntent.getActivity(ctx, 1, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE)
-        val n = NotificationCompat.Builder(ctx, CANAL)
+        val b = NotificationCompat.Builder(ctx, CANAL)
             .setSmallIcon(R.drawable.ic_noti)
             .setContentTitle(if (prueba) "Mi plata · Prueba de aviso" else if (recordatorio) "Mi plata · Recordatorio" else "Mi plata · A tu reserva")
             .setContentText(cuerpo).setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
-            .setContentIntent(abrir).setAutoCancel(true).build()
+            .setContentIntent(abrir).setAutoCancel(true)
+        /* El aviso de la reserva trae dos botones: abrir Mercado Pago y "Ya lo pasé" (anota sin abrir la app) */
+        if (!recordatorio && (monto >= 1 || prueba)) {
+            val mp = ctx.packageManager.getLaunchIntentForPackage(com.miplata.kotlin.ui.MercadoPago.PAQUETE)
+                ?: Intent(Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=${com.miplata.kotlin.ui.MercadoPago.PAQUETE}"))
+            b.addAction(0, "Abrir Mercado Pago", PendingIntent.getActivity(ctx, 2, mp.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE))
+            if (!prueba) b.addAction(0, "✅ Ya lo pasé", PendingIntent.getBroadcast(ctx, 3,
+                Intent(ctx, ReceptorAviso::class.java).setAction(YA_PASE).putExtra("monto", monto),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        }
+        val n = b.build()
         ctx.getSystemService(NotificationManager::class.java).notify(if (prueba) ID_PRUEBA else if (recordatorio) 7001 else ID_NOTI, n)
     }
 
@@ -126,7 +158,15 @@ object AvisoReserva {
 class ReceptorAviso : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
-            "com.miplata.kotlin.AVISO_RESERVA" -> AvisoReserva.texto(ctx)?.let { AvisoReserva.mostrar(ctx, it) }
+            "com.miplata.kotlin.AVISO_RESERVA" -> AvisoReserva.datos(ctx)?.let { (t, m) -> AvisoReserva.mostrar(ctx, t, monto = m) }
+            AvisoReserva.YA_PASE -> {
+                AvisoReserva.yaLoPase(ctx, intent.getDoubleExtra("monto", 0.0))
+                val fin = goAsync()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching { com.miplata.kotlin.widget.Widget.actualizar(ctx) }; fin.finish()
+                }
+                return
+            }
             "com.miplata.kotlin.RECORDATORIO" -> AvisoReserva.textoRecordatorio(ctx)?.let { AvisoReserva.mostrar(ctx, it, recordatorio = true) }
             else -> if (AvisoTaller.esAccion(intent.action)) runCatching { AvisoTaller.alRecibir(ctx, intent.getStringExtra("tipo")) }
         }

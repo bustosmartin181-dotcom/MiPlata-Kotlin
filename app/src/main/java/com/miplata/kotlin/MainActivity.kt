@@ -183,6 +183,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     val dueño = androidx.compose.ui.platform.LocalLifecycleOwner.current
     DisposableEffect(dueño) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, ev ->
+            if (ev == androidx.lifecycle.Lifecycle.Event.ON_RESUME && almacen.recargarSiCambio()) vuelta++   // p. ej. "Ya lo pasé" desde el aviso
             if (ev == androidx.lifecycle.Lifecycle.Event.ON_RESUME) pagando?.let { (i, n, desde) ->
                 if (System.currentTimeMillis() - desde > 2500) { pagando = null
                     val item = almacen.estado?.items?.getOrNull(i)

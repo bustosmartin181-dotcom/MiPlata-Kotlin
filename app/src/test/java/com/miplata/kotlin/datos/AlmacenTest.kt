@@ -21,6 +21,21 @@ class AlmacenTest {
         return a
     }
 
+    /** "Ya lo pasé" desde el aviso usa otra copia del almacén: la app abierta tiene que enterarse y no pisarlo. */
+    @Test fun yaLoPaseDesdeElAvisoNoSePierde() {
+        val dir = Files.createTempDirectory("mp2").toFile()
+        val app = Almacen(dir); assertNull(app.importar(nuevo().exportar()))
+        app.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 400000.0, true), Almacen.CuentaEditable("Reserva MP", 40000.0, true)))
+        Thread.sleep(1100)                                   // que cambie la fecha del archivo
+        val aviso = Almacen(dir); aviso.sumarPasado(8506.0)
+        assertTrue(app.recargarSiCambio())
+        assertEquals(8506.0, app.estado!!.resPasado, 1e-9)
+        assertEquals(391494.0, app.estado!!.cuentas[0].m, 1e-6); assertEquals(48506.0, app.estado!!.cuentas[1].m, 1e-6)
+        assertFalse(app.recargarSiCambio())
+        app.anotar(1000.0, "x", null, false, false)          // lo que hace la app después ya no pisa lo del aviso
+        assertEquals(8506.0, Almacen(dir).estado!!.resPasado, 1e-9)
+    }
+
     @Test fun importarYExportarNoPierdeNada() {
         val a = nuevo()
         val o = Json.parseToJsonElement(a.exportar()).jsonObject
