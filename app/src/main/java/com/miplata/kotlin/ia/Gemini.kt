@@ -23,16 +23,20 @@ object Gemini {
         caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }.getOrDefault(true)
 
+    /** Mensaje cuando el teléfono tiene internet pero Android no se lo da a Mi plata (pasa mucho en Samsung). */
+    private const val SIN_RED_APP = "Android no le está dando internet a Mi plata. Si en otras apps tenés internet, revisá en Ajustes del teléfono → " +
+        "Aplicaciones → Mi plata → Datos móviles: que estén permitidos \"Datos en segundo plano\" y \"Usar datos con Ahorro de datos\". " +
+        "Y en Batería, que Mi plata no esté \"en suspensión\" ni \"en suspensión profunda\"."
+
     /** Traduce el error técnico a algo entendible, con el detalle real al final para poder diagnosticar. */
     private fun explicar(ctx: Context, e: Throwable): String {
         val detalle = "(${e.javaClass.simpleName}${e.message?.let { ": " + it.take(120) } ?: ""})"
         return when (e) {
-            is java.net.UnknownHostException -> if (!hayInternet(ctx))
-                "Sin conexión a internet. La IA necesita internet; el resto de la app anda igual."
+            is java.net.UnknownHostException -> if (!hayInternet(ctx)) "$SIN_RED_APP $detalle"
                 else "El teléfono tiene internet pero no encuentra el servidor de Google. Puede ser el DNS privado o un bloqueador de anuncios/VPN. $detalle"
             is java.net.SocketTimeoutException -> "Google tardó demasiado en contestar. Probá de nuevo. $detalle"
             is javax.net.ssl.SSLException -> "Falló la conexión segura con Google. Revisá que la fecha y hora del teléfono estén en automático. $detalle"
-            is java.net.ConnectException -> if (!hayInternet(ctx)) "Sin conexión a internet. La IA necesita internet; el resto de la app anda igual."
+            is java.net.ConnectException -> if (!hayInternet(ctx)) "$SIN_RED_APP $detalle"
                 else "No se pudo conectar con Google. $detalle"
             else -> "No se pudo hablar con Gemini. $detalle"
         }
@@ -68,7 +72,8 @@ $contexto"""
         val recordado = prefs(ctx).getString("modelo", null)
         val orden = listOfNotNull(recordado) + MODELOS.filter { it != recordado }
         var ultimoError = "No pude conectarme con Gemini."
-        if (!hayInternet(ctx)) throw ErrorIA("Sin conexión a internet. La IA necesita internet; el resto de la app anda igual.")
+        /* No se pregunta antes si "hay internet": en algunos Samsung Android contesta que no aunque sí haya.
+           Se intenta directamente y, si falla, se explica la causa. */
         var reintento = true
         for (modelo in orden) {
             val c = (URL("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent").openConnection() as HttpURLConnection).apply {
