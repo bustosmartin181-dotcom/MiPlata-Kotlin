@@ -180,11 +180,16 @@ fun HojaAnotar(
         }
         Column(Modifier.fillMaxWidth().background(k.tarjeta).padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = guardarClick, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
-                Text(if (editando != null) "Guardar cambios" else if (entrada) "Anotar entrada" else "Anotar gasto", fontSize = 17.sp)
+            /* Un solo botón: un gasto nuevo se anota y abre Mercado Pago para pagarlo.
+               Excepciones: la compra del taller (ya la pagaste en el negocio), entradas, cambios y la demo. */
+            val conPago = editando == null && !entrada && !modoTaller && !Demo.corriendo
+            val principal: () -> Unit = { conMP = conPago; guardarClick() }
+            Button(onClick = principal, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
+                Text(when { editando != null -> "Guardar cambios"; entrada -> "Anotar entrada"; conPago -> "💳 Anotar y pagar con Mercado Pago"
+                    modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = if (conPago) 16.sp else 17.sp)
             }
-            if (editando == null && !entrada && !Demo.corriendo) OutlinedButton(onClick = { conMP = true; guardarClick() },
-                Modifier.fillMaxWidth().height(50.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 15.sp) }
+            if (conPago) TextButton(onClick = guardarClick, Modifier.fillMaxWidth()) {
+                Text("Ya lo pagué: solo anotar, sin abrir Mercado Pago", fontSize = 13.sp, color = k.suave) }
             if (editando != null) {
                 if (editando.dev == 1) OutlinedButton(onClick = { alMarcarDevuelto(editando.id) }, Modifier.fillMaxWidth()) { Text("Ya me lo devolvieron") }
                 TextButton(onClick = { alBorrar(editando.id) }, Modifier.fillMaxWidth(),
