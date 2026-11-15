@@ -463,7 +463,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             } else {
                 almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
                 hojaAbierta = false; vuelta++
-                aviso(when { m.entrada -> "Entrada anotada: +${pesos(m.monto)}"; m.meLoDevuelven -> "Anotado en \"Me deben\""; else -> "Gasto anotado" })
+                if (!m.pagarConMP) aviso(when { m.entrada -> "Entrada anotada: +${pesos(m.monto)}"; m.meLoDevuelven -> "Anotado en \"Me deben\""; else -> "Gasto anotado" })
+            }
+            if (m.pagarConMP) {
+                /* el monto queda copiado para pegarlo en Mercado Pago (sin puntos de miles: 5000 o 5000,50) */
+                val texto = if (m.monto % 1.0 == 0.0) m.monto.toLong().toString() else "%.2f".format(java.util.Locale("es", "AR"), m.monto)
+                MercadoPago.copiar(ctx, "Monto", texto)
+                aviso("Gasto anotado · monto $texto copiado: pegalo en Mercado Pago")
+                abrirMP()
             }
         },
         taller = taller, tallerAlAbrir = tallerAlAbrir,

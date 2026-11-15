@@ -36,6 +36,8 @@ data class NuevoMovimiento(
     val partesTaller: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>> = emptyList(),
     /** Qué llevó cada muchacho (id → "1 Yogur"), para verlo en Me deben. */
     val queLlevo: Map<String, String> = emptyMap(),
+    /** "Anotar y pagar con Mercado Pago": después de anotar, copia el monto y abre Mercado Pago. */
+    val pagarConMP: Boolean = false,
 )
 
 /** Saca monto y detalle de lo dictado: "2800 negocio Telma", "2 mil 800 en el negocio de la Telma", "2.500 pesos en nafta".
@@ -92,13 +94,15 @@ fun HojaAnotar(
     var escuchando by remember { mutableStateOf(false) }
     fun lanzarDictado() { escuchando = true }
     LaunchedEffect(Unit) { if (Demo.corriendo) return@LaunchedEffect; if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
+    var conMP = false
     val guardarClick: () -> Unit = {
         val n = aNumero(monto)
         val lista = if (modoTaller && !entrada) taller.activos.filter { partes.containsKey(it.id) }.map { it to aNumero(partes[it.id] ?: "") }.filter { it.second > 0 } else emptyList()
         if (n <= 0) error = if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
         else if (modoTaller && !entrada && lista.isEmpty()) error = "Elegí quiénes entraron y cuánto le toca a cada uno"
         else if (lista.sumOf { it.second } > n + 0.005) error = "Lo de los muchachos suma más que el total"
-        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo))
+        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo, conMP))
+        conMP = false
     }
 
     if (escuchando) androidx.compose.ui.window.Dialog(onDismissRequest = { escuchando = false },
@@ -174,6 +178,8 @@ fun HojaAnotar(
             Button(onClick = guardarClick, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
                 Text(if (editando != null) "Guardar cambios" else if (entrada) "Anotar entrada" else "Anotar gasto", fontSize = 17.sp)
             }
+            if (editando == null && !entrada && !Demo.corriendo) OutlinedButton(onClick = { conMP = true; guardarClick() },
+                Modifier.fillMaxWidth().height(50.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 15.sp) }
             if (editando != null) {
                 if (editando.dev == 1) OutlinedButton(onClick = { alMarcarDevuelto(editando.id) }, Modifier.fillMaxWidth()) { Text("Ya me lo devolvieron") }
                 TextButton(onClick = { alBorrar(editando.id) }, Modifier.fillMaxWidth(),

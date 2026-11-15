@@ -69,6 +69,7 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 val NOVEDADES = listOf(
     "11.0" to listOf("🎙️ Charlar en vivo con tu plata: en \"Preguntale a tu plata\" hablás con Gemini como en una llamada, te contesta con voz y lo podés interrumpir",
         "📶 Arreglado: la inteligencia artificial ya no dice \"sin internet\" cuando sí hay",
+        "💳 Anotar y pagar con Mercado Pago: anota el gasto, copia el monto y te abre Mercado Pago para transferir o pagar",
         "🔔 El aviso de la reserva trae botones: \"Abrir Mercado Pago\" y \"✅ Ya lo pasé\" (lo anota sin abrir la app)",
         "🐷 Fondo y reserva: si cargás tu Reserva en Mis cuentas, la app se fija ahí cuánto falta pasar. Arreglada la \"Diferencia con la app\" cuando sacabas plata del fondo (se restaba dos veces)",
         "💬 La IA ahora sabe cuánta plata deberías tener en Mercado Pago, y si tarda podés cancelar la pregunta",
