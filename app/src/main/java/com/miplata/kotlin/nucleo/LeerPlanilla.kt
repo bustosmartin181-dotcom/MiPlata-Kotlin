@@ -20,8 +20,35 @@ object LeerPlanilla {
     /** Arregla confusiones típicas del lector en números: O→0, l/I→1. */
     private fun numeros(t: String) = t.replace('O', '0').replace('o', '0').replace('l', '1').replace('I', '1')
 
-    private val DIA = Regex("""(?<![0-9])([0-9OolI]{1,2})\s*[-–.]\s*([a-zA-Z]{3})""")
-    private val HORA = Regex("""(?<![0-9:])([0-2]?\d)[:.;,]([0-5]\d)(?![0-9:])""")
+    /* Sin expresiones regulares: en algunos Android fallaban al arrancar. Se revisa letra por letra. */
+    private fun esNum(c: Char) = c in '0'..'9' || c == 'O' || c == 'o' || c == 'l' || c == 'I'
+
+    /** "01-nov", "[07-nov|", "10-novjMARTI" → (1, "nov") */
+    private fun dia(t: String): Pair<String, String>? {
+        for (i in t.indices) {
+            if (t[i] != '-' && t[i] != '–' && t[i] != '.') continue
+            var a = i - 1; while (a >= 0 && t[a] == ' ') a--
+            var ini = a; while (ini >= 0 && esNum(t[ini]) && a - ini < 2) ini--
+            val num = t.substring(ini + 1, a + 1)
+            if (num.isEmpty() || num.length > 2 || (ini >= 0 && t[ini].isDigit())) continue
+            var b = i + 1; while (b < t.length && t[b] == ' ') b++
+            if (b + 3 > t.length) continue
+            val letras = t.substring(b, b + 3)
+            if (letras.all { it.isLetter() }) return num to letras
+        }
+        return null
+    }
+
+    /** "07:00", "08:00)", "O7:00" → "07:00". No toma "184:00:00" ni textos largos. */
+    private fun hora(t0: String): Pair<Int, String>? {
+        val t = numeros(t0.trim { !it.isLetterOrDigit() }).trim { !(it.isDigit() || it == ':' || it == '.' || it == ';' || it == ',') }
+        val sep = t.indexOfFirst { it == ':' || it == '.' || it == ';' || it == ',' }
+        if (sep < 1 || sep > 2) return null
+        val h = t.substring(0, sep); val m = t.substring(sep + 1)
+        if (m.length != 2 || !h.all { it.isDigit() } || !m.all { it.isDigit() }) return null
+        val hh = h.toInt(); if (hh > 23 || m.toInt() > 59) return null
+        return hh to m
+    }
 
     private class H(val hora: String, val x: Float, val y: Float)
 
@@ -31,18 +58,17 @@ object LeerPlanilla {
 
         /* Etiquetas de día (pueden faltar o estar mal leídas) */
         val etiquetas = piezas.mapNotNull { p ->
-            val m = DIA.find(p.texto) ?: return@mapNotNull null
-            val i = MESES.indexOf(m.groupValues[2].lowercase().replace("set", "sep")); if (i < 0) return@mapNotNull null
-            val d = numeros(m.groupValues[1]).toIntOrNull()?.takeIf { it in 1..31 } ?: return@mapNotNull null
+            val (n, letras) = dia(p.texto) ?: return@mapNotNull null
+            val i = MESES.indexOf(letras.lowercase().replace("set", "sep")); if (i < 0) return@mapNotNull null
+            val d = numeros(n).toIntOrNull()?.takeIf { it in 1..31 } ?: return@mapNotNull null
             if (mes == null) mes = i + 1
             Triple(d, p.x, p.y)
         }.distinctBy { it.first }
 
         val horas = piezas.mapNotNull { p ->
             if (p.texto.length > 9) return@mapNotNull null
-            val m = HORA.find(numeros(p.texto)) ?: return@mapNotNull null
-            val h = m.groupValues[1].toInt(); if (h > 23) return@mapNotNull null
-            H("%02d:%s".format(h, m.groupValues[2]), p.x, p.y)
+            val (h, m) = hora(p.texto) ?: return@mapNotNull null
+            H((if (h < 10) "0" else "") + h + ":" + m, p.x, p.y)
         }
         if (horas.size < 8) return Resultado(mes, emptyMap())
 

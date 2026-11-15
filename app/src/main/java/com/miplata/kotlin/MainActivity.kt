@@ -260,7 +260,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     else aviso("Horario cargado: $m mañana, $t tarde, $f francos. Revisalo.")
                 }
             }.onFailure { e -> lecturaFoto = "No pude leer la foto: falló el lector de texto del teléfono. Mientras lo arreglo, cargá los días tocando." to
-                ("ERROR: " + (e.message ?: e.javaClass.simpleName) + "\n" + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " Android " + android.os.Build.VERSION.RELEASE) }
+                ("ERROR: " + e.javaClass.name + ": " + (e.message ?: "") + "\n" + e.stackTraceToString().lines().take(14).joinToString("\n") + "\n" + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + " Android " + android.os.Build.VERSION.RELEASE) }
         }
     }
     lecturaFoto?.let { (msg, crudo) -> AlertDialog(onDismissRequest = { lecturaFoto = null }, title = { Text("Foto de la planilla") },
