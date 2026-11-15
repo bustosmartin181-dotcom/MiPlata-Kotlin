@@ -20,12 +20,16 @@ private val CATEGORIAS_INGRESO = listOf("Sueldo", "Trabajo independiente", "Efec
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Hoja(alCerrar: () -> Unit, titulo: String, contenido: @Composable ColumnScope.() -> Unit) {
+fun Hoja(alCerrar: () -> Unit, titulo: String, accion: (@Composable () -> Unit)? = null, contenido: @Composable ColumnScope.() -> Unit) {
     val k = LocalColores.current
     val cuerpo: @Composable () -> Unit = {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp).imePadding(),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(titulo, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
+            if (accion == null) Text(titulo, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
+            else Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(titulo, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.weight(1f))
+                accion()
+            }
             contenido()
         }
     }

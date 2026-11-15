@@ -15,6 +15,14 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -92,7 +100,16 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     var abierto by remember { mutableStateOf<String?>(null) }
     var otraCosa by remember { mutableStateOf<String?>(null) }      // para quién se agrega una cosa nueva
     val gente = listOf("yo" to "Yo") + t.activos.map { it.id to it.mostrar }
-    Hoja(alCerrar, (if (turno == "T") "☕ Merienda" else "🥐 Desayuno") + " · " + Fechas.diaYMes(fecha)) {
+    var verTotal by remember { mutableStateOf(false) }
+    var origen by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }   // centro del botón, en la pantalla
+    val vibrar = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val titulo = (if (turno == "T") "☕ Merienda" else "🥐 Desayuno") + " · " + Fechas.diaYMes(fecha)
+    Hoja(alCerrar, titulo, accion = {
+        BotonTotalPedidos(t.listaCompra(fecha).values.sum(), Modifier.onGloballyPositioned {
+            origen = it.localToScreen(androidx.compose.ui.geometry.Offset(it.size.width / 2f, it.size.height / 2f)) }) {
+            vibrar.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress); verTotal = true
+        }
+    }) {
         Subtitulo("Tocá a cada uno y sumá lo que quiere. Abajo te queda la lista para el negocio.")
         gente.forEach { (id, nombre) ->
             val p = dia[id] ?: emptyMap()
@@ -140,6 +157,9 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
             Subtitulo("Te muestra cuánto le toca a cada uno. Si pagaste un poco distinto, corregí el total y la diferencia va a tu parte.")
         }
     }
+    if (verTotal) VentanaQueCrece(origen, alCerrar = { verTotal = false }) { cerrar ->
+        TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar() }, alCerrar = cerrar)
+    }
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { otraCosa = null }, title = { Text("Otra cosa") },
@@ -154,6 +174,104 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                     alGuardar(t.copy(precios = t.precios + (n to aNumero(precio))).conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null }
             }) { Text("Agregar") } },
             dismissButton = { TextButton(onClick = { otraCosa = null }) { Text("Cancelar") } })
+    }
+}
+
+/** Botón naranja "🛒 Total pedidos" al lado del título del desayuno / merienda. */
+@Composable
+private fun BotonTotalPedidos(cosas: Int, modifier: Modifier, alTocar: () -> Unit) {
+    val k = LocalColores.current
+    Row(modifier.clip(RoundedCornerShape(50)).background(k.naranja).clickable(onClick = alTocar)
+        .padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("🛒", fontSize = 16.sp)
+        Spacer(Modifier.width(6.dp))
+        Column {
+            Text("TOTAL PEDIDOS", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            if (cosas > 0) Text("$cosas cosas", color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp)
+        }
+    }
+}
+
+/** Ventana que sale creciendo desde el botón tocado (como el cartel de "Ayudá al creador")
+    y al cerrarla se achica de vuelta hacia él. */
+@Composable
+fun VentanaQueCrece(origen: androidx.compose.ui.geometry.Offset?, alCerrar: () -> Unit, contenido: @Composable (cerrar: () -> Unit) -> Unit) {
+    val alcance = rememberCoroutineScope()
+    val v = remember { androidx.compose.animation.core.Animatable(0f) }
+    var marco by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var cerrando by remember { mutableStateOf(false) }
+    val curva = androidx.compose.animation.core.FastOutSlowInEasing
+    LaunchedEffect(Unit) { v.animateTo(1f, androidx.compose.animation.core.tween(650, easing = curva)) }
+    val cerrar: () -> Unit = {
+        if (!cerrando) { cerrando = true
+            alcance.launch { v.animateTo(0f, androidx.compose.animation.core.tween(420, easing = curva)); alCerrar() } }
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = cerrar, properties = androidx.compose.ui.window.DialogProperties(
+        usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window?.setDimAmount(0f)
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f * v.value))
+            .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) { cerrar() }
+            .systemBarsPadding().padding(16.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.onGloballyPositioned { c ->
+                    val a = c.localToScreen(androidx.compose.ui.geometry.Offset.Zero)
+                    marco = androidx.compose.ui.geometry.Rect(a, androidx.compose.ui.geometry.Size(c.size.width.toFloat(), c.size.height.toFloat()))
+                }
+                .graphicsLayer {
+                    val m = marco; val o = origen
+                    transformOrigin = if (m != null && o != null && m.width > 0 && m.height > 0)
+                        TransformOrigin((o.x - m.left) / m.width, (o.y - m.top) / m.height) else TransformOrigin.Center
+                    val e = 0.06f + 0.94f * v.value
+                    scaleX = e; scaleY = e
+                    alpha = (v.value * 1.6f).coerceAtMost(1f)
+                }
+                .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) {}) {
+                contenido(cerrar)
+            }
+        }
+    }
+}
+
+/** La lista para el negocio: todo lo que hay que comprar, con tildes, grande para leer en el mostrador. */
+@Composable
+private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (Taller) -> Unit, alPagar: () -> Unit, alCerrar: () -> Unit) {
+    val k = LocalColores.current
+    val lista = t.listaCompra(fecha)
+    val tildadas = t.tildes[fecha] ?: emptyList()
+    val dia = t.pedidosDe(fecha)
+    Column(Modifier.fillMaxWidth().widthIn(max = 520.dp).heightIn(max = 680.dp)
+        .border(2.dp, k.naranja, RoundedCornerShape(24.dp)).background(k.tarjeta, RoundedCornerShape(24.dp)).padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("🛒 Total pedidos", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
+                Text("$titulo · ${dia.keys.size} pedidos", fontSize = 13.sp, color = k.suave)
+            }
+            IconButton(onClick = alCerrar) { Icon(Icons.Outlined.Close, "Cerrar") }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (lista.isEmpty()) {
+            Text("Todavía no hay pedidos. Tocá a cada muchacho y sumá lo que quiere.", color = k.suave, fontSize = 15.sp,
+                modifier = Modifier.padding(vertical = 20.dp))
+        } else {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                lista.forEach { (cosa, n) ->
+                    val ok = cosa in tildadas
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
+                        alGuardar(t.copy(tildes = t.tildes + (fecha to if (ok) tildadas - cosa else tildadas + cosa))) }
+                        .padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(ok, null)
+                        Text("$n", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (ok) k.suave else k.naranja, modifier = Modifier.width(34.dp))
+                        Text(cosa, color = if (ok) k.suave else k.texto, fontSize = 19.sp, modifier = Modifier.weight(1f),
+                            textDecoration = if (ok) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                        Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                    }
+                }
+            }
+            HorizontalDivider(color = k.linea, modifier = Modifier.padding(vertical = 8.dp))
+            Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
+            Text("Tildá lo que ya tenés en la mano.", fontSize = 12.sp, color = k.suave)
+            Spacer(Modifier.height(10.dp))
+            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Ya pagué: anotar", fontSize = 16.sp) }
+        }
     }
 }
 
