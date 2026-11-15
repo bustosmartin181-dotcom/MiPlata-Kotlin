@@ -29,6 +29,51 @@ object MercadoPago {
         return intentos.any { i -> runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false) }
     }
 
+    /** Abre directo la pantalla "Transferir" de Mercado Pago, usando el mismo atajo que muestra el teléfono
+        al mantener apretado su ícono. Si no lo encuentra, abre Mercado Pago normal. true = entró directo a Transferir. */
+    fun abrirTransferir(ctx: Context): Boolean {
+        val i = runCatching { intentDeAtajo(ctx, listOf("transf")) }.getOrNull()
+        if (i != null && runCatching { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) return true
+        abrir(ctx)
+        return false
+    }
+
+    /** Lee los atajos fijos que Mercado Pago le declara a Android (res/xml de su app) y arma el intent del que coincide. */
+    private fun intentDeAtajo(ctx: Context, palabras: List<String>): Intent? {
+        val pm = ctx.packageManager
+        val comp = pm.getLaunchIntentForPackage(PAQUETE)?.component ?: return null
+        val info = pm.getActivityInfo(comp, android.content.pm.PackageManager.GET_META_DATA)
+        val idXml = info.metaData?.getInt("android.app.shortcuts") ?: 0
+        if (idXml == 0) return null
+        val res = pm.getResourcesForApplication(PAQUETE)
+        val xml = res.getXml(idXml)
+        val ns = "http://schemas.android.com/apk/res/android"
+        fun texto(attr: String): String {
+            val id = xml.getAttributeResourceValue(ns, attr, 0)
+            return if (id != 0) runCatching { res.getString(id) }.getOrDefault("") else xml.getAttributeValue(ns, attr) ?: ""
+        }
+        var coincide = false
+        var elegido: Intent? = null
+        while (xml.next() != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+            if (xml.eventType == org.xmlpull.v1.XmlPullParser.START_TAG) when (xml.name) {
+                "shortcut" -> {
+                    val nombre = (texto("shortcutId") + " " + texto("shortcutShortLabel") + " " + texto("shortcutLongLabel")).lowercase()
+                    coincide = elegido == null && palabras.any { it in nombre }
+                }
+                "intent" -> if (coincide && elegido == null) {
+                    val it = Intent(xml.getAttributeValue(ns, "action") ?: Intent.ACTION_VIEW)
+                    xml.getAttributeValue(ns, "data")?.let { d -> it.data = Uri.parse(d) }
+                    val clase = xml.getAttributeValue(ns, "targetClass")
+                    if (clase != null) it.setClassName(xml.getAttributeValue(ns, "targetPackage") ?: PAQUETE, clase) else it.setPackage(PAQUETE)
+                    elegido = it
+                }
+                "extra" -> if (coincide) elegido?.putExtra(xml.getAttributeValue(ns, "name") ?: "", xml.getAttributeValue(ns, "value") ?: "")
+            } else if (xml.eventType == org.xmlpull.v1.XmlPullParser.END_TAG && xml.name == "shortcut") coincide = false
+        }
+        xml.close()
+        return elegido
+    }
+
     fun copiar(ctx: Context, etiqueta: String, texto: String) {
         ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(etiqueta, texto))
     }

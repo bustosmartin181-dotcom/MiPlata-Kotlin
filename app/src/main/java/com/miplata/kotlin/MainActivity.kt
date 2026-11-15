@@ -469,8 +469,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 /* el monto queda copiado para pegarlo en Mercado Pago (sin puntos de miles: 5000 o 5000,50) */
                 val texto = if (m.monto % 1.0 == 0.0) m.monto.toLong().toString() else "%.2f".format(java.util.Locale("es", "AR"), m.monto)
                 MercadoPago.copiar(ctx, "Monto", texto)
-                aviso("Gasto anotado · monto $texto copiado: pegalo en Mercado Pago")
-                abrirMP()
+                val directo = MercadoPago.abrirTransferir(ctx)
+                aviso("Gasto anotado · monto $texto copiado" + (if (directo) ": pegalo en Transferir" else ": tocá Transferir y pegalo"))
             }
         },
         taller = taller, tallerAlAbrir = tallerAlAbrir,
