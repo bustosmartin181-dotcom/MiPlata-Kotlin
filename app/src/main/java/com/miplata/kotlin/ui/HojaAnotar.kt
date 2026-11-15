@@ -115,7 +115,9 @@ fun HojaAnotar(
         }, alCancelar = { escuchando = false })
     }
     val contenido: @Composable () -> Unit = {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp).imePadding(),
+        /* Los botones quedan fijos abajo, siempre encima del teclado; lo de arriba se desplaza si no entra */
+        Column(Modifier.fillMaxWidth().imePadding()) {
+        Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 SegmentedButton(selected = !entrada, onClick = { entrada = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Gasto") }
@@ -175,6 +177,9 @@ fun HojaAnotar(
                     confirmButton = { TextButton(onClick = { est.selectedDateMillis?.let { fecha = Fechas.iso(it / 86_400_000L) }; calendario = false }) { Text("Listo") } },
                     dismissButton = { TextButton(onClick = { calendario = false }) { Text("Cancelar") } }) { DatePicker(est) }
             }
+        }
+        Column(Modifier.fillMaxWidth().background(k.tarjeta).padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = guardarClick, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
                 Text(if (editando != null) "Guardar cambios" else if (entrada) "Anotar entrada" else "Anotar gasto", fontSize = 17.sp)
             }
@@ -185,6 +190,7 @@ fun HojaAnotar(
                 TextButton(onClick = { alBorrar(editando.id) }, Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = k.rojo)) { Text("Borrar") }
             }
+        }
         }
     }
     if (Demo.corriendo) HojaEnLinea(contenido)
