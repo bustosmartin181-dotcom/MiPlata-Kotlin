@@ -153,8 +153,8 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                 }
             }
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
-            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Ya pagué: anotar", fontSize = 16.sp) }
-            Subtitulo("Te muestra cuánto le toca a cada uno. Si pagaste un poco distinto, corregí el total y la diferencia va a tu parte.")
+            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
+            Subtitulo("Te muestra cuánto le toca a cada uno y después abre Mercado Pago para pagar. Si el total es un poco distinto, corregilo y la diferencia va a tu parte.")
         }
     }
     if (verTotal) VentanaQueCrece(origen, alCerrar = { verTotal = false }) { cerrar ->
@@ -270,7 +270,7 @@ private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (T
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
             Text("Tildá lo que ya tenés en la mano.", fontSize = 12.sp, color = k.suave)
             Spacer(Modifier.height(10.dp))
-            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Ya pagué: anotar", fontSize = 16.sp) }
+            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
         }
     }
 }
