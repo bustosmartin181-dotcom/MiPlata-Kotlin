@@ -69,6 +69,7 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 val NOVEDADES = listOf(
     "11.0" to listOf("🎙️ Charlar en vivo con tu plata: en \"Preguntale a tu plata\" hablás con Gemini como en una llamada, te contesta con voz y lo podés interrumpir",
         "📶 Arreglado: la inteligencia artificial ya no dice \"sin internet\" cuando sí hay",
+        "💬 La IA ahora sabe cuánta plata deberías tener en Mercado Pago, y si tarda podés cancelar la pregunta",
         "🛒 Taller: botón TOTAL PEDIDOS arriba del desayuno / merienda, abre la lista para el negocio de un toque"),
     "10.9" to listOf("🧩 Hoy en bloques, como el panel de tu Samsung: el grande con lo que te queda hoy, los chiquitos de a dos y accesos rápidos (Anotar, Dictar, Mercado Pago, Mis planes, Preguntale a tu plata y Compartir)",
         "Tocá ✏️ arriba para ordenarlos: flechitas para subir o bajar, ⊖ para ocultar y ⊕ para volver a agregar. La app recuerda cómo los dejaste",

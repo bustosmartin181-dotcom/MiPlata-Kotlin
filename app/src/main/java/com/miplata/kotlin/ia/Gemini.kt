@@ -50,7 +50,7 @@ object Gemini {
     /** Lo que se le explica a Gemini antes de cada charla (por escrito o en voz). */
     fun instrucciones(contexto: String, porVoz: Boolean): String = """Sos el asistente de "Mi plata", una app argentina para administrar la plata día a día.
 Hablás en español rioplatense (vos), claro, cálido y corto: 2 a 6 oraciones o una lista breve. Plata en pesos con punto de miles, por ejemplo $20.859.
-Respondé SOLO con los datos de abajo; si algo no está, decilo. No inventes gastos ni números. Si hacés cuentas, mostralas simples.
+Respondé SOLO con los datos de abajo; si algo no está, decilo. Si pregunta cuánta plata debería tener (en Mercado Pago, en el banco o en total), usá "PLATA QUE DEBERÍA TENER HOY EN TOTAL". No inventes gastos ni números. Si hacés cuentas, mostralas simples.
 No podés cambiar datos de la app: si te piden anotar algo, explicá que se hace con el botón +.
 Cómo funciona la app: lo que queda después de los gastos importantes se reparte por día hasta el próximo cobro; lo que sobra un día pasa al siguiente (o al fondo de ahorro si está activo); si te pasás, se descuenta del día siguiente.
 """ + (if (porVoz) """ESTÁS HABLANDO EN VOZ ALTA, como en una charla por teléfono con un amigo: frases cortas y naturales, nada de listas, viñetas, emojis ni símbolos.
@@ -75,7 +75,7 @@ $contexto"""
         val cuerpo = JsonObject(mapOf(
             "systemInstruction" to JsonObject(mapOf("parts" to JsonArray(listOf(JsonObject(mapOf("text" to JsonPrimitive(sistema))))))),
             "contents" to JsonArray(contenidos),
-            "generationConfig" to JsonObject(mapOf("temperature" to JsonPrimitive(0.4), "maxOutputTokens" to JsonPrimitive(1024))),
+            "generationConfig" to JsonObject(mapOf("temperature" to JsonPrimitive(0.4), "maxOutputTokens" to JsonPrimitive(2048))),
         )).toString()
 
         val recordado = prefs(ctx).getString("modelo", null)
@@ -84,9 +84,11 @@ $contexto"""
         /* No se pregunta antes si "hay internet": en algunos Samsung Android contesta que no aunque sí haya.
            Se intenta directamente y, si falla, se explica la causa. */
         var reintento = true
+        val limite = System.currentTimeMillis() + 90_000          // nunca más de un minuto y medio "pensando"
         for (modelo in orden) {
+            if (System.currentTimeMillis() > limite) throw ErrorIA("Google está tardando mucho en contestar. Probá de nuevo en un ratito. ($ultimoError)")
             val c = (URL("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent").openConnection() as HttpURLConnection).apply {
-                requestMethod = "POST"; doOutput = true; connectTimeout = 15_000; readTimeout = 60_000
+                requestMethod = "POST"; doOutput = true; connectTimeout = 12_000; readTimeout = 45_000
                 setRequestProperty("Content-Type", "application/json"); setRequestProperty("x-goog-api-key", clave)
             }
             try {
@@ -129,6 +131,24 @@ $contexto"""
             S.items.filter { it.n.isNotBlank() || it.a > 0 }.joinToString { "${it.n} ${pesos(it.a)}${if (it.p) " (pagado)" else " (pendiente)"}" })
         b.appendLine("Hoy: presupuesto ${pesos(c.quedaHoy + c.gastoHoy)}, gastó ${pesos(c.gastoHoy)}, le queda ${pesos(c.quedaHoy)}. Mañana tendría ${c.manana?.let(::pesos) ?: "-"}.")
         b.appendLine("Base por día: ${pesos(c.baseHoy)}. Saldo del período: ${pesos(c.saldo)}.")
+        /* Cuánta plata debería tener en total (Mercado Pago + banco + efectivo), igual que "Mis cuentas" */
+        val f = c.fondo
+        val enMetas = S.spent.filter { it.esMeta }.sumOf { it.amt }
+        val delFondo = if (f.activo) f.fondoPrev - f.usos + (if (f.rendEnMP) f.rend else 0.0) else 0.0
+        val deberia = c.saldo + enMetas + delFondo
+        b.appendLine("PLATA QUE DEBERÍA TENER HOY EN TOTAL sumando todas sus cuentas (Mercado Pago, banco y efectivo): ${pesos(deberia)}" +
+            " (saldo del período ${pesos(c.saldo)}" + (if (enMetas > 0) " + apartado en metas ${pesos(enMetas)}" else "") +
+            (if (delFondo != 0.0) " + fondo de ahorro ${pesos(delFondo)}" else "") + "). Si casi toda su plata está en Mercado Pago, eso es lo que debería ver en Mercado Pago.")
+        val meDeben = S.spent.filter { it.dev == 1 }
+        if (meDeben.isNotEmpty()) b.appendLine("Le deben ${pesos(meDeben.sumOf { it.amt })} (ya salió de su cuenta; cuando se lo devuelvan y lo marque, el saldo sube): " +
+            meDeben.joinToString { "${it.note} ${pesos(it.amt)}" })
+        val cuentas = S.cuentas.filter { it.n.isNotBlank() || it.m != 0.0 }
+        if (cuentas.isNotEmpty()) {
+            val cc = Nucleo.conciliar(S, c)
+            b.appendLine("Saldos que cargó en Mis cuentas: " + cuentas.joinToString { "${it.n.ifBlank { "Cuenta" }} ${pesos(it.m)}${if (it.excluida) " (no cuenta)" else ""}" } +
+                ". Total ${pesos(cc.total)}; diferencia con la app ${pesos(cc.diferencia)}" +
+                (if (Math.abs(cc.diferencia) < 1) " (coincide)." else if (cc.diferencia < 0) " (tiene menos: puede haber gastos sin anotar)." else " (tiene más: puede faltar anotar una entrada)."))
+        } else b.appendLine("No cargó saldos en Mis cuentas (se cargan tocando el Saldo del período en Hoy).")
         if (c.fondo.activo) b.appendLine("Fondo de ahorro: ${pesos(c.fondo.totalConRend)} (este período ${pesos(c.fondo.ahorroPeriodo)}). Disponible para gastar: ${pesos(c.fondo.disponible)}.")
         if (S.objetivo > 0) b.appendLine("Objetivo por día: ${pesos(S.objetivo)}.")
         S.metas.filter { it.t > 0 }.forEach { b.appendLine("Meta ${it.n}: juntó ${pesos(Nucleo.juntadoEnMeta(S, it))} de ${pesos(it.t)}${if (it.f.isNotEmpty()) " para el ${it.f}" else ""}.") }

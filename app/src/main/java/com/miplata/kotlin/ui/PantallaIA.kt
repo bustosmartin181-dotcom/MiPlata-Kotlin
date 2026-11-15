@@ -42,17 +42,23 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
     val hayClave = Gemini.clave(ctx).isNotEmpty()
     var enVivo by remember { mutableStateOf(false) }
 
+    var pedido by remember { mutableIntStateOf(0) }        // para descartar la respuesta si tocaste "Cancelar"
+    var segundos by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pensando) { segundos = 0; while (pensando) { kotlinx.coroutines.delay(1000); segundos++ } }
     fun enviar(p: String) {
         if (p.isBlank() || pensando) return
         val historial = mensajes.toList()
         mensajes += Gemini.Mensaje(true, p.trim()); texto = ""; pensando = true
+        val este = ++pedido
         alcance.launch {
-            val r = runCatching { withContext(Dispatchers.IO) { Gemini.preguntar(ctx, Gemini.contexto(S), historial, p.trim()) } }
+            val r = withContext(Dispatchers.IO) { runCatching { Gemini.preguntar(ctx, Gemini.contexto(S), historial, p.trim()) } }
+            if (este != pedido) return@launch
             mensajes += Gemini.Mensaje(false, r.getOrElse { "⚠️ " + (it.message ?: "Algo salió mal.") })
             pensando = false
             lista.animateScrollToItem(maxOf(0, mensajes.size))
         }
     }
+    fun cancelar() { pedido++; pensando = false; mensajes += Gemini.Mensaje(false, "Cancelaste la pregunta. Probá de nuevo cuando quieras.") }
 
     if (enVivo) { CharlaEnVivo(S) { enVivo = false }; return }
     androidx.activity.compose.BackHandler(onBack = alCerrar)
@@ -92,8 +98,14 @@ fun PantallaIA(S: Estado, alCerrar: () -> Unit, alIrAAjustes: () -> Unit) {
                             color = if (m.deVos) k.sobreVerde else k.texto, fontSize = 15.sp)
                     }
                 }
-                if (pensando) item { Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Text("  Pensando…", color = k.suave) } }
+                if (pensando) item { Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("  Pensando… ${segundos}s", color = k.suave, modifier = Modifier.weight(1f))
+                        TextButton(onClick = ::cancelar) { Text("Cancelar") }
+                    }
+                    if (segundos >= 20) Text("Google está tardando. Si en un minuto no contesta, te aviso qué pasó.", color = k.suave, fontSize = 13.sp)
+                } }
             }
             Text("Tus datos del período se mandan a Google para responder.", fontSize = 11.sp, color = k.suave, modifier = Modifier.padding(horizontal = 16.dp))
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
