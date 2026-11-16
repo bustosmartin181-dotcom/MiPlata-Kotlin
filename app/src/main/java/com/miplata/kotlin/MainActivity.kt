@@ -428,6 +428,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller() },
                 pagado = estado.hayCompraTaller(Fechas.hoy()),
+                anotado = estado.spent.filter { it.date == Fechas.hoy() && it.extra["taller"] != null }.sumOf { it.amt },
                 alDeshacer = {
                     val hoy = Fechas.hoy()
                     estado.spent.filter { it.date == hoy && it.extra["taller"] != null }.forEach { almacen.borrarMovimiento(it.id) }

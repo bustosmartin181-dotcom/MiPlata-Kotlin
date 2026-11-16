@@ -95,12 +95,16 @@ fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit,
 
 /** Ya anotaste la compra: en vez del botón de pagar, el aviso y la opción de deshacerla si fue sin querer. */
 @Composable
-private fun YaAnotada(alDeshacer: () -> Unit) {
+private fun YaAnotada(alDeshacer: () -> Unit, anotado: Double, ahora: Double, alRehacer: () -> Unit) {
     val k = LocalColores.current
     var preguntar by remember { mutableStateOf(false) }
+    val cambio = anotado > 0 && Math.abs(anotado - ahora) >= 1
     Column(Modifier.fillMaxWidth().background(k.verdeClaro, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("✅ Ya anotaste la compra de hoy", fontWeight = FontWeight.Bold, color = k.verde)
-        Text("La lista queda acá para cuando estés en el negocio. Lo de cada uno está en \"Me deben\".", fontSize = 13.sp, color = k.texto)
+        Text("✅ Ya anotaste la compra de hoy" + (if (anotado > 0) ": ${pesos(anotado)}" else ""), fontWeight = FontWeight.Bold, color = k.verde)
+        if (cambio) Text("La lista cambió desde que la anotaste (ahora da ${pesos(ahora)}).", fontSize = 13.sp, color = k.naranja)
+        else Text("La lista queda acá para cuando estés en el negocio. Lo de cada uno está en \"Me deben\".", fontSize = 13.sp, color = k.texto)
+        /* Volver a anotar con la lista de ahora: borra lo anotado antes y abre "Anotar y pagar" con todo actualizado */
+        Button(onClick = alRehacer, Modifier.fillMaxWidth().height(50.dp)) { Text("💳 Volver a anotar con esta lista y pagar", fontSize = 15.sp) }
         TextButton(onClick = { preguntar = true }) { Text("¿La anotaste sin querer? Deshacer", color = k.rojo) }
     }
     if (preguntar) AlertDialog(onDismissRequest = { preguntar = false },
@@ -113,7 +117,7 @@ private fun YaAnotada(alDeshacer: () -> Unit) {
 /** El desayuno de hoy: 1) tomar los pedidos, 2) lista para comprar con tildes, 3) "Ya pagué". */
 @Composable
 fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: () -> Unit,
-                pagado: Boolean = false, alDeshacer: () -> Unit = {}) {
+                pagado: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0) {
     val k = LocalColores.current
     val dia = t.pedidosDe(fecha)
     val turno = t.turno(fecha)
@@ -186,7 +190,7 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                 }
             }
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
-            if (pagado) YaAnotada(alDeshacer) else {
+            if (pagado) YaAnotada(alDeshacer, anotado, dia.values.sumOf { t.costo(it) }, alRehacer = { alDeshacer(); alPagar() }) else {
                 Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
                 Subtitulo("Te muestra cuánto le toca a cada uno y después abre Mercado Pago para pagar. Si el total es un poco distinto, corregilo y la diferencia va a tu parte.")
             }
