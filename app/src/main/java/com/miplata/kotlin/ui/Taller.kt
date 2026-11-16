@@ -156,7 +156,8 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                         val n = p[cosa] ?: 0
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(cosa, color = k.texto, fontSize = 14.sp); Text(pesos(precio), color = k.suave, fontSize = 12.sp)
+                                Text(cosa, color = k.texto, fontSize = 14.sp)
+                                Text(if (precio > 0) pesos(precio) else "sin precio", color = if (precio > 0) k.suave else k.naranja, fontSize = 12.sp)
                             }
                             IconButton(onClick = { alGuardar(t.conCantidad(fecha, id, cosa, n - 1)) }, enabled = n > 0) { Text("−", fontSize = 22.sp) }
                             Text("$n", fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.width(24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -196,16 +197,22 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     }
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
+        var falta by remember { mutableStateOf(false) }
         AlertDialog(onDismissRequest = { otraCosa = null }, title = { Text("Otra cosa") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(nombre, { nombre = it }, label = { Text("¿Qué es?") }, placeholder = { Text("Ej: Medialunas") }, singleLine = true)
-                CampoMonto(precio, { precio = it }, "Precio de una")
-                Subtitulo("Queda guardada en la lista de precios para la próxima.")
+                OutlinedTextField(nombre, { nombre = it; falta = false }, label = { Text("¿Qué es?") }, placeholder = { Text("Ej: Tortas de hoja") }, singleLine = true,
+                    isError = falta, supportingText = if (falta) ({ Text("Escribí qué es") }) else null)
+                CampoMonto(precio, { precio = it }, "Precio de una (si no lo sabés, dejalo vacío)")
+                Subtitulo("Queda guardada en la lista para la próxima. El precio lo podés poner o corregir después en Ajustes → Compras del taller.")
             } },
             confirmButton = { TextButton(onClick = {
                 val n = nombre.trim().replaceFirstChar { it.uppercase() }
-                if (n.isNotEmpty() && aNumero(precio) > 0) {
-                    alGuardar(t.copy(precios = t.precios + (n to aNumero(precio))).conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null }
+                if (n.isEmpty()) falta = true
+                else {
+                    /* si ya existía con precio y no escribiste uno nuevo, se conserva el que tenía */
+                    val p = aNumero(precio).takeIf { it > 0 } ?: t.precios[n] ?: 0.0
+                    alGuardar(t.copy(precios = t.precios + (n to p)).conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null
+                }
             }) { Text("Agregar") } },
             dismissButton = { TextButton(onClick = { otraCosa = null }) { Text("Cancelar") } })
     }
@@ -317,6 +324,7 @@ private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (T
 fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alImportar: () -> Unit, alFoto: () -> Unit,
                leyendoFoto: Boolean, alPermisoAvisos: () -> Unit) {
     val k = LocalColores.current
+    var cambiarPrecio by remember { mutableStateOf<String?>(null) }
     var editando by remember { mutableStateOf<Muchacho?>(null) }
     var nuevo by remember { mutableStateOf(false) }
     var horario by remember { mutableStateOf(false) }
@@ -344,13 +352,22 @@ fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alI
         if (t.precios.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
             Text("Precios guardados", fontWeight = FontWeight.SemiBold, color = k.texto)
+            Text("Tocá uno para cambiarle el precio.", fontSize = 12.sp, color = k.suave)
             t.precios.toSortedMap().forEach { (cosa, p) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(cosa, color = k.texto, modifier = Modifier.weight(1f)); Text(pesos(p), color = k.texto)
+                Row(Modifier.fillMaxWidth().clickable { cambiarPrecio = cosa }, verticalAlignment = Alignment.CenterVertically) {
+                    Text(cosa, color = k.texto, modifier = Modifier.weight(1f))
+                    Text(if (p > 0) pesos(p) else "sin precio", color = if (p > 0) k.texto else k.naranja)
                     IconButton(onClick = { alGuardar(t.copy(precios = t.precios - cosa)) }) { Icon(Icons.Outlined.Close, "Quitar precio") }
                 }
             }
         }
+    }
+    cambiarPrecio?.let { cosa ->
+        var valor by remember(cosa) { mutableStateOf((t.precios[cosa] ?: 0.0).let { if (it > 0) textoMonto(it) else "" }) }
+        AlertDialog(onDismissRequest = { cambiarPrecio = null }, title = { Text(cosa) },
+            text = { CampoMonto(valor, { valor = it }, "Precio de una") },
+            confirmButton = { TextButton(onClick = { alGuardar(t.copy(precios = t.precios + (cosa to aNumero(valor)))); cambiarPrecio = null }) { Text("Guardar") } },
+            dismissButton = { TextButton(onClick = { cambiarPrecio = null }) { Text("Cancelar") } })
     }
     if (nuevo || editando != null) DialogoMuchacho(editando, alCerrar = { nuevo = false; editando = null }) { m, borrar ->
         val lista = t.muchachos.toMutableList()
