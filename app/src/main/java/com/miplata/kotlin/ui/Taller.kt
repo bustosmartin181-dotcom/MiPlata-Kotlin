@@ -76,24 +76,44 @@ fun PartesTaller(t: Taller, partes: SnapshotStateMap<String, String>, total: Dou
 
 /** Cartel arriba de Hoy en el horario del desayuno / la merienda. */
 @Composable
-fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit) {
+fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit, pagado: Boolean = false) {
     val k = LocalColores.current
     val lista = t.listaCompra(fecha)
     val cuantos = t.pedidosDe(fecha).keys.size
-    Row(Modifier.fillMaxWidth().border(1.5.dp, k.naranja, RoundedCornerShape(18.dp)).background(k.tarjeta, RoundedCornerShape(18.dp))
+    val color = if (pagado) k.verde else k.naranja
+    Row(Modifier.fillMaxWidth().border(1.5.dp, color, RoundedCornerShape(18.dp)).background(k.tarjeta, RoundedCornerShape(18.dp))
         .clickable(onClick = alPedidos).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda", fontWeight = FontWeight.Bold, color = k.naranja)
-            Text(if (lista.isEmpty()) "Tomá los pedidos de los muchachos" else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.pedidosDe(fecha).values.sumOf { t.costo(it) })}",
+            Text((if (pagado) "✅ " else "") + (if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda"), fontWeight = FontWeight.Bold, color = color)
+            Text(if (pagado) "Compra anotada · la lista sigue acá" else if (lista.isEmpty()) "Tomá los pedidos de los muchachos"
+                else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.pedidosDe(fecha).values.sumOf { t.costo(it) })}",
                 fontSize = 13.sp, color = k.suave)
         }
-        Button(onClick = alPedidos) { Text(if (lista.isEmpty()) "Pedidos" else "Ver") }
+        Button(onClick = alPedidos) { Text(if (pagado) "Ver lista" else if (lista.isEmpty()) "Pedidos" else "Ver") }
     }
+}
+
+/** Ya anotaste la compra: en vez del botón de pagar, el aviso y la opción de deshacerla si fue sin querer. */
+@Composable
+private fun YaAnotada(alDeshacer: () -> Unit) {
+    val k = LocalColores.current
+    var preguntar by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().background(k.verdeClaro, RoundedCornerShape(14.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("✅ Ya anotaste la compra de hoy", fontWeight = FontWeight.Bold, color = k.verde)
+        Text("La lista queda acá para cuando estés en el negocio. Lo de cada uno está en \"Me deben\".", fontSize = 13.sp, color = k.texto)
+        TextButton(onClick = { preguntar = true }) { Text("¿La anotaste sin querer? Deshacer", color = k.rojo) }
+    }
+    if (preguntar) AlertDialog(onDismissRequest = { preguntar = false },
+        title = { Text("¿Deshacer la compra anotada?") },
+        text = { Text("Se borra el gasto de hoy del taller y lo que te debe cada uno. La lista de pedidos no se toca. Después podés volver a tocar \"Anotar y pagar\".") },
+        confirmButton = { TextButton(onClick = { preguntar = false; alDeshacer() }) { Text("Deshacer", color = k.rojo) } },
+        dismissButton = { TextButton(onClick = { preguntar = false }) { Text("Cancelar") } })
 }
 
 /** El desayuno de hoy: 1) tomar los pedidos, 2) lista para comprar con tildes, 3) "Ya pagué". */
 @Composable
-fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: () -> Unit) {
+fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: () -> Unit,
+                pagado: Boolean = false, alDeshacer: () -> Unit = {}) {
     val k = LocalColores.current
     val dia = t.pedidosDe(fecha)
     val turno = t.turno(fecha)
@@ -165,12 +185,14 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                 }
             }
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
-            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
-            Subtitulo("Te muestra cuánto le toca a cada uno y después abre Mercado Pago para pagar. Si el total es un poco distinto, corregilo y la diferencia va a tu parte.")
+            if (pagado) YaAnotada(alDeshacer) else {
+                Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
+                Subtitulo("Te muestra cuánto le toca a cada uno y después abre Mercado Pago para pagar. Si el total es un poco distinto, corregilo y la diferencia va a tu parte.")
+            }
         }
     }
     if (verTotal) VentanaQueCrece(origen, alCerrar = { verTotal = false }) { cerrar ->
-        TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar() }, alCerrar = cerrar)
+        TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar() }, alCerrar = cerrar, pagado = pagado)
     }
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
@@ -245,7 +267,8 @@ fun VentanaQueCrece(origen: androidx.compose.ui.geometry.Offset?, alCerrar: () -
 
 /** La lista para el negocio: todo lo que hay que comprar, con tildes, grande para leer en el mostrador. */
 @Composable
-private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (Taller) -> Unit, alPagar: () -> Unit, alCerrar: () -> Unit) {
+private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (Taller) -> Unit, alPagar: () -> Unit, alCerrar: () -> Unit,
+                         pagado: Boolean = false) {
     val k = LocalColores.current
     val lista = t.listaCompra(fecha)
     val tildadas = t.tildes[fecha] ?: emptyList()
@@ -282,7 +305,9 @@ private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (T
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
             Text("Tildá lo que ya tenés en la mano.", fontSize = 12.sp, color = k.suave)
             Spacer(Modifier.height(10.dp))
-            Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
+            if (pagado) Text("✅ Compra ya anotada", fontWeight = FontWeight.Bold, color = k.verde, modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            else Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
         }
     }
 }

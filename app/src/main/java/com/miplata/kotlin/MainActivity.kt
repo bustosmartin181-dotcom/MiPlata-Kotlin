@@ -32,6 +32,7 @@ import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.nucleo.num
 import kotlinx.serialization.json.JsonPrimitive
 import com.miplata.kotlin.nucleo.Fechas
+import com.miplata.kotlin.nucleo.hayCompraTaller
 import com.miplata.kotlin.nucleo.Movimiento
 import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.*
@@ -425,7 +426,13 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
                 alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
-                alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller() })
+                alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller() },
+                pagado = estado.hayCompraTaller(Fechas.hoy()),
+                alDeshacer = {
+                    val hoy = Fechas.hoy()
+                    estado.spent.filter { it.date == hoy && it.extra["taller"] != null }.forEach { almacen.borrarMovimiento(it.id) }
+                    vuelta++; aviso("Compra del taller deshecha. La lista sigue igual.")
+                })
             "taller" -> HojaTaller(taller, { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ },
                 alImportar = { importarTaller.launch(arrayOf("application/json", "text/plain", "*/*")) },
