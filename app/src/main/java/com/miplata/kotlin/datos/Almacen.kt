@@ -314,9 +314,45 @@ class Almacen(private val carpeta: File) {
     }
 
     data class CuentaEditable(val n: String, val m: Double, val cuenta: Boolean)
-    fun guardarCuentas(l: List<CuentaEditable>) = cambiarCampo("cuentas", JsonArray(l.map { c ->
-        JsonObject(buildMap { put("n", JsonPrimitive(c.n)); put("m", com.miplata.kotlin.nucleo.num(c.m)); if (!c.cuenta) put("x", JsonPrimitive(true)) })
-    }))
+    fun guardarCuentas(l: List<CuentaEditable>) = cambiarTodo { o ->
+        val cuentas = JsonArray(l.map { c ->
+            JsonObject(buildMap { put("n", JsonPrimitive(c.n)); put("m", com.miplata.kotlin.nucleo.num(c.m)); if (!c.cuenta) put("x", JsonPrimitive(true)) })
+        })
+        /* Los saldos que cargás ya traen los rendimientos reales: desde acá se cuentan los nuevos */
+        val r = rendimientosDe(o, Fechas.hoy())
+        JsonObject(o + mapOf("cuentas" to cuentas, "rendCta" to marcaRend(r)))
+    }
+
+    /** Rendimientos que calcula la app hoy: (de la plata disponible → Mercado Pago, del fondo → Reserva). */
+    private fun rendimientosDe(o: JsonObject, hoy: String): Pair<Double, Double> = runCatching {
+        val c = com.miplata.kotlin.nucleo.Nucleo.calcular(Estado.desdeJson(o), hoy)
+        c.rendDisp to (if (c.fondo.activo && c.fondo.rendEnMP) c.fondo.rend else 0.0)
+    }.getOrDefault(0.0 to 0.0)
+
+    private fun marcaRend(r: Pair<Double, Double>) = JsonObject(mapOf("d" to num(r.first), "f" to num(r.second)))
+
+    /** Mercado Pago te paga rendimientos todos los días: los que calcula la app se suman solos a Mis cuentas
+        (lo de la plata disponible a Mercado Pago, lo del fondo a la Reserva). true = cambió algo. */
+    fun aplicarRendimientos(hoy: String = Fechas.hoy()): Boolean {
+        val o = crudo ?: return false
+        val l = cuentasDe(o) ?: return false
+        val r = rendimientosDe(o, hoy)
+        val previo = o["rendCta"] as? JsonObject
+        /* La primera vez se toma lo de ayer como punto de partida (los saldos son de ayer o de antes) */
+        val base = if (previo != null) previo["d"].num() to previo["f"].num() else rendimientosDe(o, Fechas.iso(Fechas.dia(hoy) - 1))
+        /* Período nuevo: los rendimientos de la app vuelven a empezar de cero */
+        val dd = r.first - (if (r.first + 0.01 < base.first) 0.0 else base.first)
+        val df = r.second - (if (r.second + 0.01 < base.second) 0.0 else base.second)
+        if (Math.abs(dd) < 0.01 && Math.abs(df) < 0.01) {
+            if (previo == null) cambiarTodo { JsonObject(it + ("rendCta" to marcaRend(r))) }
+            return false
+        }
+        val (iMp, iRes) = indicesCuentas(l)
+        if (iMp >= 0) sumarEn(l, iMp, dd)
+        if (iRes >= 0) sumarEn(l, iRes, df) else if (iMp >= 0) sumarEn(l, iMp, df)
+        cambiarTodo { JsonObject(it + mapOf("cuentas" to JsonArray(l), "rendCta" to marcaRend(r))) }
+        return true
+    }
 
     /** Recomposición: la diferencia con las cuentas se reparte desde mañana (como "Ajustar con las cuentas"). */
     fun agregarRecomposicion(monto: Double) = cambiarTodo { o ->

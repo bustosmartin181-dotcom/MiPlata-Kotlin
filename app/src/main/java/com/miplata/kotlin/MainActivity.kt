@@ -121,6 +121,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
     LaunchedEffect(vuelta) {
+        if (runCatching { almacen.aplicarRendimientos() }.getOrDefault(false)) { vuelta++; return@LaunchedEffect }   // rendimientos a Mis cuentas
         runCatching { AvisoReserva.programar(ctx) }
         runCatching { AvisoReserva.programarRecordatorio(ctx) }
         runCatching { com.miplata.kotlin.aviso.AvisoTaller.programar(ctx) }

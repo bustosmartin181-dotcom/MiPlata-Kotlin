@@ -30,6 +30,10 @@ data class Taller(
     val pedidos: Map<String, Map<String, Map<String, Int>>> = emptyMap(),
     /** Lo que ya tildaste en el negocio, por día. */
     val tildes: Map<String, List<String>> = emptyMap(),
+    /** "Siempre lo mismo": quien → su pedido de siempre. Aparece solo cada día sin tener que anotarlo. */
+    val fijos: Map<String, Map<String, Int>> = emptyMap(),
+    /** Días en que alguien con pedido fijo no pide nada (le sacaste todo ese día). */
+    val sinFijo: Map<String, List<String>> = emptyMap(),
 ) {
     val activos get() = muchachos.filter { it.activo }
 
@@ -39,7 +43,29 @@ data class Taller(
     /** Ventana de compra de ese día (desde, hasta) o null si no trabaja. */
     fun ventana(fecha: String): Pair<String, String>? = when (turno(fecha)) { "M" -> manana; "T" -> tarde; else -> null }
 
-    fun pedidosDe(fecha: String): Map<String, Map<String, Int>> = pedidos[fecha] ?: emptyMap()
+    /** Pedidos de ese día: lo anotado + el pedido de siempre de los que lo tienen y ese día no cambiaron nada. */
+    fun pedidosDe(fecha: String): Map<String, Map<String, Int>> {
+        val anotado = pedidos[fecha] ?: emptyMap()
+        val nada = sinFijo[fecha] ?: emptyList()
+        val vigentes = activos.map { it.id }.toSet() + "yo"
+        val deSiempre = fijos.filter { (q, p) -> q !in anotado && q !in nada && q in vigentes && p.isNotEmpty() }
+        return anotado + deSiempre
+    }
+
+    fun esFijo(quien: String) = fijos[quien]?.isNotEmpty() == true
+
+    /** Tilda / destilda "Siempre lo mismo": se guarda lo que pidió ese día como su pedido de siempre. */
+    fun conFijo(fecha: String, quien: String, si: Boolean): Taller {
+        val hoy = pedidosDe(fecha)[quien] ?: emptyMap()
+        return if (si) { if (hoy.isEmpty()) this else copy(fijos = fijos + (quien to hoy)) }
+        else {
+            /* al destildar, lo de hoy queda anotado igual (solo deja de repetirse desde mañana) */
+            val dia = (pedidos[fecha] ?: emptyMap()).toMutableMap()
+            if (hoy.isNotEmpty()) dia[quien] = hoy
+            copy(fijos = fijos - quien, pedidos = pedidos + (fecha to dia),
+                sinFijo = sinFijo + (fecha to ((sinFijo[fecha] ?: emptyList()) - quien)))
+        }
+    }
 
     /** Cuánto sale lo que pidió alguien. */
     fun costo(pedido: Map<String, Int>): Double = pedido.entries.sumOf { (precios[it.key] ?: 0.0) * it.value }
@@ -56,13 +82,16 @@ data class Taller(
 
     /** Cambia la cantidad de una cosa en el pedido de alguien. Borra lo que queda en 0 y pedidos de hace más de 30 días. */
     fun conCantidad(fecha: String, quien: String, cosa: String, cant: Int): Taller {
-        val dia = pedidosDe(fecha).toMutableMap()
-        val p = (dia[quien] ?: emptyMap()).toMutableMap()
+        val dia = (pedidos[fecha] ?: emptyMap()).toMutableMap()
+        val p = (pedidosDe(fecha)[quien] ?: emptyMap()).toMutableMap()   // parte de lo de siempre, si lo tiene
         if (cant <= 0) p.remove(cosa) else p[cosa] = cant
         if (p.isEmpty()) dia.remove(quien) else dia[quien] = p
+        /* si alguien con pedido fijo queda sin nada ese día, se recuerda para no volver a ponérselo */
+        val nada = (sinFijo[fecha] ?: emptyList()).let { if (p.isEmpty() && esFijo(quien)) (it + quien).distinct() else it - quien }
         val limite = runCatching { Fechas.iso(Fechas.dia(fecha) - 30) }.getOrDefault("")
         val todos = (pedidos + (fecha to dia)).filter { it.value.isNotEmpty() && it.key >= limite }
-        return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite })
+        return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite },
+            sinFijo = (sinFijo + (fecha to nada)).filter { it.value.isNotEmpty() && it.key >= limite })
     }
 
     /** Hora del recordatorio para cobrar ese día. */
@@ -86,6 +115,8 @@ data class Taller(
         "pedidos" to JsonObject(pedidos.toSortedMap().mapValues { (_, dia) -> JsonObject(dia.mapValues { (_, p) ->
             JsonObject(p.mapValues { JsonPrimitive(it.value) }) }) }),
         "tildes" to JsonObject(tildes.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
+        "fijos" to JsonObject(fijos.mapValues { (_, p) -> JsonObject(p.mapValues { JsonPrimitive(it.value) }) }),
+        "sinFijo" to JsonObject(sinFijo.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
     ))
 
     companion object {
@@ -112,6 +143,9 @@ data class Taller(
                 pedidos = (o["pedidos"] as? JsonObject)?.mapValues { (_, dia) -> (dia as? JsonObject)?.mapValues { (_, p) ->
                     (p as? JsonObject)?.mapValues { it.value.num().toInt() }?.filterValues { it > 0 } ?: emptyMap() } ?: emptyMap() } ?: emptyMap(),
                 tildes = (o["tildes"] as? JsonObject)?.mapValues { (_, l) -> (l as? JsonArray)?.mapNotNull { it.texto() } ?: emptyList() } ?: emptyMap(),
+                fijos = (o["fijos"] as? JsonObject)?.mapValues { (_, p) ->
+                    (p as? JsonObject)?.mapValues { it.value.num().toInt() }?.filterValues { it > 0 } ?: emptyMap() }?.filterValues { it.isNotEmpty() } ?: emptyMap(),
+                sinFijo = (o["sinFijo"] as? JsonObject)?.mapValues { (_, l) -> (l as? JsonArray)?.mapNotNull { it.texto() } ?: emptyList() } ?: emptyMap(),
             )
         }
 

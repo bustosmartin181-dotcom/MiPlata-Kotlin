@@ -115,11 +115,21 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
             val p = dia[id] ?: emptyMap()
             Column(Modifier.fillMaxWidth().bordeBloque(14).background(if (p.isNotEmpty()) k.verdeClaro else k.tarjeta, RoundedCornerShape(14.dp))
                 .clickable { abierto = if (abierto == id) null else id }.padding(12.dp)) {
+                val fijo = t.esFijo(id)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(nombre, fontWeight = FontWeight.SemiBold, color = k.texto, modifier = Modifier.weight(1f))
+                    Text((if (fijo) "🔁 " else "") + nombre, fontWeight = FontWeight.SemiBold, color = k.texto, modifier = Modifier.weight(1f))
                     if (p.isNotEmpty()) Text(pesos(t.costo(p)), fontWeight = FontWeight.SemiBold, color = k.texto)
                 }
                 if (p.isNotEmpty()) Text(t.texto(p), fontSize = 13.sp, color = k.suave)
+                /* "Siempre lo mismo": su pedido aparece solo todos los días */
+                if (p.isNotEmpty() || fijo) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    .clickable { alGuardar(t.conFijo(fecha, id, !fijo)) }, verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(fijo, { alGuardar(t.conFijo(fecha, id, it)) })
+                    Column {
+                        Text("Siempre lo mismo", fontSize = 14.sp, color = k.texto)
+                        if (fijo) Text("De siempre: " + t.texto(t.fijos[id] ?: emptyMap()), fontSize = 12.sp, color = k.suave)
+                    }
+                }
                 if (abierto == id) {
                     Spacer(Modifier.height(6.dp))
                     t.precios.toSortedMap().forEach { (cosa, precio) ->
@@ -134,6 +144,8 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                         }
                     }
                     TextButton(onClick = { otraCosa = id }) { Text("+ Otra cosa (con su precio)") }
+                    if (fijo) Text("Lo que cambies acá es solo para hoy. Para cambiar lo de siempre: destildá, armá el pedido nuevo y volvé a tildar.",
+                        fontSize = 12.sp, color = k.suave)
                 }
             }
         }

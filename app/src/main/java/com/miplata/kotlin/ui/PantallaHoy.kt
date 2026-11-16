@@ -167,10 +167,11 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 /* Comparar con las cuentas */
                 "cuentas" -> {
                     val ok = cc.hayCuentas && Math.abs(cc.diferencia) < 1
-                    Mini("Mis cuentas", if (!cc.hayCuentas) "Cargá tu saldo" else if (ok) "Coincide" else dinero(cc.diferencia),
+                    val casi = cc.hayCuentas && !ok && Math.abs(cc.diferencia) < CASI_COINCIDE
+                    Mini("Mis cuentas", if (!cc.hayCuentas) "Cargá tu saldo" else if (ok) "Coincide" else if (casi) "Casi coincide" else dinero(cc.diferencia),
                         Modifier.fillMaxWidth().demo("hoy.cuentas", alAbrirCuentas).luz("hoy.cuentas").clickable(onClick = alAbrirCuentas),
                         extra = if (cc.hayCuentas) "En cuentas: ${dinero(cc.total)}" else "de Mercado Pago para comparar",
-                        colorValor = if (!cc.hayCuentas) k.suave else if (ok) k.verde else k.naranja)
+                        colorValor = if (!cc.hayCuentas) k.suave else if (ok || casi) k.verde else k.naranja)
                 }
                 "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir)
                 "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron) }

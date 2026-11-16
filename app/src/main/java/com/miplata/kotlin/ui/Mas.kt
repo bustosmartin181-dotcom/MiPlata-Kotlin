@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.1" to listOf("💰 Los rendimientos de Mercado Pago se suman solos a Mis cuentas cada día (y una diferencia chica muestra \"Casi coincide\")",
+        "🔁 Taller: \"Siempre lo mismo\" en cada muchacho, su pedido aparece solo todos los días (destildable)",
+        "💳 Un solo botón: Anotar y pagar con Mercado Pago, con los botones fijos encima del teclado"),
     "11.0" to listOf("🎙️ Charlar en vivo con tu plata: en \"Preguntale a tu plata\" hablás con Gemini como en una llamada, te contesta con voz y lo podés interrumpir",
         "📶 Arreglado: la inteligencia artificial ya no dice \"sin internet\" cuando sí hay",
         "💳 Anotar y pagar con Mercado Pago: anota el gasto, copia el monto y te abre Mercado Pago para transferir o pagar",

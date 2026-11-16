@@ -71,6 +71,9 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
 }
 
 /** Mis cuentas: cargás lo que tenés en Mercado Pago (u otras) y la app te dice la diferencia. */
+/** Hasta cuánto de diferencia se considera "casi coincide" (rendimientos que Mercado Pago calcula un poco distinto). */
+const val CASI_COINCIDE = 200.0
+
 @Composable
 fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Almacen.CuentaEditable>) -> Unit,
                 alAjustar: (Double) -> Unit, alQuitarAjuste: (Int) -> Unit, alAnotarDiferencia: (Double) -> Unit = {}) {
@@ -128,6 +131,8 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
             val faltaReserva = c.fondo.activo && Math.abs(cc.diferencia + c.fondo.total + (if (c.fondo.rendEnMP) c.fondo.rend else 0.0)) < 1
             if (faltaReserva) Text("La diferencia es justo tu fondo de ahorro: agregá la cuenta de la reserva con ${dinero(c.fondo.total)} y va a coincidir. No toques \"Ajustar\".",
                 fontSize = 13.sp, color = k.naranja)
+            else if (!ok && Math.abs(cc.diferencia) < CASI_COINCIDE) Text("Casi coincide: esa diferencia chica son los rendimientos, que Mercado Pago calcula un poco distinto que la app. " +
+                "Si querés que quede exacto, cargá los saldos reales y tocá Guardar.", fontSize = 13.sp, color = k.suave)
             else if (!ok) Text(if (cc.diferencia < 0) "Tenés menos de lo que dice la app: seguro hay gastos sin anotar." else "Tenés más de lo que dice la app: puede faltar anotar una entrada.",
                 fontSize = 13.sp, color = k.suave)
         }
