@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.2" to listOf("🛒 Taller: pagar por partes. Tildá lo de un negocio (las tortas, la fruta…) y pagás solo eso; a cada uno se le cobra lo suyo",
+        "↩️ Taller: la lista sigue después de pagar, con \"Pagar lo que falta\" y \"Deshacer\""),
     "11.1" to listOf("💰 Los rendimientos de Mercado Pago se suman solos a Mis cuentas cada día (y una diferencia chica muestra \"Casi coincide\")",
         "🔁 Taller: \"Siempre lo mismo\" en cada muchacho, su pedido aparece solo todos los días (destildable)",
         "💳 Un solo botón: Anotar y pagar con Mercado Pago, con los botones fijos encima del teclado"),

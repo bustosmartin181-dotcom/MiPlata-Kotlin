@@ -34,7 +34,34 @@ data class Taller(
     val fijos: Map<String, Map<String, Int>> = emptyMap(),
     /** Días en que alguien con pedido fijo no pide nada (le sacaste todo ese día). */
     val sinFijo: Map<String, List<String>> = emptyMap(),
+    /** Lo ya pagado por día (quien → cosa → cantidad): se puede pagar por partes (las tortas en un negocio, la fruta en otro). */
+    val compradas: Map<String, Map<String, Map<String, Int>>> = emptyMap(),
 ) {
+    /** Lo ya pagado ese día. Si hay una compra anotada de antes de existir el pago por partes, cuenta como todo pagado. */
+    fun compradoDe(fecha: String, hayCompra: Boolean): Map<String, Map<String, Int>> =
+        compradas[fecha] ?: if (hayCompra) pedidosDe(fecha) else emptyMap()
+
+    /** Lo que falta pagar ese día, por persona (lo pedido menos lo ya pagado). */
+    fun pendientePedidos(fecha: String, hayCompra: Boolean): Map<String, Map<String, Int>> {
+        val ya = compradoDe(fecha, hayCompra)
+        return pedidosDe(fecha).mapValues { (q, p) -> p.mapValues { (c, n) -> n - (ya[q]?.get(c) ?: 0) }.filterValues { it > 0 } }
+            .filterValues { it.isNotEmpty() }
+    }
+
+    /** Las cosas que todavía falta pagar ese día. */
+    fun pendientesDe(fecha: String, hayCompra: Boolean): Set<String> = pendientePedidos(fecha, hayCompra).values.flatMap { it.keys }.toSet()
+
+    /** Lo que falta pagar, pero solo de estas cosas (para pagar una parte). */
+    fun pedidosSolo(fecha: String, cosas: Set<String>, hayCompra: Boolean): Map<String, Map<String, Int>> =
+        pendientePedidos(fecha, hayCompra).mapValues { (_, p) -> p.filterKeys { it in cosas } }.filterValues { it.isNotEmpty() }
+
+    /** Suma lo pagado ese día. */
+    fun conCompradas(fecha: String, pagado: Map<String, Map<String, Int>>): Taller {
+        val dia = (compradas[fecha] ?: emptyMap()).toMutableMap()
+        pagado.forEach { (q, p) -> dia[q] = (dia[q] ?: emptyMap()).toMutableMap().apply { p.forEach { (c, n) -> this[c] = (this[c] ?: 0) + n } } }
+        return copy(compradas = compradas + (fecha to dia))
+    }
+
     val activos get() = muchachos.filter { it.activo }
 
     /** Turno de ese día según el horario cargado (null = no cargado o franco). */
@@ -90,7 +117,7 @@ data class Taller(
         val nada = (sinFijo[fecha] ?: emptyList()).let { if (p.isEmpty() && esFijo(quien)) (it + quien).distinct() else it - quien }
         val limite = runCatching { Fechas.iso(Fechas.dia(fecha) - 30) }.getOrDefault("")
         val todos = (pedidos + (fecha to dia)).filter { it.value.isNotEmpty() && it.key >= limite }
-        return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite },
+        return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite }, compradas = compradas.filterKeys { it >= limite },
             sinFijo = (sinFijo + (fecha to nada)).filter { it.value.isNotEmpty() && it.key >= limite })
     }
 
@@ -117,6 +144,8 @@ data class Taller(
         "tildes" to JsonObject(tildes.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
         "fijos" to JsonObject(fijos.mapValues { (_, p) -> JsonObject(p.mapValues { JsonPrimitive(it.value) }) }),
         "sinFijo" to JsonObject(sinFijo.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
+        "compradas" to JsonObject(compradas.mapValues { (_, dia) -> JsonObject(dia.mapValues { (_, p) ->
+            JsonObject(p.mapValues { JsonPrimitive(it.value) }) }) }),
     ))
 
     companion object {
@@ -146,6 +175,8 @@ data class Taller(
                 fijos = (o["fijos"] as? JsonObject)?.mapValues { (_, p) ->
                     (p as? JsonObject)?.mapValues { it.value.num().toInt() }?.filterValues { it > 0 } ?: emptyMap() }?.filterValues { it.isNotEmpty() } ?: emptyMap(),
                 sinFijo = (o["sinFijo"] as? JsonObject)?.mapValues { (_, l) -> (l as? JsonArray)?.mapNotNull { it.texto() } ?: emptyList() } ?: emptyMap(),
+                compradas = (o["compradas"] as? JsonObject)?.mapValues { (_, dia) -> (dia as? JsonObject)?.mapValues { (_, p) ->
+                    (p as? JsonObject)?.mapValues { it.value.num().toInt() }?.filterValues { it > 0 } ?: emptyMap() } ?: emptyMap() } ?: emptyMap(),
             )
         }
 

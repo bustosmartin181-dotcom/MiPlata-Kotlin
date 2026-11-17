@@ -76,21 +76,48 @@ fun PartesTaller(t: Taller, partes: SnapshotStateMap<String, String>, total: Dou
 
 /** Cartel arriba de Hoy en el horario del desayuno / la merienda. */
 @Composable
-fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit, pagado: Boolean = false) {
+fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit, hayCompra: Boolean = false) {
     val k = LocalColores.current
     val lista = t.listaCompra(fecha)
     val cuantos = t.pedidosDe(fecha).keys.size
+    val pendientes = t.pendientesDe(fecha, hayCompra)
+    val pagado = hayCompra && pendientes.isEmpty()
+    val parte = hayCompra && pendientes.isNotEmpty()
     val color = if (pagado) k.verde else k.naranja
     Row(Modifier.fillMaxWidth().border(1.5.dp, color, RoundedCornerShape(18.dp)).background(k.tarjeta, RoundedCornerShape(18.dp))
         .clickable(onClick = alPedidos).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text((if (pagado) "✅ " else "") + (if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda"), fontWeight = FontWeight.Bold, color = color)
-            Text(if (pagado) "Compra anotada · la lista sigue acá" else if (lista.isEmpty()) "Tomá los pedidos de los muchachos"
+            Text(if (pagado) "Compra anotada · la lista sigue acá" else if (parte) "Ya pagaste una parte · falta: " + pendientes.joinToString(", ")
+                else if (lista.isEmpty()) "Tomá los pedidos de los muchachos"
                 else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.pedidosDe(fecha).values.sumOf { t.costo(it) })}",
                 fontSize = 13.sp, color = k.suave)
         }
         Button(onClick = alPedidos) { Text(if (pagado) "Ver lista" else if (lista.isEmpty()) "Pedidos" else "Ver") }
     }
+}
+
+/** Botón de pagar del desayuno: si tildaste algunas cosas, paga solo esas (una compra por negocio);
+    si no tildaste nada, paga todo lo que falta. Lo ya pagado queda marcado y no se vuelve a cobrar. */
+@Composable
+private fun PagoTaller(t: Taller, fecha: String, hayCompra: Boolean, alPagar: (Set<String>) -> Unit, chico: Boolean = false) {
+    val k = LocalColores.current
+    val compradas = t.compradoDe(fecha, hayCompra).values.flatMap { it.keys }.toSet()
+    val pendientes = t.pendientesDe(fecha, hayCompra)
+    val tildadas = (t.tildes[fecha] ?: emptyList()).toSet() intersect pendientes
+    val cosas = if (tildadas.isNotEmpty()) tildadas else pendientes
+    val monto = t.pedidosSolo(fecha, cosas, hayCompra).values.sumOf { t.costo(it) }
+    if (compradas.isNotEmpty()) Text("✅ Ya pagaste: " + compradas.sorted().joinToString(", "), fontSize = 13.sp, color = k.verde)
+    Button(onClick = { alPagar(cosas) }, Modifier.fillMaxWidth().height(52.dp)) {
+        Text(when {
+            tildadas.isNotEmpty() && tildadas.size < pendientes.size -> "💳 Pagar lo tildado · ${pesos(monto)}"
+            compradas.isNotEmpty() -> "💳 Pagar lo que falta · ${pesos(monto)}"
+            else -> "💳 Anotar y pagar con Mercado Pago"
+        }, fontSize = 16.sp)
+    }
+    if (!chico) Subtitulo(if (tildadas.isNotEmpty() && tildadas.size < pendientes.size)
+        "Se anota solo lo tildado (cada uno paga su parte de eso). Lo demás queda para la próxima compra."
+        else "¿Comprás en distintos negocios? Tildá solo lo de este negocio y pagás eso; lo demás queda para después.")
 }
 
 /** Ya anotaste la compra: en vez del botón de pagar, el aviso y la opción de deshacerla si fue sin querer. */
@@ -116,8 +143,8 @@ private fun YaAnotada(alDeshacer: () -> Unit, anotado: Double, ahora: Double, al
 
 /** El desayuno de hoy: 1) tomar los pedidos, 2) lista para comprar con tildes, 3) "Ya pagué". */
 @Composable
-fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: () -> Unit,
-                pagado: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0) {
+fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: (Set<String>) -> Unit,
+                hayCompra: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0) {
     val k = LocalColores.current
     val dia = t.pedidosDe(fecha)
     val turno = t.turno(fecha)
@@ -179,25 +206,30 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
             HorizontalDivider(color = k.linea)
             Text("🛒 Para comprar", fontWeight = FontWeight.Bold, color = k.texto, fontSize = 17.sp)
             val tildadas = t.tildes[fecha] ?: emptyList()
+            val pendientes = t.pendientesDe(fecha, hayCompra)
             lista.forEach { (cosa, n) ->
                 val ok = cosa in tildadas
-                Row(Modifier.fillMaxWidth().clickable {
+                val ya = hayCompra && cosa !in pendientes
+                Row(Modifier.fillMaxWidth().clickable(enabled = !ya) {
                     alGuardar(t.copy(tildes = t.tildes + (fecha to if (ok) tildadas - cosa else tildadas + cosa))) }, verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(ok, null)
-                    Text("$n  $cosa", color = if (ok) k.suave else k.texto, fontSize = 16.sp, modifier = Modifier.weight(1f),
-                        textDecoration = if (ok) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
-                    Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                    Checkbox(ok || ya, null, enabled = !ya)
+                    Text("$n  $cosa", color = if (ok || ya) k.suave else k.texto, fontSize = 16.sp, modifier = Modifier.weight(1f),
+                        textDecoration = if (ok || ya) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                    if (ya) Text("✅ pagado", color = k.verde, fontSize = 13.sp)
+                    else Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
                 }
             }
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
-            if (pagado) YaAnotada(alDeshacer, anotado, dia.values.sumOf { t.costo(it) }, alRehacer = { alDeshacer(); alPagar() }) else {
-                Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
-                Subtitulo("Te muestra cuánto le toca a cada uno y después abre Mercado Pago para pagar. Si el total es un poco distinto, corregilo y la diferencia va a tu parte.")
+            if (hayCompra && t.pendientesDe(fecha, hayCompra).isEmpty())
+                YaAnotada(alDeshacer, anotado, dia.values.sumOf { t.costo(it) }, alRehacer = { alDeshacer(); alPagar(lista.keys) })
+            else {
+                PagoTaller(t, fecha, hayCompra, alPagar)
+                if (hayCompra) TextButton(onClick = alDeshacer) { Text("Deshacer lo ya pagado", color = k.rojo) }
             }
         }
     }
     if (verTotal) VentanaQueCrece(origen, alCerrar = { verTotal = false }) { cerrar ->
-        TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar() }, alCerrar = cerrar, pagado = pagado)
+        TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar(it) }, alCerrar = cerrar, hayCompra = hayCompra)
     }
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
@@ -278,8 +310,9 @@ fun VentanaQueCrece(origen: androidx.compose.ui.geometry.Offset?, alCerrar: () -
 
 /** La lista para el negocio: todo lo que hay que comprar, con tildes, grande para leer en el mostrador. */
 @Composable
-private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (Taller) -> Unit, alPagar: () -> Unit, alCerrar: () -> Unit,
-                         pagado: Boolean = false) {
+private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (Taller) -> Unit, alPagar: (Set<String>) -> Unit, alCerrar: () -> Unit,
+                         hayCompra: Boolean = false) {
+    val pendientes = t.pendientesDe(fecha, hayCompra)
     val k = LocalColores.current
     val lista = t.listaCompra(fecha)
     val tildadas = t.tildes[fecha] ?: emptyList()
@@ -301,24 +334,26 @@ private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (T
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
                 lista.forEach { (cosa, n) ->
                     val ok = cosa in tildadas
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable {
+                    val ya = hayCompra && cosa !in pendientes
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(enabled = !ya) {
                         alGuardar(t.copy(tildes = t.tildes + (fecha to if (ok) tildadas - cosa else tildadas + cosa))) }
                         .padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(ok, null)
-                        Text("$n", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (ok) k.suave else k.naranja, modifier = Modifier.width(34.dp))
-                        Text(cosa, color = if (ok) k.suave else k.texto, fontSize = 19.sp, modifier = Modifier.weight(1f),
-                            textDecoration = if (ok) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
-                        Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                        Checkbox(ok || ya, null, enabled = !ya)
+                        Text("$n", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (ok || ya) k.suave else k.naranja, modifier = Modifier.width(34.dp))
+                        Text(cosa, color = if (ok || ya) k.suave else k.texto, fontSize = 19.sp, modifier = Modifier.weight(1f),
+                            textDecoration = if (ok || ya) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                        if (ya) Text("✅ pagado", color = k.verde, fontSize = 13.sp)
+                        else Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
                     }
                 }
             }
             HorizontalDivider(color = k.linea, modifier = Modifier.padding(vertical = 8.dp))
             Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
-            Text("Tildá lo que ya tenés en la mano.", fontSize = 12.sp, color = k.suave)
+            Text("Tildá lo de este negocio y pagás solo eso; lo demás queda para la próxima compra.", fontSize = 12.sp, color = k.suave)
             Spacer(Modifier.height(10.dp))
-            if (pagado) Text("✅ Compra ya anotada", fontWeight = FontWeight.Bold, color = k.verde, modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            else Button(onClick = alPagar, Modifier.fillMaxWidth().height(52.dp)) { Text("💳 Anotar y pagar con Mercado Pago", fontSize = 16.sp) }
+            if (hayCompra && t.pendientesDe(fecha, hayCompra).isEmpty()) Text("✅ Todo pagado", fontWeight = FontWeight.Bold, color = k.verde,
+                modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            else PagoTaller(t, fecha, hayCompra, alPagar, chico = true)
         }
     }
 }

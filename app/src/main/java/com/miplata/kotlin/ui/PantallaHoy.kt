@@ -87,7 +87,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         val hastaTaller = taller.horaCobro(hoy)
         if (turnoHoy != null && desdeTaller != null && hastaTaller != null && taller.activos.isNotEmpty() && !S.demo &&
             Taller.minutos(hora) >= Taller.minutos(desdeTaller) && Taller.minutos(hora) <= Taller.minutos(hastaTaller))
-            CartelTaller(turnoHoy, taller, hoy, alAnotarTaller, pagado = S.hayCompraTaller(hoy))
+            CartelTaller(turnoHoy, taller, hoy, alAnotarTaller, hayCompra = S.hayCompraTaller(hoy))
 
         /* Cerca del cobro: atajo para empezar el período nuevo */
         val diasAlFin = Fechas.dia(S.end) - Fechas.dia(hoy)

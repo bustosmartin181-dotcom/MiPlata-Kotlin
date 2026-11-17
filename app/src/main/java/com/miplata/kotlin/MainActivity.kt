@@ -101,23 +101,33 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     var montoIni by remember { mutableStateOf("") }
     var partesIni by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var queLlevoIni by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    /** Llena la ventanita con los pedidos de hoy: total y lo de cada uno. */
-    fun prepararPago() {
-        val hoy = Fechas.hoy(); val dia = taller.pedidosDe(hoy)
+    var notaIni by remember { mutableStateOf("") }
+    /** Qué cosas del desayuno se están pagando (para marcarlas como pagadas al anotar). */
+    var cosasEnPago by remember { mutableStateOf<Map<String, Map<String, Int>>?>(null) }
+    /** Llena la ventanita con los pedidos de hoy: total y lo de cada uno. Con [cosas], solo esa parte de la compra. */
+    fun prepararPago(cosas: Set<String>? = null) {
+        val hoy = Fechas.hoy()
+        val taller = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo)   // siempre lo último guardado (p. ej. recién deshecho)
+        val todo = taller.listaCompra(hoy).keys
+        val hay = almacen.estado?.hayCompraTaller(hoy) == true
+        val pend = cosas ?: taller.pendientesDe(hoy, hay)
+        val dia = taller.pedidosSolo(hoy, pend, hay)
+        cosasEnPago = dia
         montoIni = dia.values.sumOf { taller.costo(it) }.let { if (it > 0) textoMonto(it) else "" }
         partesIni = dia.filterKeys { it != "yo" }.mapValues { textoMonto(taller.costo(it.value)) }
         queLlevoIni = dia.filterKeys { it != "yo" }.mapValues { taller.texto(it.value) }
+        notaIni = if (pend.size < todo.size || hay) dia.values.flatMap { it.keys }.toSortedSet().joinToString(", ") else ""
     }
     /** El + abre en modo Taller solo si es la hora de comprar para los muchachos */
     fun abrirAnotar(dictar: Boolean = false) {
         editando = null; conDictado = dictar
         tallerAlAbrir = !dictar && taller.enVentana(Fechas.hoy(), horaAhora()) && almacen.estado?.demo != true
-        if (tallerAlAbrir) prepararPago() else { montoIni = ""; partesIni = emptyMap(); queLlevoIni = emptyMap() }
+        if (tallerAlAbrir) prepararPago() else { montoIni = ""; partesIni = emptyMap(); queLlevoIni = emptyMap(); notaIni = ""; cosasEnPago = null }
         hojaAbierta = true
     }
     /** Desayuno / merienda: pedidos, lista para comprar y "Ya pagué" */
     fun abrirTaller() { hojaAbierta = false; pestana = Pestana.HOY; hojaHoy = "pedidos" }
-    fun pagarTaller() { hojaHoy = ""; editando = null; conDictado = false; tallerAlAbrir = true; prepararPago(); hojaAbierta = true }
+    fun pagarTaller(cosas: Set<String>? = null) { hojaHoy = ""; editando = null; conDictado = false; tallerAlAbrir = true; prepararPago(cosas); hojaAbierta = true }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
@@ -426,12 +436,13 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
                 alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
-                alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller() },
-                pagado = estado.hayCompraTaller(Fechas.hoy()),
+                alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
+                hayCompra = estado.hayCompraTaller(Fechas.hoy()),
                 anotado = estado.spent.filter { it.date == Fechas.hoy() && it.extra["taller"] != null }.sumOf { it.amt },
                 alDeshacer = {
                     val hoy = Fechas.hoy()
                     estado.spent.filter { it.date == hoy && it.extra["taller"] != null }.forEach { almacen.borrarMovimiento(it.id) }
+                    almacen.guardarTaller(taller.copy(compradas = taller.compradas - hoy))
                     vuelta++; aviso("Compra del taller deshecha. La lista sigue igual.")
                 })
             "taller" -> HojaTaller(taller, { hojaHoy = "" },
@@ -467,6 +478,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             if (m.partesTaller.isNotEmpty()) {
                 val deEllos = m.partesTaller.sumOf { it.second }
                 almacen.anotarTaller(m.fecha, m.monto - deEllos, m.nota, m.partesTaller, m.queLlevo)
+                /* lo que se pagó queda marcado: en la lista aparece "✅ pagado" y no se vuelve a cobrar */
+                cosasEnPago?.let { cosas -> if (m.fecha == Fechas.hoy())
+                    almacen.guardarTaller(com.miplata.kotlin.nucleo.Taller.de(almacen.crudo).conCompradas(m.fecha, cosas)) }
+                cosasEnPago = null
                 hojaAbierta = false; vuelta++
                 aviso("Taller anotado: te deben ${pesos(deEllos)}")
             } else {
@@ -483,7 +498,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             }
         },
         taller = taller, tallerAlAbrir = tallerAlAbrir,
-        montoInicial = montoIni, partesIniciales = partesIni, queLlevo = queLlevoIni,
+        montoInicial = montoIni, partesIniciales = partesIni, queLlevo = queLlevoIni, notaInicial = notaIni,
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
     )

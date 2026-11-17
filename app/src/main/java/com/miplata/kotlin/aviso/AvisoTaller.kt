@@ -15,6 +15,7 @@ import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Taller
 import com.miplata.kotlin.nucleo.hayCompraTaller
 import com.miplata.kotlin.nucleo.deudasTallerDe
+import com.miplata.kotlin.nucleo.texto
 import java.util.Calendar
 
 /* Avisos del taller, según "Mi horario":
@@ -78,7 +79,12 @@ object AvisoTaller {
         if (tipo == "cobro") {
             val deben = S.deudasTallerDe(hoy)
             if (deben.isEmpty()) return
-            val quienes = deben.joinToString(", ") { it.note.removePrefix("Taller · ") + " " + com.miplata.kotlin.ui.pesos(it.amt) }
+            /* si pagaste en varios negocios, cada uno aparece una sola vez con todo junto */
+            val quienes = deben.groupBy { it.extra["tp"].texto() ?: it.note }.values.joinToString(", ") { l ->
+                val nombre = l.first().note.removePrefix("Taller · ").substringBefore(":")
+                val cosas = l.mapNotNull { it.note.substringAfter(":", "").trim().takeIf { c -> c.isNotEmpty() } }.joinToString(", ")
+                nombre + (if (cosas.isNotEmpty()) ": $cosas" else "") + " " + com.miplata.kotlin.ui.pesos(l.sumOf { it.amt })
+            }
             mostrar(ctx, "💸 Todavía te deben ${com.miplata.kotlin.ui.pesos(deben.sumOf { it.amt })}", "Del $comida de hoy: $quienes. Si ya te pagaron, tocá y marcalo.", abrirTaller = false)
             return
         }
