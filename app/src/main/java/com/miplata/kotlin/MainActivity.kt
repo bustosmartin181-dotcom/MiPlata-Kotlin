@@ -329,7 +329,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         alIA = { hojaHoy = "ia" },
                         alAnotar = { abrirAnotar() },
                         alDictar = { abrirAnotar(dictar = true) },
-                        taller = taller, alAnotarTaller = { abrirTaller() },
+                        taller = taller, alAnotarTaller = { abrirTaller() }, alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
                         alPlanes = { pestana = Pestana.PLAN },
                         editandoBloques = ordenandoBloques && !Demo.corriendo,
                         alEditarBloques = { ordenandoBloques = !ordenandoBloques },

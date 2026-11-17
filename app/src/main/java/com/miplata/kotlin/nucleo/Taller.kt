@@ -10,7 +10,7 @@ import kotlinx.serialization.json.*
    "Me lo devuelven" (dev = 1) con su nombre. Es el mismo mecanismo que ya usa la app, así que
    las cuentas no cambian: cuando te paga, tocás "Me lo pagaron" y queda devuelto (dev = 2). */
 
-data class Muchacho(val id: String, val nombre: String, val apodo: String = "", val activo: Boolean = true) {
+data class Muchacho(val id: String, val nombre: String, val apodo: String = "", val activo: Boolean = true, val tel: String = "") {
     /** "Ariel (Chuña)" o solo "Ariel" */
     val mostrar: String get() = if (apodo.isBlank()) nombre else "$nombre ($apodo)"
 }
@@ -34,6 +34,10 @@ data class Taller(
     val fijos: Map<String, Map<String, Int>> = emptyMap(),
     /** Días en que alguien con pedido fijo no pide nada (le sacaste todo ese día). */
     val sinFijo: Map<String, List<String>> = emptyMap(),
+    /** Link de cobro de Mercado Pago (sin monto) que va en el mensaje de WhatsApp. */
+    val linkCobro: String = LINK_COBRO,
+    /** Alias para transferir (sin comisión), también va en el mensaje. */
+    val aliasCobro: String = ALIAS_COBRO,
     /** Lo ya pagado por día (quien → cosa → cantidad): se puede pagar por partes (las tortas en un negocio, la fruta en otro). */
     val compradas: Map<String, Map<String, Map<String, Int>>> = emptyMap(),
 ) {
@@ -132,7 +136,8 @@ data class Taller(
 
     fun aJson(): JsonObject = JsonObject(mapOf(
         "muchachos" to JsonArray(muchachos.map { JsonObject(mapOf("id" to JsonPrimitive(it.id), "nombre" to JsonPrimitive(it.nombre),
-            "apodo" to JsonPrimitive(it.apodo), "activo" to JsonPrimitive(it.activo))) }),
+            "apodo" to JsonPrimitive(it.apodo), "activo" to JsonPrimitive(it.activo), "tel" to JsonPrimitive(it.tel))) }),
+        "linkCobro" to JsonPrimitive(linkCobro), "aliasCobro" to JsonPrimitive(aliasCobro),
         "precios" to JsonObject(precios.mapValues { JsonPrimitive(it.value) }),
         "horario" to JsonObject(horario.toSortedMap().mapValues { JsonPrimitive(it.value) }),
         "manana" to JsonArray(listOf(JsonPrimitive(manana.first), JsonPrimitive(manana.second))),
@@ -149,6 +154,32 @@ data class Taller(
     ))
 
     companion object {
+        const val LINK_COBRO = "https://link.mercadopago.com.ar/appsbust"
+        const val ALIAS_COBRO = "MartinchoLujanino"
+
+        /** Número para WhatsApp (formato internacional de Argentina, 549 + área + número). null = no sirve.
+            Acepta "261 216-8515", "0261 15 216-8515", "+54 9 261 2168515"… */
+        fun numeroWhatsApp(tel: String): String? {
+            var d = tel.filter { it.isDigit() }
+            if (d.startsWith("00")) d = d.drop(2)
+            if (d.startsWith("54")) d = d.drop(2).removePrefix("9")
+            d = d.removePrefix("0")
+            /* el "15" del celular va después del código de área (2, 3 o 4 cifras): se saca si sobra */
+            if (d.length == 12) for (a in 2..4) if (d.substring(a, a + 2) == "15") { d = d.removeRange(a, a + 2); break }
+            return if (d.length == 10) "549$d" else null
+        }
+
+        /** Mensaje de cobro: "Hola Chuña! 👋 Del desayuno: …" */
+        fun mensajeCobro(nombre: String, lineas: List<Pair<String, Double>>, link: String, alias: String, pesos: (Double) -> String): String {
+            val total = lineas.sumOf { it.second }
+            val detalle = if (lineas.size == 1) "Te paso lo del taller: ${lineas[0].first} → *${pesos(total)}*."
+                else "Te paso lo del taller:\n" + lineas.joinToString("\n") { "• ${it.first}: ${pesos(it.second)}" } + "\nTotal: *${pesos(total)}*."
+            return "Hola $nombre! 👋 $detalle\n\nMe lo podés pagar por Mercado Pago" +
+                (if (link.isNotBlank()) " desde este link (poné ${pesos(total)}): $link" else "") +
+                (if (alias.isNotBlank()) (if (link.isNotBlank()) "\no transferime al alias: *$alias*" else " al alias: *$alias*") else "") +
+                "\n\n¡Gracias! 🙌"
+        }
+
         fun minutos(h: String): Int = h.split(":").let { (it.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (it.getOrNull(1)?.toIntOrNull() ?: 0) }
 
         private fun par(e: JsonElement?, def: Pair<String, String>): Pair<String, String> {
@@ -161,7 +192,9 @@ data class Taller(
             val o = crudo?.get("taller") as? JsonObject ?: return Taller()
             return Taller(
                 muchachos = o.lista("muchachos").map { Muchacho(it["id"].texto() ?: "", it["nombre"].texto() ?: "", it["apodo"].texto() ?: "",
-                    (it["activo"] as? JsonPrimitive)?.booleanOrNull != false) }.filter { it.nombre.isNotBlank() },
+                    (it["activo"] as? JsonPrimitive)?.booleanOrNull != false, it["tel"].texto() ?: "") }.filter { it.nombre.isNotBlank() },
+                linkCobro = o["linkCobro"].texto() ?: LINK_COBRO,
+                aliasCobro = o["aliasCobro"].texto() ?: ALIAS_COBRO,
                 precios = (o["precios"] as? JsonObject)?.mapValues { it.value.num() } ?: emptyMap(),
                 horario = (o["horario"] as? JsonObject)?.mapNotNull { (k, v) -> v.texto()?.let { k to it } }?.toMap() ?: emptyMap(),
                 manana = par(o["manana"], "09:20" to "10:10"),

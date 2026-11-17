@@ -18,16 +18,43 @@ import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.*
 
 /* ---------- Me deben ---------- */
-data class Deuda(val id: Long, val fecha: String, val monto: Double, val nota: String, val previo: Boolean)
+data class Deuda(val id: Long, val fecha: String, val monto: Double, val nota: String, val previo: Boolean, val tp: String? = null)
 
 fun deudas(S: Estado): List<Deuda> =
-    S.spent.filter { it.dev == 1 }.map { Deuda(it.id, it.date, it.amt, it.note, false) } +
+    S.spent.filter { it.dev == 1 }.map { Deuda(it.id, it.date, it.amt, it.note, false, it.extra["tp"].texto()) } +
     S.meDeben.map { Deuda(it.id, it.date, it.amt, it.note, true) }
 
+/** Qué dice cada deuda en el mensaje: "desayuno 17/11: 1 Rockstar" */
+private fun lineaDeuda(d: Deuda): String {
+    val cosas = d.nota.removePrefix("Taller · ").substringAfter(":", "").trim()
+    return "${Fechas.diaYMes(d.fecha)}" + (if (cosas.isNotEmpty()) ": $cosas" else if (!d.nota.startsWith("Taller")) ": ${d.nota}" else "")
+}
+
+/** Abre WhatsApp con el chat de esa persona y el mensaje ya escrito (vos solo tocás Enviar). */
+fun abrirWhatsApp(ctx: android.content.Context, numero: String, texto: String): Boolean {
+    val uri = android.net.Uri.parse("https://wa.me/$numero?text=" + android.net.Uri.encode(texto))
+    return listOf("com.whatsapp", "com.whatsapp.w4b", null).any { pkg ->
+        runCatching { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
+            if (pkg != null) setPackage(pkg); addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }); true }.getOrDefault(false)
+    }
+}
+
 @Composable
-fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (Deuda) -> Unit) {
+fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (Deuda) -> Unit,
+                   taller: Taller = Taller(), alGuardarTaller: (Taller) -> Unit = {}) {
     val k = LocalColores.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var confirmar by remember { mutableStateOf<Deuda?>(null) }
+    var pedirTel by remember { mutableStateOf<Deuda?>(null) }
+    /* Le manda todo lo que te debe esa persona junto, en un solo mensaje */
+    fun cobrar(d: Deuda, tel: String) {
+        val num = Taller.numeroWhatsApp(tel) ?: return
+        val m = taller.muchachos.firstOrNull { it.id == d.tp }
+        val suyas = if (d.tp != null) lista.filter { it.tp == d.tp } else listOf(d)
+        val nombre = m?.let { it.apodo.ifBlank { it.nombre.substringBefore(" ") } } ?: ""
+        val texto = Taller.mensajeCobro(nombre, suyas.map { lineaDeuda(it) to it.monto }, taller.linkCobro, taller.aliasCobro, ::pesos)
+        if (!abrirWhatsApp(ctx, num, texto)) android.widget.Toast.makeText(ctx, "No encontré WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+    }
     Tarjeta {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Titulo("Me deben"); Spacer(Modifier.weight(1f))
@@ -42,12 +69,34 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (
                     }
                     Text(dinero(d.monto), fontWeight = FontWeight.SemiBold, color = k.texto)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     FilledTonalButton(onClick = { alCobrar(d) }) { Text("Me lo pagaron") }
-                    TextButton(onClick = { confirmar = d }) { Text("No me lo pagan") }
+                    OutlinedButton(onClick = {
+                        val tel = taller.muchachos.firstOrNull { it.id == d.tp }?.tel.orEmpty()
+                        if (Taller.numeroWhatsApp(tel) != null) cobrar(d, tel) else pedirTel = d
+                    }) { Text("📲 Cobrar") }
+                    TextButton(onClick = { confirmar = d }) { Text("No me lo pagan", fontSize = 12.sp) }
                 }
             }
         }
+    }
+    pedirTel?.let { d ->
+        val m = taller.muchachos.firstOrNull { it.id == d.tp }
+        var tel by remember(d.id) { mutableStateOf(m?.tel.orEmpty()) }
+        val ok = Taller.numeroWhatsApp(tel) != null
+        AlertDialog(onDismissRequest = { pedirTel = null },
+            title = { Text("WhatsApp de " + (m?.mostrar ?: "esta persona")) },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(tel, { tel = it }, label = { Text("Celular con código de área") }, placeholder = { Text("Ej: 261 216-8515") },
+                    singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    isError = tel.isNotBlank() && !ok, supportingText = { Text(if (tel.isNotBlank() && !ok) "Tiene que ser área + número, sin 0 ni 15" else "Sin 0 ni 15") })
+                if (m != null) Text("Queda guardado para la próxima.", fontSize = 12.sp, color = k.suave)
+            } },
+            confirmButton = { TextButton(enabled = ok, onClick = {
+                if (m != null) alGuardarTaller(taller.copy(muchachos = taller.muchachos.map { if (it.id == m.id) it.copy(tel = tel.trim()) else it }))
+                pedirTel = null; cobrar(d, tel)
+            }) { Text("Abrir WhatsApp") } },
+            dismissButton = { TextButton(onClick = { pedirTel = null }) { Text("Cancelar") } })
     }
     confirmar?.let { d -> AlertDialog(onDismissRequest = { confirmar = null }, title = { Text("¿No te lo van a pagar?") },
         text = { Text("Pasa a ser un gasto tuyo.") },

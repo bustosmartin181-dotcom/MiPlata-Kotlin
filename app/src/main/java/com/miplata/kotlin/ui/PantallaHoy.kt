@@ -36,7 +36,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
                 alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {},
                 editandoBloques: Boolean = false, alEditarBloques: () -> Unit = {}, alTerminarEdicion: () -> Unit = {},
-                taller: Taller = Taller(), alAnotarTaller: () -> Unit = {}) {
+                taller: Taller = Taller(), alAnotarTaller: () -> Unit = {}, alGuardarTaller: (Taller) -> Unit = {}) {
     val k = LocalColores.current
     val hoy = Fechas.hoy()
     val c = Nucleo.calcular(S, hoy)
@@ -174,7 +174,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         colorValor = if (!cc.hayCuentas) k.suave else if (ok || casi) k.verde else k.naranja)
                 }
                 "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir)
-                "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron) }
+                "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron, taller, alGuardarTaller) }
                 /* Mi fondo de ahorro, con cómo fue creciendo */
                 "fondo" -> Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }
                 /* Para pasar a tu reserva: "Ya lo pasé" se puede tocar también a la noche, antes de que cierre el día */

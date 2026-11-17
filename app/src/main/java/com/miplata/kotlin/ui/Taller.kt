@@ -369,6 +369,15 @@ fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alI
     var horario by remember { mutableStateOf(false) }
     Hoja(alCerrar, "🔧 Compras del taller") {
         Subtitulo("Cuando comprás para los muchachos, tu parte va como gasto tuyo y la de cada uno queda en \"Me deben\". Cuando te pagan, tocás \"Me lo pagaron\".")
+        /* Cobrar por WhatsApp: el link y el alias que van en el mensaje */
+        var link by remember(t.linkCobro) { mutableStateOf(t.linkCobro) }
+        var alias by remember(t.aliasCobro) { mutableStateOf(t.aliasCobro) }
+        Text("📲 Cobrar por WhatsApp", fontWeight = FontWeight.SemiBold, color = k.texto)
+        Subtitulo("En \"Me deben\" tocás \"📲 Cobrar\" y se abre WhatsApp con el mensaje listo: cuánto te debe, de qué, tu link y tu alias.")
+        OutlinedTextField(link, { link = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Link de cobro de Mercado Pago") }, singleLine = true)
+        OutlinedTextField(alias, { alias = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Alias (transferencia sin comisión)") }, singleLine = true)
+        if (link != t.linkCobro || alias != t.aliasCobro) Button(onClick = { alGuardar(t.copy(linkCobro = link, aliasCobro = alias)) }, Modifier.fillMaxWidth()) { Text("Guardar link y alias") }
+        HorizontalDivider(color = k.linea)
         Interruptor("Avisarme a la hora de comprar", t.aviso, { alGuardar(t.copy(aviso = it)); if (it) alPermisoAvisos() },
             "Al empezar el desayuno o la merienda, y otra vez al terminar si no anotaste nada")
         OutlinedButton(onClick = { horario = true }, Modifier.fillMaxWidth()) {
@@ -422,14 +431,19 @@ private fun DialogoMuchacho(m: Muchacho?, alCerrar: () -> Unit, alListo: (Muchac
     var nombre by remember { mutableStateOf(m?.nombre ?: "") }
     var apodo by remember { mutableStateOf(m?.apodo ?: "") }
     var activo by remember { mutableStateOf(m?.activo ?: true) }
+    var tel by remember { mutableStateOf(m?.tel ?: "") }
     AlertDialog(onDismissRequest = alCerrar, title = { Text(if (m == null) "Agregar" else "Editar") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(nombre, { nombre = it }, label = { Text("Nombre") }, singleLine = true)
             OutlinedTextField(apodo, { apodo = it }, label = { Text("Apodo (opcional)") }, placeholder = { Text("Ej: Chuña") }, singleLine = true)
+            OutlinedTextField(tel, { tel = it }, label = { Text("WhatsApp (opcional)") }, placeholder = { Text("Ej: 261 216-8515") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                isError = tel.isNotBlank() && Taller.numeroWhatsApp(tel) == null,
+                supportingText = { Text("Código de área + número, sin 0 ni 15. Sirve para cobrarle por WhatsApp.") })
             if (m != null) Interruptor("Sigue pidiendo", activo, { activo = it })
             if (m != null) TextButton(onClick = { alListo(m, true) }, colors = ButtonDefaults.textButtonColors(contentColor = LocalColores.current.rojo)) { Text("Borrar") }
         } },
-        confirmButton = { TextButton(onClick = { if (nombre.isNotBlank()) alListo(Muchacho(m?.id ?: "m${System.currentTimeMillis()}", nombre.trim(), apodo.trim(), activo), false) }) { Text("Guardar") } },
+        confirmButton = { TextButton(onClick = { if (nombre.isNotBlank()) alListo(Muchacho(m?.id ?: "m${System.currentTimeMillis()}", nombre.trim(), apodo.trim(), activo, tel.trim()), false) }) { Text("Guardar") } },
         dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
 }
 
