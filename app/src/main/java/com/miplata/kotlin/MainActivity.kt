@@ -33,6 +33,7 @@ import com.miplata.kotlin.nucleo.num
 import kotlinx.serialization.json.JsonPrimitive
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.hayCompraTaller
+import com.miplata.kotlin.nucleo.esCompraDesayuno
 import com.miplata.kotlin.nucleo.Movimiento
 import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.*
@@ -330,7 +331,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         alAnotar = { abrirAnotar() },
                         alDictar = { abrirAnotar(dictar = true) },
                         taller = taller, alAnotarTaller = { abrirTaller() }, alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
-                        alPlanes = { pestana = Pestana.PLAN },
+                        alPlanes = { pestana = Pestana.PLAN }, alCobrarSeccion = { hojaHoy = "cobrar" },
                         editandoBloques = ordenandoBloques && !Demo.corriendo,
                         alEditarBloques = { ordenandoBloques = !ordenandoBloques },
                         alTerminarEdicion = { ordenandoBloques = false },
@@ -435,13 +436,22 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             "resumen" -> HojaResumen(com.miplata.kotlin.exportar.Exportar.resumenTexto(estado, Fechas.hoy()), { hojaHoy = "" },
                 alCompartir = { compartirTexto(it) }, alWhatsApp = { compartirTexto(it, "com.whatsapp") },
                 alCopiar = { MercadoPago.copiar(ctx, "Resumen", it); aviso("Copiado") })
+            "cobrar" -> HojaCobrar(estado, taller, { hojaHoy = "" },
+                alAnotar = { m, monto, detalle ->
+                    almacen.anotarTaller(Fechas.hoy(), 0.0, detalle, listOf(m to monto), mapOf(m.id to detalle), suelto = true)
+                    vuelta++
+                    val S2 = almacen.estado
+                    if (S2 != null) mandarCobro(ctx, m.id, deudas(S2), com.miplata.kotlin.nucleo.Taller.de(almacen.crudo))
+                },
+                alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
+                alCobrado = { d -> almacen.cobrado(d.id, d.previo); vuelta++ })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
                 hayCompra = estado.hayCompraTaller(Fechas.hoy()),
-                anotado = estado.spent.filter { it.date == Fechas.hoy() && it.extra["taller"] != null }.sumOf { it.amt },
+                anotado = estado.spent.filter { it.date == Fechas.hoy() && it.esCompraDesayuno }.sumOf { it.amt },
                 alDeshacer = {
                     val hoy = Fechas.hoy()
-                    estado.spent.filter { it.date == hoy && it.extra["taller"] != null }.forEach { almacen.borrarMovimiento(it.id) }
+                    estado.spent.filter { it.date == hoy && it.esCompraDesayuno }.forEach { almacen.borrarMovimiento(it.id) }
                     almacen.guardarTaller(taller.copy(compradas = taller.compradas - hoy))
                     vuelta++; aviso("Compra del taller deshecha. La lista sigue igual.")
                 })

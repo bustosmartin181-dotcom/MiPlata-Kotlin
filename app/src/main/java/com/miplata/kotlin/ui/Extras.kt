@@ -39,6 +39,82 @@ fun abrirWhatsApp(ctx: android.content.Context, numero: String, texto: String): 
     }
 }
 
+/** Abre WhatsApp con todo lo que te debe esa persona en un solo mensaje. false = no tiene número válido. */
+fun mandarCobro(ctx: android.content.Context, tp: String, todas: List<Deuda>, taller: Taller, tel: String? = null): Boolean {
+    val m = taller.muchachos.firstOrNull { it.id == tp }
+    val num = Taller.numeroWhatsApp(tel ?: m?.tel.orEmpty()) ?: return false
+    val suyas = todas.filter { it.tp == tp }
+    if (suyas.isEmpty()) return false
+    val nombre = m?.let { it.apodo.ifBlank { it.nombre.substringBefore(" ") } } ?: ""
+    val texto = Taller.mensajeCobro(nombre, suyas.map { lineaDeuda(it) to it.monto }, taller.linkCobro, taller.aliasCobro, ::pesos)
+    if (!abrirWhatsApp(ctx, num, texto)) android.widget.Toast.makeText(ctx, "No encontré WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+    return true
+}
+
+/** Sección Cobrar: le compraste algo a un compañero en cualquier momento (una Coca, un sánguche…)
+    → queda en "Me deben" y le mandás el WhatsApp. Abajo, todos los que te deben, con su botón. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, Double, String) -> Unit,
+               alGuardarTaller: (Taller) -> Unit, alCobrado: (Deuda) -> Unit) {
+    val k = LocalColores.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var quien by remember { mutableStateOf<Muchacho?>(null) }
+    var monto by remember { mutableStateOf("") }
+    var detalle by remember { mutableStateOf("") }
+    var tel by remember(quien?.id) { mutableStateOf(quien?.tel.orEmpty()) }
+    val telOk = Taller.numeroWhatsApp(tel) != null
+    val todas = deudas(S)
+    Hoja(alCerrar, "📲 Cobrar") {
+        Subtitulo("¿Le compraste algo a un compañero? Elegilo, poné cuánto y qué. Queda en \"Me deben\" y le sale el WhatsApp con el mensaje listo.")
+        if (t.activos.isEmpty()) Text("Primero cargá a los muchachos en Ajustes → Compras del taller.", color = k.naranja)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            t.activos.forEach { m -> FilterChip(selected = quien?.id == m.id, onClick = { quien = if (quien?.id == m.id) null else m },
+                label = { Text(m.mostrar, fontSize = 13.sp) }) }
+        }
+        quien?.let { m ->
+            if (Taller.numeroWhatsApp(m.tel) == null) OutlinedTextField(tel, { tel = it }, Modifier.fillMaxWidth(),
+                label = { Text("WhatsApp de ${m.apodo.ifBlank { m.nombre }}") }, placeholder = { Text("Ej: 261 216-8515") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), isError = tel.isNotBlank() && !telOk,
+                supportingText = { Text("Código de área + número, sin 0 ni 15. Queda guardado.") })
+            CampoMonto(monto, { monto = it }, "¿Cuánto?")
+            OutlinedTextField(detalle, { detalle = it }, Modifier.fillMaxWidth(), label = { Text("¿Qué le compraste?") },
+                placeholder = { Text("Ej: 1 Coca-Cola") }, singleLine = true)
+            Button(onClick = {
+                if (tel.trim() != m.tel) alGuardarTaller(t.copy(muchachos = t.muchachos.map { if (it.id == m.id) it.copy(tel = tel.trim()) else it }))
+                alAnotar(m.copy(tel = tel.trim()), aNumero(monto), detalle.trim())
+                quien = null; monto = ""; detalle = ""
+            }, Modifier.fillMaxWidth().height(52.dp), enabled = aNumero(monto) > 0 && telOk) { Text("Anotar y mandar WhatsApp", fontSize = 16.sp) }
+        }
+        /* Todos los que te deben ahora, uno por persona */
+        val porPersona = todas.filter { it.tp != null }.groupBy { it.tp!! }
+        if (porPersona.isNotEmpty()) {
+            HorizontalDivider(color = k.linea)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Te deben", fontWeight = FontWeight.Bold, color = k.texto, fontSize = 17.sp, modifier = Modifier.weight(1f))
+                Text(dinero(porPersona.values.flatten().sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
+            }
+            porPersona.forEach { (tp, l) ->
+                val m = t.muchachos.firstOrNull { it.id == tp }
+                Column(Modifier.fillMaxWidth().background(k.tarjeta, RoundedCornerShape(14.dp)).padding(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(m?.mostrar ?: l.first().nota.removePrefix("Taller · ").substringBefore(":"), fontWeight = FontWeight.SemiBold,
+                            color = k.texto, modifier = Modifier.weight(1f))
+                        Text(dinero(l.sumOf { it.monto }), fontWeight = FontWeight.SemiBold, color = k.texto)
+                    }
+                    Text(l.joinToString(" · ") { lineaDeuda(it) }, fontSize = 12.sp, color = k.suave)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            if (!mandarCobro(ctx, tp, todas, t)) { quien = m; android.widget.Toast.makeText(ctx, "Poné su WhatsApp arriba", android.widget.Toast.LENGTH_SHORT).show() }
+                        }) { Text("📲 Cobrar") }
+                        FilledTonalButton(onClick = { l.forEach(alCobrado) }) { Text("Me pagó todo") }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (Deuda) -> Unit,
                    taller: Taller = Taller(), alGuardarTaller: (Taller) -> Unit = {}) {
@@ -48,11 +124,9 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda) -> Unit, alNoPagaron: (
     var pedirTel by remember { mutableStateOf<Deuda?>(null) }
     /* Le manda todo lo que te debe esa persona junto, en un solo mensaje */
     fun cobrar(d: Deuda, tel: String) {
+        if (d.tp != null) { mandarCobro(ctx, d.tp, lista, taller, tel); return }
         val num = Taller.numeroWhatsApp(tel) ?: return
-        val m = taller.muchachos.firstOrNull { it.id == d.tp }
-        val suyas = if (d.tp != null) lista.filter { it.tp == d.tp } else listOf(d)
-        val nombre = m?.let { it.apodo.ifBlank { it.nombre.substringBefore(" ") } } ?: ""
-        val texto = Taller.mensajeCobro(nombre, suyas.map { lineaDeuda(it) to it.monto }, taller.linkCobro, taller.aliasCobro, ::pesos)
+        val texto = Taller.mensajeCobro("", listOf(lineaDeuda(d) to d.monto), taller.linkCobro, taller.aliasCobro, ::pesos)
         if (!abrirWhatsApp(ctx, num, texto)) android.widget.Toast.makeText(ctx, "No encontré WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
     }
     Tarjeta {

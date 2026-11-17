@@ -240,7 +240,10 @@ data class Taller(
 }
 
 /** ¿Ya anotó hoy alguna compra del taller? */
-fun Estado.hayCompraTaller(fecha: String): Boolean = spent.any { it.date == fecha && it.extra["taller"] != null }
+fun Estado.hayCompraTaller(fecha: String): Boolean = spent.any { it.date == fecha && it.esCompraDesayuno }
+
+/** Gasto de la compra del desayuno / merienda (no las cosas sueltas que le compraste a alguien en el día). */
+val Movimiento.esCompraDesayuno: Boolean get() = extra["taller"] != null && extra["taller"].num() != 2.0
 
 /** Lo que te deben hoy del taller (todavía sin pagar). */
 fun Estado.deudasTallerDe(fecha: String): List<Movimiento> = spent.filter { it.date == fecha && it.dev == 1 && it.extra["taller"] != null }

@@ -34,7 +34,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 alCobrar: (Deuda) -> Unit = {}, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
-                alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {},
+                alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {}, alCobrarSeccion: () -> Unit = {},
                 editandoBloques: Boolean = false, alEditarBloques: () -> Unit = {}, alTerminarEdicion: () -> Unit = {},
                 taller: Taller = Taller(), alAnotarTaller: () -> Unit = {}, alGuardarTaller: (Taller) -> Unit = {}) {
     val k = LocalColores.current
@@ -173,7 +173,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         extra = if (cc.hayCuentas) "En cuentas: ${dinero(cc.total)}" else "de Mercado Pago para comparar",
                         colorValor = if (!cc.hayCuentas) k.suave else if (ok || casi) k.verde else k.naranja)
                 }
-                "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir)
+                "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir, alCobrarSeccion)
                 "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron, taller, alGuardarTaller) }
                 /* Mi fondo de ahorro, con cómo fue creciendo */
                 "fondo" -> Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }

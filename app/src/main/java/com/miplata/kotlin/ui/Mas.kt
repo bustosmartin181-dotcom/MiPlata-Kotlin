@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.3" to listOf("💚 Sección Cobrar (en los accesos rápidos de Hoy): le compraste algo a un compañero, lo anotás y le sale el WhatsApp con el mensaje listo",
+        "🏦 El mensaje de cobro va solo con tu alias: la transferencia no tiene comisión"),
     "11.2" to listOf("📲 Cobrar por WhatsApp: en \"Me deben\", un toque y sale el mensaje con cuánto te debe, de qué, tu link de Mercado Pago y tu alias","🛒 Taller: pagar por partes. Tildá lo de un negocio (las tortas, la fruta…) y pagás solo eso; a cada uno se le cobra lo suyo",
         "↩️ Taller: la lista sigue después de pagar, con \"Pagar lo que falta\" y \"Deshacer\""),
     "11.1" to listOf("💰 Los rendimientos de Mercado Pago se suman solos a Mis cuentas cada día (y una diferencia chica muestra \"Casi coincide\")",

@@ -134,10 +134,11 @@ class Almacen(private val carpeta: File) {
     /** Una compra para los muchachos: tu parte como gasto común y la de cada uno en "Me deben".
         En total baja de Mercado Pago lo que pagaste (miParte + la de todos). */
     fun anotarTaller(fecha: String, miParte: Double, detalle: String, partes: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>>,
-                     queLlevo: Map<String, String> = emptyMap()) = cambiar {
+                     queLlevo: Map<String, String> = emptyMap(), suelto: Boolean = false) = cambiar {
         val lista = spent()
         var id = nuevoId(crudo)
-        val marca = "taller" to JsonPrimitive(1)
+        /* "suelto": algo que le compraste a un compañero fuera del desayuno (no cuenta como la compra del desayuno) */
+        val marca = "taller" to JsonPrimitive(if (suelto) 2 else 1)
         if (miParte > 0) lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(miParte),
             "note" to JsonPrimitive(("Taller · mi parte " + detalle).trim()), "cat" to JsonPrimitive("Comida"), marca))
         partes.filter { it.second > 0 }.forEach { (m, monto) ->

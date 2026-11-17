@@ -140,7 +140,8 @@ private fun BotonChico(icono: ImageVector, texto: String, activo: Boolean, color
 
 /** Fila de botones redondos, como los atajos del panel de Samsung. */
 @Composable
-fun AccesosRapidos(alAnotar: () -> Unit, alDictar: () -> Unit, alMP: () -> Unit, alPlanes: () -> Unit, alIA: () -> Unit, alCompartir: () -> Unit) {
+fun AccesosRapidos(alAnotar: () -> Unit, alDictar: () -> Unit, alMP: () -> Unit, alPlanes: () -> Unit, alIA: () -> Unit, alCompartir: () -> Unit,
+                   alCobrar: () -> Unit = {}) {
     val k = LocalColores.current
     Tarjeta {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -152,6 +153,10 @@ fun AccesosRapidos(alAnotar: () -> Unit, alDictar: () -> Unit, alMP: () -> Unit,
             Atajo("Mis\nplanes", Icons.Outlined.Flag, k.verdeClaro, k.verde, alPlanes)
             Atajo("Preguntale\na tu plata", Icons.Outlined.AutoAwesome, k.verdeClaro, k.verde, alIA)
             Atajo("Compartir\nresumen", Icons.Outlined.Share, k.verdeClaro, k.verde, alCompartir)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Atajo("Cobrar", Icons.Outlined.Paid, Color(0xFF25D366), Color.White, alCobrar)
+            Spacer(Modifier.width(92.dp)); Spacer(Modifier.width(92.dp))
         }
     }
 }
