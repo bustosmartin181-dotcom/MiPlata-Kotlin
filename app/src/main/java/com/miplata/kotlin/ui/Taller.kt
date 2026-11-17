@@ -373,8 +373,8 @@ fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alI
         var link by remember(t.linkCobro) { mutableStateOf(t.linkCobro) }
         var alias by remember(t.aliasCobro) { mutableStateOf(t.aliasCobro) }
         Text("📲 Cobrar por WhatsApp", fontWeight = FontWeight.SemiBold, color = k.texto)
-        Subtitulo("En \"Me deben\" tocás \"📲 Cobrar\" y se abre WhatsApp con el mensaje listo: cuánto te debe, de qué, tu link y tu alias.")
-        OutlinedTextField(link, { link = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Link de cobro de Mercado Pago") }, singleLine = true)
+        Subtitulo("En \"Me deben\" tocás \"📲 Cobrar\" y se abre WhatsApp con el mensaje listo: cuánto te debe, de qué y tu alias (la transferencia por alias no tiene comisión).")
+        OutlinedTextField(link, { link = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Link de cobro (opcional: Mercado Pago cobra comisión)") }, singleLine = true)
         OutlinedTextField(alias, { alias = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Alias (transferencia sin comisión)") }, singleLine = true)
         if (link != t.linkCobro || alias != t.aliasCobro) Button(onClick = { alGuardar(t.copy(linkCobro = link, aliasCobro = alias)) }, Modifier.fillMaxWidth()) { Text("Guardar link y alias") }
         HorizontalDivider(color = k.linea)

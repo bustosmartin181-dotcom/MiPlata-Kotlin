@@ -17,7 +17,10 @@ class CobroWhatsAppTest {
         val p = { v: Double -> "$" + v.toLong() }
         val uno = Taller.mensajeCobro("Chuña", listOf("16/11: 1 Rockstar" to 2000.0), Taller.LINK_COBRO, Taller.ALIAS_COBRO, p)
         println("MSG1\n$uno")
-        assertTrue(uno.contains("Hola Chuña!") && uno.contains("*$2000*") && uno.contains(Taller.LINK_COBRO) && uno.contains("MartinchoLujanino"))
+        assertTrue(uno.contains("Hola Chuña!") && uno.contains("*$2000*") && !uno.contains("http") && uno.contains("al alias: *MartinchoLujanino*"))
+        // el link viejo guardado se descarta solo
+        val viejo = kotlinx.serialization.json.Json.parseToJsonElement("""{"taller":{"linkCobro":"https://link.mercadopago.com.ar/appsbust"}}""").let { it as kotlinx.serialization.json.JsonObject }
+        assertEquals("", Taller.de(viejo).linkCobro)
         val dos = Taller.mensajeCobro("Rodrigo", listOf("16/11: 2 Torta de hoja" to 800.0, "17/11: 1 Bananas" to 600.0), Taller.LINK_COBRO, Taller.ALIAS_COBRO, p)
         println("MSG2\n$dos")
         assertTrue(dos.contains("Total: *$1400*"))

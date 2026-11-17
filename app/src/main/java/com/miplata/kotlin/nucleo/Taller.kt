@@ -154,7 +154,9 @@ data class Taller(
     ))
 
     companion object {
-        const val LINK_COBRO = "https://link.mercadopago.com.ar/appsbust"
+        /* Sin link por defecto: el Link de pago de Mercado Pago cobra comisión y demora la plata; el alias no. */
+        const val LINK_COBRO = ""
+        private const val LINK_VIEJO = "https://link.mercadopago.com.ar/appsbust"
         const val ALIAS_COBRO = "MartinchoLujanino"
 
         /** Número para WhatsApp (formato internacional de Argentina, 549 + área + número). null = no sirve.
@@ -193,7 +195,7 @@ data class Taller(
             return Taller(
                 muchachos = o.lista("muchachos").map { Muchacho(it["id"].texto() ?: "", it["nombre"].texto() ?: "", it["apodo"].texto() ?: "",
                     (it["activo"] as? JsonPrimitive)?.booleanOrNull != false, it["tel"].texto() ?: "") }.filter { it.nombre.isNotBlank() },
-                linkCobro = o["linkCobro"].texto() ?: LINK_COBRO,
+                linkCobro = o["linkCobro"].texto()?.takeIf { it != LINK_VIEJO } ?: LINK_COBRO,
                 aliasCobro = o["aliasCobro"].texto() ?: ALIAS_COBRO,
                 precios = (o["precios"] as? JsonObject)?.mapValues { it.value.num() } ?: emptyMap(),
                 horario = (o["horario"] as? JsonObject)?.mapNotNull { (k, v) -> v.texto()?.let { k to it } }?.toMap() ?: emptyMap(),
