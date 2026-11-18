@@ -233,6 +233,7 @@ fun FilaMovimiento(e: Movimiento, alTocar: () -> Unit) {
                 favor && e.dev == 1 -> "🤝 te lo dio, queda a su favor" + if (pagoEf) " · 💵 en efectivo" else " · 📲 por transferencia"
                 favor && e.dev == 2 -> if (e.extra["vuelto"] != null) "🪙 le diste el vuelto" else "✅ ya se usó para pagar lo suyo"
                 e.dev == 1 -> "te lo deben"
+                e.dev == 2 && e.extra["cobMed"] == null && e.extra["med"] == null -> "✅ me pagó (tocá para decir cómo)"
                 e.dev == 2 -> if (cobroEf) "✅ me pagó en efectivo 💵" else "✅ me pagó por transferencia 📲"
                 pagoEf -> if (entrada) "💵 entró en efectivo" else "💵 pagado en efectivo"
                 else -> null

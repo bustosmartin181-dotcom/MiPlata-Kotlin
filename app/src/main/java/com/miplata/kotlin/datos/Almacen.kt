@@ -202,6 +202,26 @@ class Almacen(private val carpeta: File) {
         this["spent"] = JsonArray(lista)
     }
 
+    /** Corrige cómo te pagaron algo ya cobrado: `enEfectivo` de eso fue en efectivo y el resto por transferencia.
+        Si es parte y parte, queda en dos renglones. Las cuentas (Efectivo / Mercado Pago) se acomodan solas. */
+    fun cambiarCobro(id: Long, enEfectivo: Double) = cambiar {
+        val lista = spent()
+        val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
+        val x = lista.getOrNull(i) as? JsonObject ?: return@cambiar
+        if (x["dev"].num().toInt() != 2) return@cambiar
+        val amt = x["amt"].num()
+        val ef = com.miplata.kotlin.nucleo.redondear2(enEfectivo.coerceIn(0.0, amt))
+        when {
+            ef < 0.005 -> lista[i] = JsonObject(x + ("cobMed" to JsonPrimitive(MEDIO_MP)))
+            ef >= amt - 0.005 -> lista[i] = JsonObject(x + ("cobMed" to JsonPrimitive(MEDIO_EFECTIVO)))
+            else -> {
+                lista[i] = JsonObject(x + mapOf("amt" to num(com.miplata.kotlin.nucleo.redondear2(amt - ef)), "cobMed" to JsonPrimitive(MEDIO_MP)))
+                lista.add(i + 1, JsonObject(x + mapOf("id" to JsonPrimitive(nuevoId(crudo)), "amt" to num(ef), "cobMed" to JsonPrimitive(MEDIO_EFECTIVO))))
+            }
+        }
+        this["spent"] = JsonArray(lista)
+    }
+
     /** Usa la plata a favor de `tp` para pagar sus deudas. Lo que se usa queda cobrado; lo que sobra sigue a favor
         (o la deuda que no alcanza, sigue debiéndose). Trabaja sobre la lista de movimientos que recibe. */
     private fun saldarConFavor(lista: MutableList<JsonElement>, tp: String, primero: Long? = null) {

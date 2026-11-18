@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.6" to listOf("💵+📲 Parte y parte: si te pagó una parte en efectivo y otra por transferencia, ponés cuánto de cada una",
+        "✏️ Tocando algo ya cobrado podés corregir cómo te pagó (los que marcaste antes dicen \"tocá para decir cómo\")"),
     "11.5" to listOf("💵 \"Me entregó\": anotás con cuánto te pagó cada compañero y si fue en efectivo o transferencia",
         "🤝 Plata a favor: si te da $1000 por algo de $800 y no tenés vuelto, le quedan $200 a favor y se le descuentan solos en lo próximo que pida",
         "🥐 En el desayuno, cada compañero tiene \"Me entregó plata\" para cuando te da la plata antes de comprar",

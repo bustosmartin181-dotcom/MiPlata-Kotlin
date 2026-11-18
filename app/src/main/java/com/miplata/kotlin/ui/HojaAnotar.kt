@@ -71,6 +71,8 @@ fun HojaAnotar(
     alMarcarDevuelto: (Long) -> Unit,
     /** "Me lo pagaron" sobre algo que te deben: cuánto te entregó y cómo. */
     alCobrar: (Movimiento, Cobro) -> Unit = { m, _ -> alMarcarDevuelto(m.id) },
+    /** Corregir cómo te pagó algo ya cobrado: (id, cuánto fue en efectivo). */
+    alCambiarCobro: (Long, Double) -> Unit = { _, _ -> },
     dictarAlAbrir: Boolean = false,
     montoInicial: String = "",
     notaInicial: String = "",
@@ -209,6 +211,22 @@ fun HojaAnotar(
                     modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = if (conPago) 16.sp else 17.sp)
             }
 
+            /* Ya cobrado: ¿cómo te pagó? (se puede corregir, y también parte y parte) */
+            if (editando != null && editando.dev == 2 && editando.amt > 0) {
+                val ef = com.miplata.kotlin.datos.MEDIO_EFECTIVO
+                val cob = editando.extra["cobMed"].texto() ?: editando.extra["med"].texto()
+                var total by remember { mutableStateOf(editando.amt) }
+                var enEf by remember { mutableStateOf(if (cob == ef) editando.amt else 0.0) }
+                Column(Modifier.fillMaxWidth().background(k.verdeClaro, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("✅ ¿Cómo te pagó estos ${pesos(editando.amt)}?", fontWeight = FontWeight.Bold, color = k.texto)
+                    if (editando.extra["cobMed"] == null) Text("Lo marcaste antes de que la app lo preguntara: elegí cómo fue.", fontSize = 12.sp, color = k.naranja)
+                    ElegirComoPago(editando.amt, enEf) { t, e -> total = t; enEf = e }
+                    val cuadra = Math.abs(total - editando.amt) < 0.5
+                    if (!cuadra) Text("Tiene que sumar ${pesos(editando.amt)}", fontSize = 12.sp, color = k.rojo)
+                    OutlinedButton(onClick = { alCambiarCobro(editando.id, enEf) }, Modifier.fillMaxWidth(), enabled = cuadra) { Text("Guardar cómo me pagó") }
+                }
+            }
             if (editando != null) {
                 if (editando.dev == 1 && editando.amt > 0) FilledTonalButton(onClick = { cobrando = true }, Modifier.fillMaxWidth().height(50.dp)) {
                     Text("💵 Me lo pagaron (¿cuánto me entregó?)", fontSize = 15.sp) }

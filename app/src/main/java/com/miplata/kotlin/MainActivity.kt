@@ -135,16 +135,29 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 
     /* "Me lo pagaron": lo que te entregó paga sus deudas (esta primero); lo que sobra, a su favor o vuelto */
     fun nombreDe(tp: String) = Taller.de(almacen.crudo).muchachos.firstOrNull { it.id == tp }?.mostrar ?: ""
+    /** Lo que te entregó un compañero: si fue parte y parte, primero la transferencia y después el efectivo
+        (así, si sobra, el vuelto o lo que queda a favor es en efectivo). */
+    fun recibir(tp: String, c: Cobro, dejarAFavor: Boolean, primero: Long? = null) {
+        if (c.transferencia > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), c.transferencia, false,
+            dejarAFavor = dejarAFavor || c.enEfectivo > 0.005, primero = primero)
+        if (c.enEfectivo > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), c.enEfectivo, true, dejarAFavor, primero = primero)
+    }
     fun cobrarDeuda(id: Long, tp: String?, previo: Boolean, monto: Double, c: Cobro) {
-        if (tp != null && !previo) almacen.cobrarPersona(tp, nombreDe(tp), c.dado, c.efectivo, c.aFavor, primero = id)
-        else almacen.cobrado(id, previo, c.efectivo, if (c.dado >= monto - 0.005) null else c.dado)
+        if (tp != null && !previo) recibir(tp, c, c.aFavor, primero = id)
+        else {
+            /* sin compañero (o del período anterior): se cobra hasta lo que debía, en una o dos partes */
+            val pago = c.hasta(monto)
+            if (pago.transferencia > 0.005) almacen.cobrado(id, previo, false, if (pago.transferencia >= monto - 0.005) null else pago.transferencia)
+            if (pago.enEfectivo > 0.005) almacen.cobrado(id, previo, true, if (pago.dado >= monto - 0.005 && pago.transferencia < 0.005) null else pago.enEfectivo)
+        }
         vuelta++
         val sobra = c.dado - monto
         aviso(when {
             sobra > 0.005 && c.aFavor -> "Cobrado · le quedan ${pesos(sobra)} a favor 🤝"
             sobra > 0.005 -> "Cobrado · dale ${pesos(sobra)} de vuelto"
             sobra < -0.005 -> "Cobrado · te sigue debiendo ${pesos(-sobra)}"
-            else -> if (c.efectivo) "¡Cobrado en efectivo! 💵" else "¡Cobrado!"
+            else -> if (c.enEfectivo > 0.005 && c.transferencia > 0.005) "¡Cobrado! Parte en efectivo y parte por transferencia"
+                else if (c.efectivo) "¡Cobrado en efectivo! 💵" else "¡Cobrado!"
         })
     }
 
@@ -462,14 +475,13 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     if (S2 != null) mandarCobro(ctx, m.id, deudas(S2), com.miplata.kotlin.nucleo.Taller.de(almacen.crudo))
                 },
                 alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
-                alMeDio = { id, c -> almacen.cobrarPersona(id, nombreDe(id), c.dado, c.efectivo, c.aFavor); vuelta++; aviso("Anotado lo que te entregó 💵") })
+                alMeDio = { id, c -> recibir(id, c, c.aFavor); vuelta++; aviso("Anotado lo que te entregó 💵") })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
                 hayCompra = estado.hayCompraTaller(Fechas.hoy()),
                 anotado = estado.spent.filter { it.date == Fechas.hoy() && it.esCompraDesayuno }.sumOf { it.amt },
                 favores = estado.favoresTaller(),
-                alMeDio = { id, monto, ef -> almacen.cobrarPersona(id, nombreDe(id), monto, ef, dejarAFavor = true); vuelta++
-                    aviso("Anotado: te dio ${pesos(monto)}" + if (ef) " en efectivo 💵" else "") },
+                alMeDio = { id, c -> recibir(id, c, dejarAFavor = true); vuelta++; aviso("Anotado: te dio ${pesos(c.dado)}") },
                 alDeshacer = {
                     val hoy = Fechas.hoy()
                     estado.spent.filter { it.date == hoy && it.esCompraDesayuno }.forEach { almacen.borrarMovimiento(it.id) }
@@ -533,6 +545,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
         alCobrar = { mov, c -> hojaAbierta = false; cobrarDeuda(mov.id, mov.extra["tp"].texto(), false, mov.amt, c) },
+        alCambiarCobro = { id, ef -> almacen.cambiarCobro(id, ef); hojaAbierta = false; vuelta++; aviso("Listo, corregido cómo te pagó") },
     )
 
     /* "Ayudá al creador" flotante: burbuja que se convierte en el cartel grande */

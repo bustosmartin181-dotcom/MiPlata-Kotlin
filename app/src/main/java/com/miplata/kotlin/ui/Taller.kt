@@ -145,7 +145,7 @@ private fun YaAnotada(alDeshacer: () -> Unit, anotado: Double, ahora: Double, al
 @Composable
 fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: (Set<String>) -> Unit,
                 hayCompra: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0,
-                favores: Map<String, Double> = emptyMap(), alMeDio: (String, Double, Boolean) -> Unit = { _, _, _ -> }) {
+                favores: Map<String, Double> = emptyMap(), alMeDio: (String, Cobro) -> Unit = { _, _ -> }) {
     val k = LocalColores.current
     val dia = t.pedidosDe(fecha)
     val turno = t.turno(fecha)
@@ -243,7 +243,7 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
         DialogoCobro(nombre, total, alCerrar = { meDio = null }, puedeFavor = true, aFavorAntes = favor) { c ->
             meDio = null
             /* si le diste el vuelto, solo queda lo que cuesta su pedido; si no, todo lo que te dio */
-            alMeDio(id, if (c.aFavor || c.dado <= total) c.dado else total, c.efectivo)
+            alMeDio(id, if (c.aFavor) c else c.hasta(total))
         }
     }
     otraCosa?.let { quien ->

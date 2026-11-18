@@ -272,6 +272,28 @@ class AlmacenTest {
         assertEquals(dia0 - 1200, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)  // solo tu parte baja el día
     }
 
+    /** Algo cobrado antes de que la app preguntara cómo: se corrige a parte y parte (500 efectivo + 1000 transferencia). */
+    @Test fun corregirComoTePagoYParteYParte() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100000.0, true)))
+        fun cuenta(n: String) = a.estado!!.cuentas.firstOrNull { it.n == n }?.m ?: 0.0
+        a.anotarTaller(hoy, 0.0, "", listOf(com.miplata.kotlin.nucleo.Muchacho("a", "Ariel", "Chuña") to 1500.0))
+        val id = a.estado!!.deudasTallerDe(hoy)[0].id
+        a.marcarDevuelto(id)                                       // como antes: sin decir cómo
+        assertEquals(100000.0, cuenta("Mercado Pago"), 1e-6)
+        val saldo = Nucleo.calcular(a.estado!!, hoy).saldo
+        a.cambiarCobro(id, 500.0)
+        assertEquals(99500.0, cuenta("Mercado Pago"), 1e-6); assertEquals(500.0, cuenta("Efectivo"), 1e-6)
+        assertEquals(saldo, Nucleo.calcular(a.estado!!, hoy).saldo, 1e-6)     // la plata es la misma, solo cambia dónde está
+        assertEquals(2, a.estado!!.spent.count { it.dev == 2 && it.extra["tp"].let { t -> t != null } })
+        /* después: todo fue en efectivo */
+        a.estado!!.spent.filter { it.dev == 2 }.forEach { a.cambiarCobro(it.id, it.amt) }
+        assertEquals(98500.0, cuenta("Mercado Pago"), 1e-6); assertEquals(1500.0, cuenta("Efectivo"), 1e-6)
+        /* "parte y parte" con vuelto: te da 1000 efectivo + 1000 transferencia por algo de 1500 → vuelto de 500 en efectivo */
+        val c = com.miplata.kotlin.ui.Cobro(2000.0, 1000.0, aFavor = false).hasta(1500.0)
+        assertEquals(1500.0, c.dado, 1e-9); assertEquals(500.0, c.enEfectivo, 1e-9); assertEquals(1000.0, c.transferencia, 1e-9)
+    }
+
     @Test fun repartirLoQueTeDio() {
         val l = listOf(com.miplata.kotlin.ui.Deuda(2, "2026-11-18", 800.0, "", false, "s"),
             com.miplata.kotlin.ui.Deuda(1, "2026-11-17", 1000.0, "", false, "s"))
