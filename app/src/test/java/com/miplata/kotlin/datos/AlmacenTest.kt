@@ -4,6 +4,7 @@ import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.nucleo.hayCompraTaller
 import com.miplata.kotlin.nucleo.deudasTallerDe
+import com.miplata.kotlin.nucleo.favoresTaller
 import com.miplata.kotlin.ui.interpretarDictado
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -238,6 +239,37 @@ class AlmacenTest {
         /* "No me lo pagan" sobre algo cobrado en efectivo no deja marcas viejas */
         a.noPagaron(quedan[0].id, false)
         assertEquals(97500.0, cuenta("Mercado Pago")!!, 1e-6)
+    }
+
+    /** Sergio te da $1000 en efectivo antes de comprar; sus 2 tortas salen $800; no tenés vuelto: le quedan $200 a favor,
+        que se le descuentan solos en la próxima compra. Las cuentas siempre coinciden con la app. */
+    @Test fun plataAFavorDeUnCompanero() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100000.0, true)))
+        fun cuenta(n: String) = a.estado!!.cuentas.firstOrNull { it.n == n }?.m ?: 0.0
+        val sergio = com.miplata.kotlin.nucleo.Muchacho("s", "Sergio", "Mordillo")
+        val dia0 = Nucleo.calcular(a.estado!!, hoy).quedaHoy
+        a.cobrarPersona("s", "Sergio (Mordillo)", 1000.0, efectivo = true, dejarAFavor = true)
+        assertEquals(1000.0, cuenta("Efectivo"), 1e-6)
+        assertEquals(1000.0, a.estado!!.favoresTaller()["s"]!!, 1e-6)
+        assertEquals(dia0, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)          // no es plata tuya: no sube el día
+        a.anotarTaller(hoy, 1200.0, "", listOf(sergio to 800.0))                     // pagás todo por Mercado Pago
+        assertEquals(98000.0, cuenta("Mercado Pago"), 1e-6)
+        assertEquals(1000.0, cuenta("Efectivo"), 1e-6)
+        assertTrue(a.estado!!.deudasTallerDe(hoy).isEmpty())                         // ya pagó con lo que te dio
+        assertEquals(200.0, a.estado!!.favoresTaller()["s"]!!, 1e-6)                 // le quedan 200 a favor
+        assertTrue(a.estado!!.hayCompraTaller(hoy))
+        /* próxima compra: otras 2 tortas, se usan los 200 → debe 600 */
+        a.anotarTaller(hoy, 0.0, "", listOf(sergio to 800.0))
+        assertEquals(600.0, a.estado!!.deudasTallerDe(hoy).sumOf { it.amt }, 1e-6)
+        assertNull(a.estado!!.favoresTaller()["s"])
+        /* te da 1000 en efectivo y le das 400 de vuelto */
+        a.cobrarPersona("s", "Sergio (Mordillo)", 1000.0, efectivo = true, dejarAFavor = false)
+        assertTrue(a.estado!!.deudasTallerDe(hoy).isEmpty())
+        assertNull(a.estado!!.favoresTaller()["s"])
+        assertEquals(1600.0, cuenta("Efectivo"), 1e-6)                              // 1000 + 600 (los 400 se los devolviste)
+        assertEquals(97200.0, cuenta("Mercado Pago"), 1e-6)
+        assertEquals(dia0 - 1200, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)  // solo tu parte baja el día
     }
 
     @Test fun repartirLoQueTeDio() {

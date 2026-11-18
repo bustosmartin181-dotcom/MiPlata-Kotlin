@@ -69,6 +69,8 @@ fun HojaAnotar(
     alGuardar: (NuevoMovimiento) -> Unit,
     alBorrar: (Long) -> Unit,
     alMarcarDevuelto: (Long) -> Unit,
+    /** "Me lo pagaron" sobre algo que te deben: cuánto te entregó y cómo. */
+    alCobrar: (Movimiento, Cobro) -> Unit = { m, _ -> alMarcarDevuelto(m.id) },
     dictarAlAbrir: Boolean = false,
     montoInicial: String = "",
     notaInicial: String = "",
@@ -99,6 +101,12 @@ fun HojaAnotar(
     fun lanzarDictado() { escuchando = true }
     LaunchedEffect(Unit) { if (Demo.corriendo) return@LaunchedEffect; if (dictarAlAbrir) lanzarDictado() else if (editando == null) runCatching { foco.requestFocus() } }
     var conMP = false
+    var cobrando by remember { mutableStateOf(false) }
+    if (cobrando && editando != null) {
+        val quien = taller.muchachos.firstOrNull { it.id == editando.extra["tp"].texto() }
+        DialogoCobro(quien?.let { it.apodo.ifBlank { it.nombre } } ?: "", editando.amt, alCerrar = { cobrando = false },
+            puedeFavor = quien != null) { c -> cobrando = false; alCobrar(editando, c) }
+    }
     val guardarClick: () -> Unit = {
         val n = aNumero(monto)
         val lista = if (modoTaller && !entrada) taller.activos.filter { partes.containsKey(it.id) }.map { it to aNumero(partes[it.id] ?: "") }.filter { it.second > 0 } else emptyList()
@@ -168,8 +176,9 @@ fun HojaAnotar(
                 }
             }
             /* Con qué pagaste (o en qué te entró): así el efectivo no se mezcla con Mercado Pago */
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (entrada) "Entró en:" else "Pagué con:", color = k.suave, modifier = Modifier.align(Alignment.CenterVertically))
+            /* (al corregir algo que te deben no se muestra: eso se cobra con "Me lo pagaron") */
+            if (editando == null || editando.dev == 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (entrada) "Entró en:" else if (devuelven) "En el negocio pagué con:" else "Pagué con:", color = k.suave, modifier = Modifier.align(Alignment.CenterVertically))
                 FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Mercado Pago") })
                 FilterChip(selected = efectivo, onClick = { efectivo = true }, label = { Text("💵 Efectivo") })
             }
@@ -201,7 +210,8 @@ fun HojaAnotar(
             }
 
             if (editando != null) {
-                if (editando.dev == 1) OutlinedButton(onClick = { alMarcarDevuelto(editando.id) }, Modifier.fillMaxWidth()) { Text("Ya me lo devolvieron") }
+                if (editando.dev == 1 && editando.amt > 0) FilledTonalButton(onClick = { cobrando = true }, Modifier.fillMaxWidth().height(50.dp)) {
+                    Text("💵 Me lo pagaron (¿cuánto me entregó?)", fontSize = 15.sp) }
                 TextButton(onClick = { alBorrar(editando.id) }, Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = k.rojo)) { Text("Borrar") }
             }

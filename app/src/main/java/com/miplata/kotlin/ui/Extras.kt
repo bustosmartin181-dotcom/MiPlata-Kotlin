@@ -2,6 +2,7 @@ package com.miplata.kotlin.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -18,10 +19,14 @@ import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.*
 
 /* ---------- Me deben ---------- */
-data class Deuda(val id: Long, val fecha: String, val monto: Double, val nota: String, val previo: Boolean, val tp: String? = null)
+/** Algo que te deben (monto > 0) o plata a favor de un compañero (monto < 0: te la dio antes o le debés vuelto). */
+data class Deuda(val id: Long, val fecha: String, val monto: Double, val nota: String, val previo: Boolean, val tp: String? = null,
+                 val efectivo: Boolean = false) {
+    val aFavor get() = monto < 0
+}
 
-/** Cómo te pagó: en efectivo o por transferencia, y cuánto (null = todo lo que debía). */
-data class Cobro(val efectivo: Boolean, val monto: Double?)
+/** Lo que te entregó: cuánto, si fue en efectivo, y si lo que sobra queda a su favor (true) o le diste el vuelto (false). */
+data class Cobro(val efectivo: Boolean, val dado: Double, val aFavor: Boolean)
 
 /** Reparte lo que te dio entre sus deudas, de la más vieja a la más nueva.
     Las que alcanza a pagar enteras van con null (todo); la última, con lo que quedó; las demás siguen debiéndose. */
@@ -36,44 +41,60 @@ fun repartirCobro(l: List<Deuda>, monto: Double): List<Pair<Deuda, Double?>> {
     }
 }
 
-/** "Me lo pagaron": ¿en efectivo o por transferencia? ¿te dio justo, de más o de menos? */
+/** "Me entregó": ¿cuánto te dio y cómo (efectivo o transferencia)? Si te dio de más: ¿le diste el vuelto o queda a su favor?
+    `total` = lo que tiene que pagar (0 = te da plata antes de pedir). `puedeFavor` = es un compañero del taller. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DialogoCobro(quien: String, total: Double, alCerrar: () -> Unit, alListo: (Cobro) -> Unit) {
+fun DialogoCobro(quien: String, total: Double, alCerrar: () -> Unit, puedeFavor: Boolean = false, aFavorAntes: Double = 0.0,
+                 alListo: (Cobro) -> Unit) {
     val k = LocalColores.current
-    var efectivo by remember { mutableStateOf(false) }
-    var dio by remember { mutableStateOf(textoMonto(total)) }
+    var efectivo by remember { mutableStateOf(true) }
+    var dio by remember { mutableStateOf(if (total > 0) textoMonto(total) else "") }
+    var aFavor by remember { mutableStateOf(true) }
     val n = aNumero(dio)
+    val sobra = n - total
     AlertDialog(onDismissRequest = alCerrar,
-        title = { Text("¿Cómo te pagó${if (quien.isNotBlank()) " $quien" else ""}?") },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Te debe ${pesos(total)}", color = k.suave)
+        title = { Text("¿Cuánto te entregó${if (quien.isNotBlank()) " $quien" else ""}?") },
+        text = { Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(if (total > 0) "Tiene que pagar ${pesos(total)}" else "Queda a su favor para lo que pida", color = k.suave)
+            if (aFavorAntes > 0.005) Text("🤝 Ya tenía ${pesos(aFavorAntes)} a favor (ya está descontado)", fontSize = 13.sp, color = k.verde)
+            Text("Me pagó con:", fontSize = 13.sp, color = k.suave)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Transferencia") })
                 FilterChip(selected = efectivo, onClick = { efectivo = true }, label = { Text("💵 Efectivo") })
+                FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Transferencia") })
             }
-            CampoMonto(dio, { dio = it }, "¿Cuánto te dio?")
+            CampoMonto(dio, { dio = it }, "Me entregó")
             when {
-                n <= 0 -> Text("Escribí cuánto te dio", fontSize = 13.sp, color = k.naranja)
-                n > total + 0.005 -> Text(if (efectivo) "Dale ${pesos(n - total)} de vuelto 🪙" else "Te pasó ${pesos(n - total)} de más: devolvéselo",
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
-                n < total - 0.005 -> Text("Te queda debiendo ${pesos(total - n)} (sigue en \"Me deben\")",
+                n <= 0 -> Text("Escribí cuánto te dio (ej: 1000)", fontSize = 13.sp, color = k.naranja)
+                total <= 0 -> Text("🤝 Le quedan ${pesos(n)} a favor", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.verde)
+                sobra > 0.005 && puedeFavor -> {
+                    Text("Sobran ${pesos(sobra)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = aFavor, onClick = { aFavor = true }, label = { Text("🤝 Quedan a su favor") })
+                        FilterChip(selected = !aFavor, onClick = { aFavor = false }, label = { Text("🪙 Le di el vuelto") })
+                    }
+                    Text(if (aFavor) "No tenías vuelto: se le descuentan solos en lo próximo que pida." else "Le devolviste ${pesos(sobra)}.",
+                        fontSize = 12.sp, color = k.suave)
+                }
+                sobra > 0.005 -> Text("Dale ${pesos(sobra)} de vuelto 🪙", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                sobra < -0.005 -> Text("Te queda debiendo ${pesos(-sobra)} (sigue en \"Me deben\")",
                     fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
                 else -> Text("✅ Te pagó justo", fontSize = 14.sp, color = k.verde)
             }
-            Text(if (efectivo) "Se suma a tu Efectivo (no a Mercado Pago)." else "Se suma a Mercado Pago.", fontSize = 12.sp, color = k.suave)
+            Text(if (efectivo) "La plata va a tu Efectivo (no a Mercado Pago)." else "La plata va a Mercado Pago.", fontSize = 12.sp, color = k.suave)
         } },
-        confirmButton = { TextButton(enabled = n > 0, onClick = {
-            alListo(Cobro(efectivo, if (n >= total - 0.005) null else n)) }) { Text("Listo") } },
-        dismissButton = { TextButton(onClick = alCerrar) { Text("Todavía no me pagó") } })
+        confirmButton = { TextButton(enabled = n > 0, onClick = { alListo(Cobro(efectivo, n, puedeFavor && aFavor)) }) { Text("Listo") } },
+        dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
 }
 
 fun deudas(S: Estado): List<Deuda> =
-    S.spent.filter { it.dev == 1 }.map { Deuda(it.id, it.date, it.amt, it.note, false, it.extra["tp"].texto()) } +
+    S.spent.filter { it.dev == 1 }.map { Deuda(it.id, it.date, it.amt, it.note, false, it.extra["tp"].texto(),
+        it.extra["med"].texto() == com.miplata.kotlin.datos.MEDIO_EFECTIVO) } +
     S.meDeben.map { Deuda(it.id, it.date, it.amt, it.note, true) }
 
 /** Qué dice cada deuda en el mensaje: "desayuno 17/11: 1 Rockstar" */
 private fun lineaDeuda(d: Deuda): String {
+    if (d.aFavor) return "A tu favor (me diste de más)"
     val cosas = d.nota.removePrefix("Taller · ").substringAfter(":", "").trim()
     return "${Fechas.diaYMes(d.fecha)}" + (if (cosas.isNotEmpty()) ": $cosas" else if (!d.nota.startsWith("Taller")) ": ${d.nota}" else "")
 }
@@ -92,7 +113,7 @@ fun mandarCobro(ctx: android.content.Context, tp: String, todas: List<Deuda>, ta
     val m = taller.muchachos.firstOrNull { it.id == tp }
     val num = Taller.numeroWhatsApp(tel ?: m?.tel.orEmpty()) ?: return false
     val suyas = todas.filter { it.tp == tp }
-    if (suyas.isEmpty()) return false
+    if (suyas.isEmpty() || suyas.sumOf { it.monto } <= 0.005) return false
     val nombre = m?.let { it.apodo.ifBlank { it.nombre.substringBefore(" ") } } ?: ""
     val texto = Taller.mensajeCobro(nombre, suyas.map { lineaDeuda(it) to it.monto }, taller.linkCobro, taller.aliasCobro, ::pesos)
     if (!abrirWhatsApp(ctx, num, texto)) android.widget.Toast.makeText(ctx, "No encontré WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
@@ -104,7 +125,7 @@ fun mandarCobro(ctx: android.content.Context, tp: String, todas: List<Deuda>, ta
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, Double, String) -> Unit,
-               alGuardarTaller: (Taller) -> Unit, alCobrado: (Deuda, Cobro) -> Unit) {
+               alGuardarTaller: (Taller) -> Unit, alMeDio: (String, Cobro) -> Unit) {
     val k = LocalColores.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var quien by remember { mutableStateOf<Muchacho?>(null) }
@@ -113,7 +134,7 @@ fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, 
     var tel by remember(quien?.id) { mutableStateOf(quien?.tel.orEmpty()) }
     val telOk = Taller.numeroWhatsApp(tel) != null
     val todas = deudas(S)
-    var cobrando by remember { mutableStateOf<Pair<String, List<Deuda>>?>(null) }
+    var cobrando by remember { mutableStateOf<Pair<Muchacho, Double>?>(null) }   // a quién y cuánto debe (neto)
     Hoja(alCerrar, "📲 Cobrar") {
         Subtitulo("¿Le compraste algo a un compañero? Elegilo, poné cuánto y qué. Queda en \"Me deben\" y le sale el WhatsApp con el mensaje listo.")
         if (t.activos.isEmpty()) Text("Primero cargá a los muchachos en Ajustes → Compras del taller.", color = k.naranja)
@@ -129,6 +150,7 @@ fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, 
             CampoMonto(monto, { monto = it }, "¿Cuánto?")
             OutlinedTextField(detalle, { detalle = it }, Modifier.fillMaxWidth(), label = { Text("¿Qué le compraste?") },
                 placeholder = { Text("Ej: 1 Coca-Cola") }, singleLine = true)
+            TextButton(onClick = { cobrando = m to 0.0 }) { Text("💵 Me dio plata a cuenta (antes de comprar)") }
             Button(onClick = {
                 if (tel.trim() != m.tel) alGuardarTaller(t.copy(muchachos = t.muchachos.map { if (it.id == m.id) it.copy(tel = tel.trim()) else it }))
                 alAnotar(m.copy(tel = tel.trim()), aNumero(monto), detalle.trim())
@@ -141,7 +163,7 @@ fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, 
             HorizontalDivider(color = k.linea)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Te deben", fontWeight = FontWeight.Bold, color = k.texto, fontSize = 17.sp, modifier = Modifier.weight(1f))
-                Text(dinero(porPersona.values.flatten().sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
+                Text(dinero(porPersona.values.sumOf { l -> Math.max(0.0, l.sumOf { it.monto }) }), fontWeight = FontWeight.Bold, color = k.naranja)
             }
             porPersona.forEach { (tp, l) ->
                 val m = t.muchachos.firstOrNull { it.id == tp }
@@ -149,30 +171,30 @@ fun HojaCobrar(S: Estado, t: Taller, alCerrar: () -> Unit, alAnotar: (Muchacho, 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(m?.mostrar ?: l.first().nota.removePrefix("Taller · ").substringBefore(":"), fontWeight = FontWeight.SemiBold,
                             color = k.texto, modifier = Modifier.weight(1f))
-                        Text(dinero(l.sumOf { it.monto }), fontWeight = FontWeight.SemiBold, color = k.texto)
+                        val neto = l.sumOf { it.monto }
+                        if (neto > 0.005) Text(dinero(neto), fontWeight = FontWeight.SemiBold, color = k.texto)
+                        else Text("🤝 ${dinero(-neto)} a favor", fontWeight = FontWeight.SemiBold, color = k.verde)
                     }
                     Text(l.joinToString(" · ") { lineaDeuda(it) }, fontSize = 12.sp, color = k.suave)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
+                        if (l.sumOf { it.monto } > 0.005) OutlinedButton(onClick = {
                             if (!mandarCobro(ctx, tp, todas, t)) { quien = m; android.widget.Toast.makeText(ctx, "Poné su WhatsApp arriba", android.widget.Toast.LENGTH_SHORT).show() }
                         }) { Text("📲 Cobrar") }
-                        FilledTonalButton(onClick = { cobrando = (m?.apodo?.ifBlank { m.nombre } ?: "") to l }) { Text("Me pagó") }
+                        if (m != null) FilledTonalButton(onClick = { cobrando = m to Math.max(0.0, l.sumOf { it.monto }) }) { Text("💵 Me entregó") }
                     }
                 }
             }
         }
     }
-    cobrando?.let { (nombre, l) ->
-        DialogoCobro(nombre, l.sumOf { it.monto }, alCerrar = { cobrando = null }) { c ->
-            cobrando = null
-            if (c.monto == null) l.forEach { alCobrado(it, c) }
-            else repartirCobro(l, c.monto).forEach { (d, parte) -> alCobrado(d, c.copy(monto = parte)) }
+    cobrando?.let { (m, debe) ->
+        DialogoCobro(m.apodo.ifBlank { m.nombre }, debe, alCerrar = { cobrando = null }, puedeFavor = true) { c ->
+            cobrando = null; alMeDio(m.id, c)
         }
     }
 }
 
 @Composable
-fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPagaron: (Deuda) -> Unit,
+fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPagaron: (Deuda) -> Unit, alDevolviFavor: (Deuda) -> Unit,
                    taller: Taller = Taller(), alGuardarTaller: (Taller) -> Unit = {}) {
     val k = LocalColores.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -189,10 +211,19 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
     Tarjeta {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Titulo("Me deben"); Spacer(Modifier.weight(1f))
-            Text(dinero(lista.sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
+            Text(dinero(lista.filter { !it.aFavor }.sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
         }
         lista.forEach { d ->
-            Column(Modifier.padding(vertical = 4.dp)) {
+            if (d.aFavor) Column(Modifier.padding(vertical = 4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(d.nota, color = k.texto)
+                        Text(Fechas.diaYMes(d.fecha) + " · se descuenta solo en lo próximo que pida", fontSize = 12.sp, color = k.suave)
+                    }
+                    Text("🤝 " + dinero(-d.monto), fontWeight = FontWeight.SemiBold, color = k.verde)
+                }
+                TextButton(onClick = { alDevolviFavor(d) }) { Text("Ya se lo devolví", fontSize = 12.sp) }
+            } else Column(Modifier.padding(vertical = 4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(d.nota.ifBlank { "Compra para otros" }, color = k.texto)
@@ -213,7 +244,8 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
     }
     cobrando?.let { d ->
         val m = taller.muchachos.firstOrNull { it.id == d.tp }
-        DialogoCobro(m?.apodo?.ifBlank { m.nombre } ?: "", d.monto, alCerrar = { cobrando = null }) { c -> cobrando = null; alCobrar(d, c) }
+        DialogoCobro(m?.apodo?.ifBlank { m.nombre } ?: "", d.monto, alCerrar = { cobrando = null }, puedeFavor = d.tp != null && !d.previo) { c ->
+            cobrando = null; alCobrar(d, c) }
     }
     pedirTel?.let { d ->
         val m = taller.muchachos.firstOrNull { it.id == d.tp }

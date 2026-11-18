@@ -34,6 +34,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.hayCompraTaller
 import com.miplata.kotlin.nucleo.esCompraDesayuno
+import com.miplata.kotlin.nucleo.favoresTaller
+import com.miplata.kotlin.nucleo.Taller
 import com.miplata.kotlin.nucleo.Movimiento
 import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.*
@@ -130,6 +132,21 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     fun abrirTaller() { hojaAbierta = false; pestana = Pestana.HOY; hojaHoy = "pedidos" }
     fun pagarTaller(cosas: Set<String>? = null) { hojaHoy = ""; editando = null; conDictado = false; tallerAlAbrir = true; prepararPago(cosas); hojaAbierta = true }
     fun aviso(t: String) = Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show()
+
+    /* "Me lo pagaron": lo que te entregó paga sus deudas (esta primero); lo que sobra, a su favor o vuelto */
+    fun nombreDe(tp: String) = Taller.de(almacen.crudo).muchachos.firstOrNull { it.id == tp }?.mostrar ?: ""
+    fun cobrarDeuda(id: Long, tp: String?, previo: Boolean, monto: Double, c: Cobro) {
+        if (tp != null && !previo) almacen.cobrarPersona(tp, nombreDe(tp), c.dado, c.efectivo, c.aFavor, primero = id)
+        else almacen.cobrado(id, previo, c.efectivo, if (c.dado >= monto - 0.005) null else c.dado)
+        vuelta++
+        val sobra = c.dado - monto
+        aviso(when {
+            sobra > 0.005 && c.aFavor -> "Cobrado · le quedan ${pesos(sobra)} a favor 🤝"
+            sobra > 0.005 -> "Cobrado · dale ${pesos(sobra)} de vuelto"
+            sobra < -0.005 -> "Cobrado · te sigue debiendo ${pesos(-sobra)}"
+            else -> if (c.efectivo) "¡Cobrado en efectivo! 💵" else "¡Cobrado!"
+        })
+    }
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
     LaunchedEffect(vuelta) {
@@ -321,8 +338,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
-                        alCobrar = { d, c -> almacen.cobrado(d.id, d.previo, c.efectivo, c.monto); vuelta++
-                            aviso(if (c.monto != null) "Cobrado ${pesos(c.monto)} · el resto sigue en Me deben" else if (c.efectivo) "¡Cobrado en efectivo! 💵" else "¡Cobrado!") },
+                        alCobrar = { d, c -> cobrarDeuda(d.id, d.tp, d.previo, d.monto, c) },
+                        alDevolviFavor = { d -> almacen.cobrado(d.id, false, d.efectivo); vuelta++; aviso("Listo: se lo devolviste") },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
                         alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN },
                         alIrAPlan = { pestana = Pestana.PLAN },
@@ -445,11 +462,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     if (S2 != null) mandarCobro(ctx, m.id, deudas(S2), com.miplata.kotlin.nucleo.Taller.de(almacen.crudo))
                 },
                 alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
-                alCobrado = { d, c -> almacen.cobrado(d.id, d.previo, c.efectivo, c.monto); vuelta++ })
+                alMeDio = { id, c -> almacen.cobrarPersona(id, nombreDe(id), c.dado, c.efectivo, c.aFavor); vuelta++; aviso("Anotado lo que te entregó 💵") })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
                 hayCompra = estado.hayCompraTaller(Fechas.hoy()),
                 anotado = estado.spent.filter { it.date == Fechas.hoy() && it.esCompraDesayuno }.sumOf { it.amt },
+                favores = estado.favoresTaller(),
+                alMeDio = { id, monto, ef -> almacen.cobrarPersona(id, nombreDe(id), monto, ef, dejarAFavor = true); vuelta++
+                    aviso("Anotado: te dio ${pesos(monto)}" + if (ef) " en efectivo 💵" else "") },
                 alDeshacer = {
                     val hoy = Fechas.hoy()
                     estado.spent.filter { it.date == hoy && it.esCompraDesayuno }.forEach { almacen.borrarMovimiento(it.id) }
@@ -512,6 +532,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         montoInicial = montoIni, partesIniciales = partesIni, queLlevo = queLlevoIni, notaInicial = notaIni,
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
+        alCobrar = { mov, c -> hojaAbierta = false; cobrarDeuda(mov.id, mov.extra["tp"].texto(), false, mov.amt, c) },
     )
 
     /* "Ayudá al creador" flotante: burbuja que se convierte en el cartel grande */

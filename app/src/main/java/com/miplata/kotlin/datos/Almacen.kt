@@ -171,7 +171,71 @@ class Almacen(private val carpeta: File) {
                 "note" to JsonPrimitive("Taller · ${m.mostrar}" + (queLlevo[m.id]?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")), "cat" to JsonPrimitive("Comida"), "dev" to JsonPrimitive(1),
                 "tp" to JsonPrimitive(m.id), marca) + medio)
         }
+        /* si alguno tenía plata a favor (te la dio antes o le debías vuelto), se le descuenta sola */
+        partes.map { it.first.id }.distinct().forEach { saldarConFavor(lista, it) }
         this["spent"] = JsonArray(lista)
+    }
+
+    /* ---------- Plata a favor de un compañero ----------
+       Cuando un compañero te da plata (antes de comprar, o más de lo que debía y no tenías vuelto),
+       se anota como un "Me deben" negativo con su nombre: la plata entra a tu cuenta (Efectivo o Mercado Pago)
+       pero no es tuya, así que no te sube el límite del día. Con eso se van pagando sus deudas, de la más vieja a la más nueva. */
+
+    /** Te dio `dado` (en efectivo o por transferencia). Paga sus deudas (primero `primero`, si se indica) y lo que sobra:
+        si `dejarAFavor`, queda a su favor para la próxima; si no, es porque le diste el vuelto. */
+    fun cobrarPersona(tp: String, nombre: String, dado: Double, efectivo: Boolean, dejarAFavor: Boolean, primero: Long? = null) = cambiar {
+        if (dado <= 0) return@cambiar
+        val lista = spent()
+        val id = nuevoId(crudo)
+        lista += JsonObject(mapOf("id" to JsonPrimitive(id), "date" to JsonPrimitive(Fechas.hoy()),
+            "amt" to num(-com.miplata.kotlin.nucleo.redondear2(dado)), "note" to JsonPrimitive("Taller · a favor de $nombre"),
+            "dev" to JsonPrimitive(1), "tp" to JsonPrimitive(tp), "taller" to JsonPrimitive(2), "favor" to JsonPrimitive(true)) +
+            (if (efectivo) mapOf("med" to JsonPrimitive(MEDIO_EFECTIVO)) else emptyMap()))
+        saldarConFavor(lista, tp, primero)
+        /* le diste el vuelto: lo que sobró de esta plata vuelve a él (se anula) */
+        if (!dejarAFavor) {
+            val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
+            val x = lista.getOrNull(i) as? JsonObject
+            if (x != null && x["dev"].num().toInt() == 1) lista[i] = JsonObject(x + mapOf("dev" to JsonPrimitive(2),
+                "cob" to JsonPrimitive(Fechas.hoy()), "cobMed" to JsonPrimitive(x["med"].texto() ?: MEDIO_MP), "vuelto" to JsonPrimitive(true)))
+        }
+        this["spent"] = JsonArray(lista)
+    }
+
+    /** Usa la plata a favor de `tp` para pagar sus deudas. Lo que se usa queda cobrado; lo que sobra sigue a favor
+        (o la deuda que no alcanza, sigue debiéndose). Trabaja sobre la lista de movimientos que recibe. */
+    private fun saldarConFavor(lista: MutableList<JsonElement>, tp: String, primero: Long? = null) {
+        fun obj(i: Int) = lista[i] as JsonObject
+        fun idDe(i: Int) = obj(i)["id"].num().toLong()
+        fun suyos(neg: Boolean) = lista.indices.filter { i ->
+            val x = lista[i] as? JsonObject ?: return@filter false
+            x["tp"].texto() == tp && x["dev"].num().toInt() == 1 && !x["meta"].verdadero() && (x["amt"].num() < 0) == neg && x["amt"].num() != 0.0
+        }.sortedWith(compareBy({ if (idDe(it) == primero) 0 else 1 }, { obj(it)["date"].texto() ?: "" }, { idDe(it) })).toMutableList()
+        val creditos = suyos(true)
+        val deudas = suyos(false)
+        val hoy = Fechas.hoy()
+        var proximoId = nuevoId(JsonObject(mapOf("spent" to JsonArray(lista))))
+        /* parte un movimiento: el original queda con `resto`; uno nuevo, igual, con `usado` y ya cobrado */
+        fun cobrar(i: Int, usado: Double, resto: Double, medio: String) {
+            val x = obj(i); val signo = if (x["amt"].num() < 0) -1 else 1
+            val marcas = mapOf("dev" to JsonPrimitive(2), "cob" to JsonPrimitive(hoy), "cobMed" to JsonPrimitive(medio))
+            if (resto < 0.005) lista[i] = JsonObject(x + marcas)
+            else {
+                lista[i] = JsonObject(x + ("amt" to num(signo * com.miplata.kotlin.nucleo.redondear2(resto))))
+                lista += JsonObject(x + mapOf("id" to JsonPrimitive(proximoId++), "amt" to num(signo * com.miplata.kotlin.nucleo.redondear2(usado))) + marcas)
+            }
+        }
+        while (creditos.isNotEmpty() && deudas.isNotEmpty()) {
+            val c = creditos.first(); val d = deudas.first()
+            val tengo = -obj(c)["amt"].num(); val debe = obj(d)["amt"].num()
+            val medio = obj(c)["med"].texto() ?: MEDIO_MP
+            val usa = Math.min(tengo, debe)
+            /* la deuda se paga con la plata que te dio (por donde te la dio); esa plata a favor se gasta (se anula) */
+            cobrar(d, usa, debe - usa, medio)
+            cobrar(c, usa, tengo - usa, medio)
+            if (debe - usa < 0.005) deudas.removeAt(0)
+            if (tengo - usa < 0.005) creditos.removeAt(0)
+        }
     }
 
     /** Marca o desmarca un gasto importante como pagado. */

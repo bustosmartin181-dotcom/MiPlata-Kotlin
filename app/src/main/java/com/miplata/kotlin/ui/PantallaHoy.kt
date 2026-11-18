@@ -31,7 +31,7 @@ import java.time.LocalTime
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
-                alCobrar: (Deuda, Cobro) -> Unit = { _, _ -> }, alNoPagaron: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
+                alCobrar: (Deuda, Cobro) -> Unit = { _, _ -> }, alNoPagaron: (Deuda) -> Unit = {}, alDevolviFavor: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
                 alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {}, alCobrarSeccion: () -> Unit = {},
@@ -174,7 +174,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         colorValor = if (!cc.hayCuentas) k.suave else if (ok || casi) k.verde else k.naranja)
                 }
                 "accesos" -> AccesosRapidos(alAnotar, alDictar, alAbrirMP, alPlanes, alIA, alCompartir, alCobrarSeccion)
-                "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron, taller, alGuardarTaller) }
+                "medeben" -> Box(Modifier.demo("hoy.medeben").luz("hoy.medeben")) { TarjetaMeDeben(debo, alCobrar, alNoPagaron, alDevolviFavor, taller, alGuardarTaller) }
                 /* Mi fondo de ahorro, con cómo fue creciendo */
                 "fondo" -> Box(Modifier.demo("hoy.fondo").luz("hoy.fondo")) { TarjetaFondo(S, c, alAbrirFondo) }
                 /* Para pasar a tu reserva: "Ya lo pasé" se puede tocar también a la noche, antes de que cierre el día */

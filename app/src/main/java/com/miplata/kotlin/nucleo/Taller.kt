@@ -246,4 +246,8 @@ fun Estado.hayCompraTaller(fecha: String): Boolean = spent.any { it.date == fech
 val Movimiento.esCompraDesayuno: Boolean get() = extra["taller"] != null && extra["taller"].num() != 2.0
 
 /** Lo que te deben hoy del taller (todavía sin pagar). */
-fun Estado.deudasTallerDe(fecha: String): List<Movimiento> = spent.filter { it.date == fecha && it.dev == 1 && it.extra["taller"] != null }
+fun Estado.deudasTallerDe(fecha: String): List<Movimiento> = spent.filter { it.date == fecha && it.dev == 1 && it.amt > 0 && it.extra["taller"] != null }
+
+/** Plata a favor de cada compañero (te la dio antes, o le debés vuelto): id → monto. */
+fun Estado.favoresTaller(): Map<String, Double> = spent.filter { it.dev == 1 && it.amt < 0 && it.extra["tp"] != null }
+    .groupBy { it.extra["tp"].texto() ?: "" }.mapValues { (_, l) -> -l.sumOf { it.amt } }

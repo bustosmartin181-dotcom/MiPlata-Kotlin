@@ -144,7 +144,8 @@ private fun YaAnotada(alDeshacer: () -> Unit, anotado: Double, ahora: Double, al
 /** El desayuno de hoy: 1) tomar los pedidos, 2) lista para comprar con tildes, 3) "Ya pagué". */
 @Composable
 fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alPagar: (Set<String>) -> Unit,
-                hayCompra: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0) {
+                hayCompra: Boolean = false, alDeshacer: () -> Unit = {}, anotado: Double = 0.0,
+                favores: Map<String, Double> = emptyMap(), alMeDio: (String, Double, Boolean) -> Unit = { _, _, _ -> }) {
     val k = LocalColores.current
     val dia = t.pedidosDe(fecha)
     val turno = t.turno(fecha)
@@ -152,6 +153,7 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     var otraCosa by remember { mutableStateOf<String?>(null) }      // para quién se agrega una cosa nueva
     val gente = listOf("yo" to "Yo") + t.activos.map { it.id to it.mostrar }
     var verTotal by remember { mutableStateOf(false) }
+    var meDio by remember { mutableStateOf<Pair<String, String>?>(null) }      // (id, nombre) del que te da plata
     var origen by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }   // centro del botón, en la pantalla
     val vibrar = androidx.compose.ui.platform.LocalHapticFeedback.current
     val titulo = (if (turno == "T") "☕ Merienda" else "🥐 Desayuno") + " · " + Fechas.diaYMes(fecha)
@@ -172,6 +174,9 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                     if (p.isNotEmpty()) Text(pesos(t.costo(p)), fontWeight = FontWeight.SemiBold, color = k.texto)
                 }
                 if (p.isNotEmpty()) Text(t.texto(p), fontSize = 13.sp, color = k.suave)
+                val favor = favores[id] ?: 0.0
+                if (favor > 0.005) Text("🤝 Tiene ${pesos(favor)} a favor" + (if (p.isNotEmpty() && !hayCompra) " · paga ${pesos(Math.max(0.0, t.costo(p) - favor))}" else ""),
+                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.verde)
                 /* "Siempre lo mismo": su pedido aparece solo todos los días */
                 if (p.isNotEmpty() || fijo) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                     .clickable { alGuardar(t.conFijo(fecha, id, !fijo)) }, verticalAlignment = Alignment.CenterVertically) {
@@ -196,6 +201,7 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                         }
                     }
                     TextButton(onClick = { otraCosa = id }) { Text("+ Otra cosa (con su precio)") }
+                    if (id != "yo") OutlinedButton(onClick = { meDio = id to nombre }, Modifier.fillMaxWidth()) { Text("💵 Me entregó plata") }
                     if (fijo) Text("Lo que cambies acá es solo para hoy. Para cambiar lo de siempre: destildá, armá el pedido nuevo y volvé a tildar.",
                         fontSize = 12.sp, color = k.suave)
                 }
@@ -230,6 +236,15 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     }
     if (verTotal) VentanaQueCrece(origen, alCerrar = { verTotal = false }) { cerrar ->
         TotalPedidos(t, fecha, titulo, alGuardar, alPagar = { cerrar(); alPagar(it) }, alCerrar = cerrar, hayCompra = hayCompra)
+    }
+    meDio?.let { (id, nombre) ->
+        val favor = favores[id] ?: 0.0
+        val total = Math.max(0.0, t.costo(dia[id] ?: emptyMap()) - favor)
+        DialogoCobro(nombre, total, alCerrar = { meDio = null }, puedeFavor = true, aFavorAntes = favor) { c ->
+            meDio = null
+            /* si le diste el vuelto, solo queda lo que cuesta su pedido; si no, todo lo que te dio */
+            alMeDio(id, if (c.aFavor || c.dado <= total) c.dado else total, c.efectivo)
+        }
     }
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
