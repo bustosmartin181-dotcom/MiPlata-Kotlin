@@ -218,7 +218,8 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(d.nota, color = k.texto)
-                        Text(Fechas.diaYMes(d.fecha) + " · se descuenta solo en lo próximo que pida", fontSize = 12.sp, color = k.suave)
+                        Text(Fechas.diaYMes(d.fecha) + (if (d.efectivo) " · 💵 en efectivo" else " · 📲 por transferencia") +
+                            " · se descuenta solo en lo próximo que pida", fontSize = 12.sp, color = k.suave)
                     }
                     Text("🤝 " + dinero(-d.monto), fontWeight = FontWeight.SemiBold, color = k.verde)
                 }

@@ -80,6 +80,8 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
     val k = LocalColores.current
     val filas = remember { mutableStateListOf(*S.cuentas.map { Triple(it.n, textoMonto(it.m), !it.excluida) }
         .ifEmpty { listOf(Triple("Mercado Pago", "", true)) + (if (c.fondo.activo) listOf(Triple("Reserva (fondo de ahorro)", "", true)) else emptyList()) }
+        /* el Efectivo (la billetera) está siempre, aunque todavía no lo hayas cargado */
+        .let { l -> if (l.any { it.first.lowercase().contains("efectivo") }) l else l + Triple("Efectivo", "", true) }
         .toTypedArray()) }
     var confirmar by remember { mutableStateOf<Double?>(null) }
     val prueba = S.copy(cuentas = filas.map { Cuenta(it.first, aNumero(it.second), !it.third) })
@@ -89,6 +91,8 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
             (if (c.fondo.activo) " Sumá también la reserva de Mercado Pago donde guardás el fondo de ahorro." else " Destildá la plata que no es del día a día."),
             color = k.suave, fontSize = 14.sp)
         Text("Mercado Pago baja solo con cada gasto que anotás, y lo que pasás a la reserva pasa solo de una cuenta a la otra. Cargá el saldo real de vez en cuando para controlar.",
+            color = k.suave, fontSize = 13.sp)
+        Text("💵 Efectivo: lo que tenés en la billetera. Sube solo cuando te pagan en efectivo y baja cuando anotás un gasto \"Pagué con: Efectivo\".",
             color = k.suave, fontSize = 13.sp)
         filas.forEachIndexed { i, (n, m, cuenta) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

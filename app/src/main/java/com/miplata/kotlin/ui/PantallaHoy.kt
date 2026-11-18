@@ -224,9 +224,21 @@ fun FilaMovimiento(e: Movimiento, alTocar: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = alTocar).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(e.note.ifBlank { if (entrada) "Entrada" else (e.cat ?: "Gasto") }, color = k.texto, fontSize = 15.sp)
-            val detalle = listOfNotNull(e.cat.takeIf { !entrada },
-                when (e.dev) { 1 -> "te lo deben"; 2 -> "devuelto"; else -> null }).joinToString(" · ")
-            if (detalle.isNotEmpty()) Text(detalle, color = if (e.dev == 1) k.naranja else k.suave, fontSize = 12.sp)
+            /* cómo se pagó o cobró: efectivo (billetera) o transferencia (Mercado Pago) */
+            val ef = com.miplata.kotlin.datos.MEDIO_EFECTIVO
+            val pagoEf = e.extra["med"].texto() == ef
+            val cobroEf = (e.extra["cobMed"].texto() ?: e.extra["med"].texto()) == ef
+            val favor = e.amt < 0 && e.extra["tp"] != null
+            val estado = when {
+                favor && e.dev == 1 -> "🤝 te lo dio, queda a su favor" + if (pagoEf) " · 💵 en efectivo" else " · 📲 por transferencia"
+                favor && e.dev == 2 -> if (e.extra["vuelto"] != null) "🪙 le diste el vuelto" else "✅ ya se usó para pagar lo suyo"
+                e.dev == 1 -> "te lo deben"
+                e.dev == 2 -> if (cobroEf) "✅ me pagó en efectivo 💵" else "✅ me pagó por transferencia 📲"
+                pagoEf -> if (entrada) "💵 entró en efectivo" else "💵 pagado en efectivo"
+                else -> null
+            }
+            val detalle = listOfNotNull(e.cat.takeIf { !entrada }, estado).joinToString(" · ")
+            if (detalle.isNotEmpty()) Text(detalle, color = when { favor && e.dev == 1 -> k.verde; e.dev == 1 -> k.naranja; else -> k.suave }, fontSize = 12.sp)
         }
         Text(if (entrada) "+" + dinero(-e.amt) else dinero(e.amt), fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
             color = if (entrada) k.verde else k.texto)
