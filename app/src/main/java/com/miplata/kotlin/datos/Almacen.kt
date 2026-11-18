@@ -9,6 +9,10 @@ import com.miplata.kotlin.nucleo.verdadero
 import kotlinx.serialization.json.*
 import java.io.File
 
+/** Con qué se pagó o se cobró un movimiento (campos "med" y "cobMed"). Sin marca = Mercado Pago. */
+const val MEDIO_EFECTIVO = "ef"
+const val MEDIO_MP = "mp"
+
 /* Guarda los datos en un archivo JSON con el MISMO formato que las copias de Mi plata.
    Los cambios se hacen sobre el JSON completo, así nunca se pierde ningún dato que
    esta versión todavía no use (cuotas, IPC, alias de MP, copias, cierres…). */
@@ -64,8 +68,9 @@ class Almacen(private val carpeta: File) {
         return maxOf(System.currentTimeMillis(), max + 1)
     }
 
-    /** Cambia los datos. Si cambiaron los gastos/entradas, el saldo de Mercado Pago en "Mis cuentas"
-        se mueve igual: un gasto lo baja, una entrada lo sube (moverCuenta = false para no tocarlo). */
+    /** Cambia los datos. Si cambiaron los gastos/entradas, el saldo de "Mis cuentas" se mueve igual:
+        un gasto lo baja, una entrada lo sube (moverCuenta = false para no tocarlo).
+        Lo pagado o cobrado en efectivo mueve la cuenta "Efectivo"; lo demás, Mercado Pago. */
     private fun cambiar(moverCuenta: Boolean = true, f: MutableMap<String, JsonElement>.() -> Unit) {
         val antes = crudo ?: return
         val m = antes.toMutableMap()
@@ -73,25 +78,42 @@ class Almacen(private val carpeta: File) {
         m["upd"] = JsonPrimitive(System.currentTimeMillis())
         var nuevo = JsonObject(m)
         if (moverCuenta) {
-            val d = efectoEnCuenta(nuevo) - efectoEnCuenta(antes)
-            if (Math.abs(d) >= 0.005) nuevo = sumarAMercadoPago(nuevo, d)
+            val (mpAhora, efAhora) = efectoEnCuentas(nuevo)
+            val (mpAntes, efAntes) = efectoEnCuentas(antes)
+            val dMp = mpAhora - mpAntes
+            val dEf = efAhora - efAntes
+            if (Math.abs(dMp) >= 0.005) nuevo = sumarAMercadoPago(nuevo, dMp)
+            if (Math.abs(dEf) >= 0.005) nuevo = sumarAEfectivo(nuevo, dEf)
         }
         guardar(nuevo)
     }
 
-    /** Cuánto movieron la cuenta los movimientos: gasto = sale plata, entrada = entra.
-        Un aporte a una meta o un gasto que ya te devolvieron no mueven la cuenta. */
-    private fun efectoEnCuenta(o: JsonObject): Double =
-        (o["spent"] as? JsonArray)?.sumOf { e: JsonElement ->
-            (e as? JsonObject)?.let { x -> if (x["meta"].verdadero() || x["dev"].num().toInt() == 2) 0.0 else -x["amt"].num() } ?: 0.0
-        } ?: 0.0
+    /** Cuánto movieron las cuentas los movimientos: (Mercado Pago, Efectivo).
+        Gasto = sale plata, entrada = entra. Un aporte a una meta no mueve nada.
+        Un gasto que ya te devolvieron: salió por donde lo pagaste ("med") y volvió por donde te pagaron ("cobMed");
+        si es por el mismo lado (o es un dato viejo, sin esas marcas), se anula, como antes. */
+    private fun efectoEnCuentas(o: JsonObject): Pair<Double, Double> {
+        var mp = 0.0; var ef = 0.0
+        (o["spent"] as? JsonArray)?.forEach { e ->
+            val x = e as? JsonObject ?: return@forEach
+            if (x["meta"].verdadero()) return@forEach
+            val amt = x["amt"].num()
+            val pagoEf = x["med"].texto() == MEDIO_EFECTIVO
+            if (pagoEf) ef -= amt else mp -= amt
+            if (x["dev"].num().toInt() == 2) {
+                val cobroEf = (x["cobMed"].texto() ?: x["med"].texto()) == MEDIO_EFECTIVO
+                if (cobroEf) ef += amt else mp += amt
+            }
+        }
+        return mp to ef
+    }
 
     private fun MutableMap<String, JsonElement>.spent(): MutableList<JsonElement> =
         ((this["spent"] as? JsonArray)?.toMutableList() ?: mutableListOf())
 
     /** Anota un gasto (o una entrada si `entrada`). Igual que la app original. */
     fun anotar(monto: Double, nota: String, categoria: String?, entrada: Boolean, meLoDevuelven: Boolean,
-               fecha: String = Fechas.hoy(), editarId: Long? = null, moverCuenta: Boolean = true) {
+               fecha: String = Fechas.hoy(), editarId: Long? = null, moverCuenta: Boolean = true, efectivo: Boolean = false) {
         cambiar(moverCuenta) {
             val lista = spent()
             val datos = buildMap<String, JsonElement> {
@@ -100,12 +122,13 @@ class Almacen(private val carpeta: File) {
                 put("note", JsonPrimitive(nota))
                 if (!entrada && !categoria.isNullOrEmpty()) put("cat", JsonPrimitive(categoria))
                 if (!entrada && meLoDevuelven) put("dev", JsonPrimitive(1))
+                if (efectivo) put("med", JsonPrimitive(MEDIO_EFECTIVO))
             }
             val i = if (editarId != null) lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == editarId } else -1
             if (i >= 0) {
                 val viejo = lista[i].jsonObject.toMutableMap()
                 val yaCobrado = viejo["dev"]?.jsonPrimitive?.intOrNull == 2
-                viejo.remove("cat"); viejo.remove("dev")
+                viejo.remove("cat"); viejo.remove("dev"); viejo.remove("med")
                 viejo.putAll(datos)
                 if (datos.containsKey("dev") && yaCobrado) viejo["dev"] = JsonPrimitive(2)
                 lista[i] = JsonObject(viejo)
@@ -134,17 +157,19 @@ class Almacen(private val carpeta: File) {
     /** Una compra para los muchachos: tu parte como gasto común y la de cada uno en "Me deben".
         En total baja de Mercado Pago lo que pagaste (miParte + la de todos). */
     fun anotarTaller(fecha: String, miParte: Double, detalle: String, partes: List<Pair<com.miplata.kotlin.nucleo.Muchacho, Double>>,
-                     queLlevo: Map<String, String> = emptyMap(), suelto: Boolean = false) = cambiar {
+                     queLlevo: Map<String, String> = emptyMap(), suelto: Boolean = false, efectivo: Boolean = false) = cambiar {
         val lista = spent()
         var id = nuevoId(crudo)
         /* "suelto": algo que le compraste a un compañero fuera del desayuno (no cuenta como la compra del desayuno) */
         val marca = "taller" to JsonPrimitive(if (suelto) 2 else 1)
+        /* pagado en efectivo: sale de la cuenta Efectivo y no de Mercado Pago */
+        val medio = if (efectivo) mapOf("med" to JsonPrimitive(MEDIO_EFECTIVO)) else emptyMap()
         if (miParte > 0) lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(miParte),
-            "note" to JsonPrimitive(("Taller · mi parte " + detalle).trim()), "cat" to JsonPrimitive("Comida"), marca))
+            "note" to JsonPrimitive(("Taller · mi parte " + detalle).trim()), "cat" to JsonPrimitive("Comida"), marca) + medio)
         partes.filter { it.second > 0 }.forEach { (m, monto) ->
             lista += JsonObject(mapOf("id" to JsonPrimitive(id++), "date" to JsonPrimitive(fecha), "amt" to num(monto),
                 "note" to JsonPrimitive("Taller · ${m.mostrar}" + (queLlevo[m.id]?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")), "cat" to JsonPrimitive("Comida"), "dev" to JsonPrimitive(1),
-                "tp" to JsonPrimitive(m.id), marca))
+                "tp" to JsonPrimitive(m.id), marca) + medio)
         }
         this["spent"] = JsonArray(lista)
     }
@@ -292,6 +317,18 @@ class Almacen(private val carpeta: File) {
         return JsonObject(o + ("cuentas" to JsonArray(l)))
     }
 
+    /** Suma (o resta) a la cuenta "Efectivo" de Mis cuentas. Si tenés cuentas cargadas pero ninguna de efectivo,
+        la crea (así la plata en la billetera no se mezcla con Mercado Pago). Sin cuentas cargadas, no toca nada. */
+    private fun sumarAEfectivo(o: JsonObject, monto: Double): JsonObject {
+        val l = cuentasDe(o) ?: return o
+        val i = indiceEfectivo(l)
+        if (i >= 0) sumarEn(l, i, monto)
+        else l += JsonObject(mapOf("n" to JsonPrimitive("Efectivo"), "m" to num(com.miplata.kotlin.nucleo.redondear2(monto))))
+        return JsonObject(o + ("cuentas" to JsonArray(l)))
+    }
+
+    private fun indiceEfectivo(l: List<JsonObject>) = l.indexOfFirst { (it["n"].texto() ?: "").lowercase().contains("efectivo") }
+
     private fun cuentasDe(o: JsonObject) =
         (o["cuentas"] as? JsonArray)?.map { it as? JsonObject ?: JsonObject(emptyMap()) }?.toMutableList()?.takeIf { it.isNotEmpty() }
 
@@ -300,7 +337,7 @@ class Almacen(private val carpeta: File) {
         fun nombre(c: JsonObject) = (c["n"].texto() ?: "").lowercase()
         val iRes = l.indexOfFirst { nombre(it).contains("reserva") }
         val iMp = l.indices.firstOrNull { it != iRes && nombre(l[it]).contains("mercado") }
-            ?: l.indices.firstOrNull { it != iRes && !l[it]["x"].verdadero() } ?: -1
+            ?: l.indices.firstOrNull { it != iRes && !l[it]["x"].verdadero() && !(l[it]["n"].texto() ?: "").lowercase().contains("efectivo") } ?: -1
         return iMp to iRes
     }
 
@@ -416,16 +453,40 @@ class Almacen(private val carpeta: File) {
     }
 
     /* ---- Me deben ---- */
-    /** Cobrado. `previo` = viene del período anterior: la plata entra hoy como una entrada. */
-    fun cobrado(id: Long, previo: Boolean) {
-        if (!previo) { marcarDevuelto(id); return }
-        cambiarTodo { o ->
-            val x = lista(o, "meDeben").firstOrNull { (it as? JsonObject)?.get("id").num().toLong() == id } as? JsonObject ?: return@cambiarTodo o
-            val sp = lista(o, "spent")
-            sp += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
-                "amt" to num(-Math.abs(x["amt"].num())), "note" to JsonPrimitive("Me devolvieron: " + (x["note"].texto() ?: ""))))
-            JsonObject(o + mapOf("spent" to JsonArray(sp),
-                "meDeben" to JsonArray(lista(o, "meDeben").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
+    /** Cobrado. `previo` = viene del período anterior: la plata entra hoy como una entrada.
+        `efectivo` = te pagó en mano: la plata va a la cuenta Efectivo, no a Mercado Pago.
+        `monto` = lo que te dio, si es menos que la deuda (pagó una parte): lo demás sigue en "Me deben". null = todo. */
+    fun cobrado(id: Long, previo: Boolean, efectivo: Boolean = false, monto: Double? = null) {
+        val hoy = Fechas.hoy()
+        val medio = if (efectivo) MEDIO_EFECTIVO else MEDIO_MP
+        if (!previo) cambiar {
+            val lista = spent()
+            val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
+            val x = lista.getOrNull(i) as? JsonObject ?: return@cambiar
+            val deuda = x["amt"].num()
+            val pago = monto?.takeIf { it > 0 }?.let { com.miplata.kotlin.nucleo.redondear2(it) } ?: deuda
+            val marcas = mapOf("dev" to JsonPrimitive(2), "cob" to JsonPrimitive(hoy), "cobMed" to JsonPrimitive(medio))
+            if (pago >= deuda - 0.005) lista[i] = JsonObject(x + marcas)
+            else {
+                /* pagó una parte: la deuda baja y lo pagado queda como un renglón aparte, ya cobrado */
+                lista[i] = JsonObject(x + ("amt" to num(com.miplata.kotlin.nucleo.redondear2(deuda - pago))))
+                lista.add(i + 1, JsonObject(x + mapOf("id" to JsonPrimitive(nuevoId(crudo)), "amt" to num(pago)) + marcas))
+            }
+            this["spent"] = JsonArray(lista)
+        } else cambiar {
+            val deben = lista(JsonObject(this), "meDeben")
+            val j = deben.indexOfFirst { (it as? JsonObject)?.get("id").num().toLong() == id }
+            val x = deben.getOrNull(j) as? JsonObject ?: return@cambiar
+            val deuda = Math.abs(x["amt"].num())
+            val pago = monto?.takeIf { it > 0 && it < deuda - 0.005 }?.let { com.miplata.kotlin.nucleo.redondear2(it) } ?: deuda
+            val sp = spent()
+            sp += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(crudo)), "date" to JsonPrimitive(hoy),
+                "amt" to num(-pago), "note" to JsonPrimitive("Me devolvieron: " + (x["note"].texto() ?: ""))) +
+                (if (efectivo) mapOf("med" to JsonPrimitive(MEDIO_EFECTIVO)) else emptyMap()))
+            if (pago >= deuda - 0.005) deben.removeAt(j)
+            else deben[j] = JsonObject(x + ("amt" to num(com.miplata.kotlin.nucleo.redondear2(deuda - pago))))
+            this["spent"] = JsonArray(sp)
+            this["meDeben"] = JsonArray(deben)
         }
     }
     /** No me lo van a pagar: pasa a ser un gasto propio. */
@@ -433,7 +494,7 @@ class Almacen(private val carpeta: File) {
         if (previo) JsonObject(o + ("meDeben" to JsonArray(lista(o, "meDeben").filter { (it as? JsonObject)?.get("id").num().toLong() != id })))
         else JsonObject(o + ("spent" to JsonArray(lista(o, "spent").map { e ->
             val x = e as? JsonObject ?: return@map e
-            if (x["id"].num().toLong() == id) JsonObject(x - "dev" - "cob") else x
+            if (x["id"].num().toLong() == id) JsonObject(x - "dev" - "cob" - "cobMed") else x
         })))
     }
 

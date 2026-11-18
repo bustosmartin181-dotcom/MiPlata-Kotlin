@@ -204,4 +204,46 @@ class AlmacenTest {
         assertEquals(100000.0 - 4850 + 3100, a.estado!!.cuentas[0].m, 1e-6)
         assertEquals(1, a.estado!!.deudasTallerDe(hoy).size)
     }
+
+    /** Te pagan en efectivo: la plata va a "Efectivo" (que se crea sola) y no a Mercado Pago.
+        Si pagan una parte, lo demás sigue en Me deben. El total de las cuentas sigue coincidiendo con la app. */
+    @Test fun cobroEnEfectivoYPorPartes() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100000.0, true), Almacen.CuentaEditable("Reserva MP", 5000.0, true)))
+        val sergio = com.miplata.kotlin.nucleo.Muchacho("s", "Sergio", "Mordillo")
+        val ariel = com.miplata.kotlin.nucleo.Muchacho("a", "Ariel", "Chuña")
+        a.anotarTaller(hoy, 1200.0, "", listOf(sergio to 800.0, ariel to 2000.0))
+        fun cuenta(n: String) = a.estado!!.cuentas.firstOrNull { it.n == n }?.m
+        assertEquals(96000.0, cuenta("Mercado Pago")!!, 1e-6)
+        val saldoAntes = Nucleo.calcular(a.estado!!, hoy).saldo
+        val deben = a.estado!!.deudasTallerDe(hoy)
+        /* Sergio paga justo en efectivo */
+        a.cobrado(deben[0].id, false, efectivo = true)
+        assertEquals(96000.0, cuenta("Mercado Pago")!!, 1e-6)
+        assertEquals(800.0, cuenta("Efectivo")!!, 1e-6)
+        assertEquals(5000.0, cuenta("Reserva MP")!!, 1e-6)
+        /* Ariel da 1500 de 2000 por transferencia: debe 500 todavía */
+        a.cobrado(deben[1].id, false, efectivo = false, monto = 1500.0)
+        assertEquals(97500.0, cuenta("Mercado Pago")!!, 1e-6)
+        val quedan = a.estado!!.deudasTallerDe(hoy)
+        assertEquals(1, quedan.size); assertEquals(500.0, quedan[0].amt, 1e-6); assertEquals("Taller · Ariel (Chuña)", quedan[0].note)
+        assertTrue(a.estado!!.hayCompraTaller(hoy))
+        /* lo cobrado sube el saldo igual que antes (la app no cambia sus cuentas, solo dónde está la plata) */
+        assertEquals(saldoAntes + 800 + 1500, Nucleo.calcular(a.estado!!, hoy).saldo, 1e-6)
+        /* gasto en efectivo: baja Efectivo, no Mercado Pago; al borrarlo vuelve */
+        a.anotar(300.0, "coca", "Comida", entrada = false, meLoDevuelven = false, efectivo = true)
+        assertEquals(500.0, cuenta("Efectivo")!!, 1e-6); assertEquals(97500.0, cuenta("Mercado Pago")!!, 1e-6)
+        a.borrarMovimiento(a.estado!!.spent.first { it.note == "coca" }.id)
+        assertEquals(800.0, cuenta("Efectivo")!!, 1e-6); assertEquals(97500.0, cuenta("Mercado Pago")!!, 1e-6)
+        /* "No me lo pagan" sobre algo cobrado en efectivo no deja marcas viejas */
+        a.noPagaron(quedan[0].id, false)
+        assertEquals(97500.0, cuenta("Mercado Pago")!!, 1e-6)
+    }
+
+    @Test fun repartirLoQueTeDio() {
+        val l = listOf(com.miplata.kotlin.ui.Deuda(2, "2026-11-18", 800.0, "", false, "s"),
+            com.miplata.kotlin.ui.Deuda(1, "2026-11-17", 1000.0, "", false, "s"))
+        val r = com.miplata.kotlin.ui.repartirCobro(l, 1500.0)
+        assertEquals(listOf(1L to null, 2L to 500.0), r.map { it.first.id to it.second })
+    }
 }

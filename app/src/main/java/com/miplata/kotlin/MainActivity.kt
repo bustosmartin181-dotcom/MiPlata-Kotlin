@@ -321,7 +321,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
-                        alCobrar = { d -> almacen.cobrado(d.id, d.previo); vuelta++; aviso("¡Cobrado!") },
+                        alCobrar = { d, c -> almacen.cobrado(d.id, d.previo, c.efectivo, c.monto); vuelta++
+                            aviso(if (c.monto != null) "Cobrado ${pesos(c.monto)} · el resto sigue en Me deben" else if (c.efectivo) "¡Cobrado en efectivo! 💵" else "¡Cobrado!") },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
                         alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN },
                         alIrAPlan = { pestana = Pestana.PLAN },
@@ -444,7 +445,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                     if (S2 != null) mandarCobro(ctx, m.id, deudas(S2), com.miplata.kotlin.nucleo.Taller.de(almacen.crudo))
                 },
                 alGuardarTaller = { almacen.guardarTaller(it); vuelta++ },
-                alCobrado = { d -> almacen.cobrado(d.id, d.previo); vuelta++ })
+                alCobrado = { d, c -> almacen.cobrado(d.id, d.previo, c.efectivo, c.monto); vuelta++ })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
                 hayCompra = estado.hayCompraTaller(Fechas.hoy()),
@@ -487,7 +488,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         alGuardar = { m ->
             if (m.partesTaller.isNotEmpty()) {
                 val deEllos = m.partesTaller.sumOf { it.second }
-                almacen.anotarTaller(m.fecha, m.monto - deEllos, m.nota, m.partesTaller, m.queLlevo)
+                almacen.anotarTaller(m.fecha, m.monto - deEllos, m.nota, m.partesTaller, m.queLlevo, efectivo = m.efectivo)
                 /* lo que se pagó queda marcado: en la lista aparece "✅ pagado" y no se vuelve a cobrar */
                 cosasEnPago?.let { cosas -> if (m.fecha == Fechas.hoy())
                     almacen.guardarTaller(com.miplata.kotlin.nucleo.Taller.de(almacen.crudo).conCompradas(m.fecha, cosas)) }
@@ -495,7 +496,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 hojaAbierta = false; vuelta++
                 aviso("Taller anotado: te deben ${pesos(deEllos)}")
             } else {
-                almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
+                almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId, efectivo = m.efectivo)
                 hojaAbierta = false; vuelta++
                 if (!m.pagarConMP) aviso(when { m.entrada -> "Entrada anotada: +${pesos(m.monto)}"; m.meLoDevuelven -> "Anotado en \"Me deben\""; else -> "Gasto anotado" })
             }

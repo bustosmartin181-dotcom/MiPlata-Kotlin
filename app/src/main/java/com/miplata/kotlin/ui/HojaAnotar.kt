@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Movimiento
+import com.miplata.kotlin.nucleo.texto
 
 /** Lo que se guarda al tocar "Guardar". */
 data class NuevoMovimiento(
@@ -38,6 +39,8 @@ data class NuevoMovimiento(
     val queLlevo: Map<String, String> = emptyMap(),
     /** "Anotar y pagar con Mercado Pago": después de anotar, copia el monto y abre Mercado Pago. */
     val pagarConMP: Boolean = false,
+    /** Pagado (o recibido) en efectivo: mueve la cuenta Efectivo y no Mercado Pago. */
+    val efectivo: Boolean = false,
 )
 
 /** Saca monto y detalle de lo dictado: "2800 negocio Telma", "2 mil 800 en el negocio de la Telma", "2.500 pesos en nafta".
@@ -83,6 +86,7 @@ fun HojaAnotar(
     var categoria by remember { mutableStateOf(editando?.cat) }
     var devuelven by remember { mutableStateOf(editando?.dev == 1 || editando?.dev == 2) }
     var fecha by remember { mutableStateOf(editando?.date ?: hoy) }
+    var efectivo by remember { mutableStateOf(editando?.extra?.get("med").texto() == com.miplata.kotlin.datos.MEDIO_EFECTIVO) }
     var calendario by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val hayTaller = editando == null && taller.activos.isNotEmpty() && !Demo.corriendo
@@ -101,7 +105,7 @@ fun HojaAnotar(
         if (n <= 0) error = if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
         else if (modoTaller && !entrada && lista.isEmpty()) error = "Elegí quiénes entraron y cuánto le toca a cada uno"
         else if (lista.sumOf { it.second } > n + 0.005) error = "Lo de los muchachos suma más que el total"
-        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo, conMP))
+        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo, conMP && !efectivo, efectivo))
         conMP = false
     }
 
@@ -163,6 +167,12 @@ fun HojaAnotar(
                     }
                 }
             }
+            /* Con qué pagaste (o en qué te entró): así el efectivo no se mezcla con Mercado Pago */
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(if (entrada) "Entró en:" else "Pagué con:", color = k.suave, modifier = Modifier.align(Alignment.CenterVertically))
+                FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Mercado Pago") })
+                FilterChip(selected = efectivo, onClick = { efectivo = true }, label = { Text("💵 Efectivo") })
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Día:", color = k.suave)
                 FilterChip(selected = fecha == hoy, onClick = { fecha = hoy }, label = { Text("Hoy") })
@@ -182,10 +192,11 @@ fun HojaAnotar(
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             /* Un solo botón: todo gasto nuevo (también la compra del taller) se anota y abre Mercado Pago para pagarlo.
                Excepciones: entradas, cambios y la demo. */
-            val conPago = editando == null && !entrada && !Demo.corriendo
+            val conPago = editando == null && !entrada && !Demo.corriendo && !efectivo
             val principal: () -> Unit = { conMP = conPago; guardarClick() }
             Button(onClick = principal, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
                 Text(when { editando != null -> "Guardar cambios"; entrada -> "Anotar entrada"; conPago -> "💳 Anotar y pagar con Mercado Pago"
+                    efectivo && modoTaller -> "💵 Anotar compra del taller (efectivo)"; efectivo -> "💵 Anotar gasto en efectivo"
                     modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = if (conPago) 16.sp else 17.sp)
             }
 
