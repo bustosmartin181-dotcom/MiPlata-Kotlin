@@ -94,6 +94,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     var ordenandoBloques by remember { mutableStateOf(false) }     // ✏️ en Hoy
     var editando by remember { mutableStateOf<Movimiento?>(null) }
     var hojaHoy by remember { mutableStateOf("") }
+    var personaAbierta by remember { mutableStateOf<Pair<String, String>?>(null) }   // (fecha, compañero) del taller
     var colaboraAbierta by remember { mutableStateOf(false) }          // "fondo", "cuentas", "pase", "pin"
     var errorPin by remember { mutableStateOf<String?>(null) }
     var irAPeriodoNuevo by remember { mutableStateOf(false) }
@@ -353,6 +354,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d, c -> cobrarDeuda(d.id, d.tp, d.previo, d.monto, c) },
                         alDevolviFavor = { d -> almacen.cobrado(d.id, false, d.efectivo); vuelta++; aviso("Listo: se lo devolviste") },
+                        alAbrirPersona = { personaAbierta = it.fecha to it.tp },
                         alNoPagaron = { d -> almacen.noPagaron(d.id, d.previo); vuelta++; aviso("Pasó a ser un gasto tuyo") },
                         alPeriodoNuevo = { irAPeriodoNuevo = true; pestana = Pestana.PLAN },
                         alIrAPlan = { pestana = Pestana.PLAN },
@@ -503,6 +505,20 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             text = { Column { CampoPin(pin, { pin = it }, "PIN"); err?.let { Text(it, color = k.rojo) } } },
             confirmButton = { TextButton(onClick = { if (almacen.pinCorrecto(pin)) { Privacidad.mostrando = true; pidiendoPinOjo = false } else err = "PIN incorrecto." }) { Text("Mostrar") } },
             dismissButton = { TextButton(onClick = { pidiendoPinOjo = false }) { Text("Cancelar") } })
+    }
+
+    /* Ficha de un compañero del taller: todo lo de ese día junto */
+    personaAbierta?.let { (fecha, tp) ->
+        val S = estado
+        val g = S?.let { gruposTaller(it.spent.filter { e -> e.date == fecha }, taller).firstOrNull { x -> x.tp == tp } }
+        if (S == null || g == null) LaunchedEffect(Unit) { personaAbierta = null }
+        else HojaPersonaTaller(g, alCerrar = { personaAbierta = null },
+            alTocarMovimiento = { personaAbierta = null; editando = it; conDictado = false; hojaAbierta = true },
+            alMeEntrego = { c -> recibir(tp, c, c.aFavor); vuelta++
+                aviso(if (c.dado > g.debe + 0.005 && c.aFavor) "Anotado · le quedan ${pesos(c.dado - g.debe)} a favor 🤝" else "Anotado lo que te entregó 💵") },
+            alWhatsApp = { if (!mandarCobro(ctx, tp, deudas(S), taller)) aviso("Cargale el WhatsApp en Ajustes → Compras del taller") },
+            alDevolviFavor = { e -> almacen.cobrado(e.id, false, e.extra["med"].texto() == com.miplata.kotlin.datos.MEDIO_EFECTIVO); vuelta++
+                aviso("Listo: se lo devolviste") })
     }
 
     preguntarPago?.let { (i, n) ->

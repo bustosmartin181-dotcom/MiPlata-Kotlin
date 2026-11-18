@@ -310,6 +310,26 @@ class AlmacenTest {
         assertEquals(1500.0, c.dado, 1e-9); assertEquals(500.0, c.enEfectivo, 1e-9); assertEquals(1000.0, c.transferencia, 1e-9)
     }
 
+    /** Ariel en dos compras (Rockstar y tortas) aparece una sola vez, con lo pagado en efectivo y por transferencia. */
+    @Test fun tallerJuntoPorPersona() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        val ariel = com.miplata.kotlin.nucleo.Muchacho("a", "Ariel", "Chuña")
+        val t = com.miplata.kotlin.nucleo.Taller(muchachos = listOf(ariel))
+        a.anotarTaller(hoy, 1000.0, "Alfajor", listOf(ariel to 1500.0), mapOf("a" to "1 Rockstar"))
+        a.anotarTaller(hoy, 400.0, "Tortas", listOf(ariel to 800.0), mapOf("a" to "2 Tortas de manteca"))
+        val deben = a.estado!!.deudasTallerDe(hoy)
+        a.cobrado(deben[0].id, false, efectivo = true)
+        a.cobrado(deben[1].id, false, efectivo = false)
+        val g = com.miplata.kotlin.ui.gruposTaller(a.estado!!.spent, t)
+        assertEquals(listOf("a", "yo"), g.map { it.tp })
+        val gA = g[0]
+        assertEquals("Ariel (Chuña)", gA.nombre)
+        assertEquals(2300.0, gA.pidio, 1e-6); assertEquals(1500.0, gA.pagoEfectivo, 1e-6); assertEquals(800.0, gA.pagoTransferencia, 1e-6)
+        assertEquals(0.0, gA.debe, 1e-6)
+        assertEquals("1 Rockstar · 2 Tortas de manteca", gA.queLlevo)
+        assertEquals(1400.0, g[1].pidio, 1e-6)
+    }
+
     @Test fun repartirLoQueTeDio() {
         val l = listOf(com.miplata.kotlin.ui.Deuda(2, "2026-11-18", 800.0, "", false, "s"),
             com.miplata.kotlin.ui.Deuda(1, "2026-11-17", 1000.0, "", false, "s"))

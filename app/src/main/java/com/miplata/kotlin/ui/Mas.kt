@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.7" to listOf("👥 Taller por persona: en Gastos y entradas, una tarjeta por compañero con todo lo que pidió en el día (aunque hayas pagado en dos negocios)",
+        "🧾 Cada tarjeta muestra cuánto pagó en efectivo 💵, por transferencia 📲, cuánto debe ⏳ y lo que tiene a favor 🤝",
+        "👆 Tocándola se abre su ficha: el detalle, \"Me entregó plata\" y el cobro por WhatsApp"),
     "11.6" to listOf("💵+📲 Parte y parte: si te pagó una parte en efectivo y otra por transferencia, ponés cuánto de cada una",
         "✏️ Tocando algo ya cobrado podés corregir cómo te pagó (los que marcaste antes dicen \"tocá para decir cómo\")"),
     "11.5" to listOf("💵 \"Me entregó\": anotás con cuánto te pagó cada compañero y si fue en efectivo o transferencia",

@@ -31,7 +31,7 @@ import java.time.LocalTime
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
                 alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
-                alCobrar: (Deuda, Cobro) -> Unit = { _, _ -> }, alNoPagaron: (Deuda) -> Unit = {}, alDevolviFavor: (Deuda) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
+                alCobrar: (Deuda, Cobro) -> Unit = { _, _ -> }, alNoPagaron: (Deuda) -> Unit = {}, alDevolviFavor: (Deuda) -> Unit = {}, alAbrirPersona: (GrupoTaller) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
                 alAnotar: () -> Unit = {}, alDictar: () -> Unit = {}, alPlanes: () -> Unit = {}, alCobrarSeccion: () -> Unit = {},
@@ -196,7 +196,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         fontSize = 14.sp, color = k.naranja)
                 }
                 /* Gastos y entradas del período */
-                "movimientos" -> TarjetaGastosYEntradas(S, alTocarMovimiento)
+                "movimientos" -> TarjetaGastosYEntradas(S, alTocarMovimiento, taller, alAbrirPersona)
                 "frase" -> Text("“${fraseDelDia(hoy)}”", fontStyle = FontStyle.Italic, color = k.suave, fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
             }
