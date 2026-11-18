@@ -71,8 +71,8 @@ fun HojaAnotar(
     alMarcarDevuelto: (Long) -> Unit,
     /** "Me lo pagaron" sobre algo que te deben: cuánto te entregó y cómo. */
     alCobrar: (Movimiento, Cobro) -> Unit = { m, _ -> alMarcarDevuelto(m.id) },
-    /** Corregir cómo te pagó algo ya cobrado: (id, cuánto fue en efectivo). */
-    alCambiarCobro: (Long, Double) -> Unit = { _, _ -> },
+    /** Corregir cómo te pagó algo ya cobrado: cuánto te entregó, cuánto en efectivo, y si lo que sobra queda a su favor. */
+    alCambiarCobro: (Movimiento, Cobro) -> Unit = { _, _ -> },
     dictarAlAbrir: Boolean = false,
     montoInicial: String = "",
     notaInicial: String = "",
@@ -222,9 +222,25 @@ fun HojaAnotar(
                     Text("✅ ¿Cómo te pagó estos ${pesos(editando.amt)}?", fontWeight = FontWeight.Bold, color = k.texto)
                     if (editando.extra["cobMed"] == null) Text("Lo marcaste antes de que la app lo preguntara: elegí cómo fue.", fontSize = 12.sp, color = k.naranja)
                     ElegirComoPago(editando.amt, enEf) { t, e -> total = t; enEf = e }
-                    val cuadra = Math.abs(total - editando.amt) < 0.5
-                    if (!cuadra) Text("Tiene que sumar ${pesos(editando.amt)}", fontSize = 12.sp, color = k.rojo)
-                    OutlinedButton(onClick = { alCambiarCobro(editando.id, enEf) }, Modifier.fillMaxWidth(), enabled = cuadra) { Text("Guardar cómo me pagó") }
+                    val sobra = total - editando.amt
+                    val esCompanero = editando.extra["tp"] != null
+                    var aFavor by remember { mutableStateOf(true) }
+                    when {
+                        total <= 0 -> Text("Escribí cuánto te entregó", fontSize = 12.sp, color = k.naranja)
+                        sobra > 0.005 && esCompanero -> {
+                            Text("Sobran ${pesos(sobra)}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = aFavor, onClick = { aFavor = true }, label = { Text("🤝 Quedan a su favor") })
+                                FilterChip(selected = !aFavor, onClick = { aFavor = false }, label = { Text("🪙 Le di el vuelto") })
+                            }
+                            Text(if (aFavor) "Se le descuentan solos en lo próximo que pida." else "Le devolviste ${pesos(sobra)}.", fontSize = 12.sp, color = k.suave)
+                        }
+                        sobra > 0.005 -> Text("Le diste ${pesos(sobra)} de vuelto", fontSize = 13.sp, color = k.naranja)
+                        sobra < -0.005 -> Text("Te queda debiendo ${pesos(-sobra)}: vuelve a \"Me deben\"", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                        else -> Text("✅ Te pagó justo", fontSize = 13.sp, color = k.verde)
+                    }
+                    OutlinedButton(onClick = { alCambiarCobro(editando, Cobro(total, enEf.coerceAtMost(total), esCompanero && aFavor)) },
+                        Modifier.fillMaxWidth(), enabled = total > 0) { Text("Guardar cómo me pagó") }
                 }
             }
             if (editando != null) {

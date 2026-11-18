@@ -545,7 +545,17 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         alBorrar = { id -> almacen.borrarMovimiento(id); hojaAbierta = false; vuelta++; aviso("Borrado") },
         alMarcarDevuelto = { id -> almacen.marcarDevuelto(id); hojaAbierta = false; vuelta++; aviso("Marcado como devuelto") },
         alCobrar = { mov, c -> hojaAbierta = false; cobrarDeuda(mov.id, mov.extra["tp"].texto(), false, mov.amt, c) },
-        alCambiarCobro = { id, ef -> almacen.cambiarCobro(id, ef); hojaAbierta = false; vuelta++; aviso("Listo, corregido cómo te pagó") },
+        alCambiarCobro = { mov, c ->
+            val (sobraTr, sobraEf) = almacen.cambiarCobro(mov.id, c.dado, c.enEfectivo)
+            /* lo que te dio de más y no le devolviste: queda a su favor */
+            val tp = mov.extra["tp"].texto()
+            if (c.aFavor && tp != null) {
+                if (sobraTr > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), sobraTr, false, dejarAFavor = true)
+                if (sobraEf > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), sobraEf, true, dejarAFavor = true)
+            }
+            hojaAbierta = false; vuelta++
+            aviso(if (c.aFavor && sobraTr + sobraEf > 0.005) "Corregido · le quedan ${pesos(sobraTr + sobraEf)} a favor 🤝" else "Listo, corregido cómo te pagó")
+        },
     )
 
     /* "Ayudá al creador" flotante: burbuja que se convierte en el cartel grande */

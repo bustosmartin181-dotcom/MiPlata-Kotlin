@@ -5,6 +5,7 @@ import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.nucleo.hayCompraTaller
 import com.miplata.kotlin.nucleo.deudasTallerDe
 import com.miplata.kotlin.nucleo.favoresTaller
+import com.miplata.kotlin.nucleo.texto
 import com.miplata.kotlin.ui.interpretarDictado
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -282,13 +283,28 @@ class AlmacenTest {
         a.marcarDevuelto(id)                                       // como antes: sin decir cómo
         assertEquals(100000.0, cuenta("Mercado Pago"), 1e-6)
         val saldo = Nucleo.calcular(a.estado!!, hoy).saldo
-        a.cambiarCobro(id, 500.0)
+        a.cambiarCobro(id, 1500.0, 500.0)
         assertEquals(99500.0, cuenta("Mercado Pago"), 1e-6); assertEquals(500.0, cuenta("Efectivo"), 1e-6)
         assertEquals(saldo, Nucleo.calcular(a.estado!!, hoy).saldo, 1e-6)     // la plata es la misma, solo cambia dónde está
         assertEquals(2, a.estado!!.spent.count { it.dev == 2 && it.extra["tp"].let { t -> t != null } })
         /* después: todo fue en efectivo */
-        a.estado!!.spent.filter { it.dev == 2 }.forEach { a.cambiarCobro(it.id, it.amt) }
+        a.estado!!.spent.filter { it.dev == 2 }.forEach { a.cambiarCobro(it.id, it.amt, it.amt) }
         assertEquals(98500.0, cuenta("Mercado Pago"), 1e-6); assertEquals(1500.0, cuenta("Efectivo"), 1e-6)
+        /* Sergio: $800 marcado antes; en realidad te dio $1000 en efectivo → sobran 200 (a su favor) */
+        a.anotarTaller(hoy, 0.0, "", listOf(com.miplata.kotlin.nucleo.Muchacho("s", "Sergio") to 800.0))
+        val ids = a.estado!!.deudasTallerDe(hoy)[0].id
+        a.marcarDevuelto(ids)
+        val sobra = a.cambiarCobro(ids, 1000.0, 1000.0)
+        assertEquals(0.0 to 200.0, sobra)
+        a.cobrarPersona("s", "Sergio", sobra.second, true, dejarAFavor = true)
+        assertEquals(200.0, a.estado!!.favoresTaller()["s"]!!, 1e-6)
+        assertEquals(2500.0, cuenta("Efectivo"), 1e-6)
+        /* te dio menos: 600 de 800 → 200 vuelven a Me deben */
+        a.anotarTaller(hoy, 0.0, "", listOf(com.miplata.kotlin.nucleo.Muchacho("p", "Pedro") to 800.0))
+        val idp = a.estado!!.deudasTallerDe(hoy).first { it.extra["tp"].texto() == "p" }.id
+        a.marcarDevuelto(idp)
+        a.cambiarCobro(idp, 600.0, 600.0)
+        assertEquals(200.0, a.estado!!.deudasTallerDe(hoy).filter { it.extra["tp"].texto() == "p" }.sumOf { it.amt }, 1e-6)
         /* "parte y parte" con vuelto: te da 1000 efectivo + 1000 transferencia por algo de 1500 → vuelto de 500 en efectivo */
         val c = com.miplata.kotlin.ui.Cobro(2000.0, 1000.0, aFavor = false).hasta(1500.0)
         assertEquals(1500.0, c.dado, 1e-9); assertEquals(500.0, c.enEfectivo, 1e-9); assertEquals(1000.0, c.transferencia, 1e-9)

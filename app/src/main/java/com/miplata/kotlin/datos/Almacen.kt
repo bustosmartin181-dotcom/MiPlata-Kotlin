@@ -202,24 +202,33 @@ class Almacen(private val carpeta: File) {
         this["spent"] = JsonArray(lista)
     }
 
-    /** Corrige cómo te pagaron algo ya cobrado: `enEfectivo` de eso fue en efectivo y el resto por transferencia.
-        Si es parte y parte, queda en dos renglones. Las cuentas (Efectivo / Mercado Pago) se acomodan solas. */
-    fun cambiarCobro(id: Long, enEfectivo: Double) = cambiar {
-        val lista = spent()
-        val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
-        val x = lista.getOrNull(i) as? JsonObject ?: return@cambiar
-        if (x["dev"].num().toInt() != 2) return@cambiar
-        val amt = x["amt"].num()
-        val ef = com.miplata.kotlin.nucleo.redondear2(enEfectivo.coerceIn(0.0, amt))
-        when {
-            ef < 0.005 -> lista[i] = JsonObject(x + ("cobMed" to JsonPrimitive(MEDIO_MP)))
-            ef >= amt - 0.005 -> lista[i] = JsonObject(x + ("cobMed" to JsonPrimitive(MEDIO_EFECTIVO)))
-            else -> {
-                lista[i] = JsonObject(x + mapOf("amt" to num(com.miplata.kotlin.nucleo.redondear2(amt - ef)), "cobMed" to JsonPrimitive(MEDIO_MP)))
-                lista.add(i + 1, JsonObject(x + mapOf("id" to JsonPrimitive(nuevoId(crudo)), "amt" to num(ef), "cobMed" to JsonPrimitive(MEDIO_EFECTIVO))))
-            }
+    /** Corrige cómo te pagaron algo ya cobrado. `total` = lo que te entregó para esto; `enEfectivo` = cuánto de eso fue en efectivo
+        (el resto, por transferencia; se cuenta primero la transferencia). Si te dio menos, lo que falta vuelve a "Me deben".
+        Devuelve lo que sobró (transferencia, efectivo) para dejarlo a su favor si corresponde. Las cuentas se acomodan solas. */
+    fun cambiarCobro(id: Long, total: Double, enEfectivo: Double): Pair<Double, Double> {
+        var sobra = 0.0 to 0.0
+        cambiar {
+            val lista = spent()
+            val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
+            val x = lista.getOrNull(i) as? JsonObject ?: return@cambiar
+            if (x["dev"].num().toInt() != 2) return@cambiar
+            fun r2(v: Double) = com.miplata.kotlin.nucleo.redondear2(v)
+            val amt = x["amt"].num()
+            val ef = r2(enEfectivo.coerceIn(0.0, total)); val tr = r2(total - ef)
+            val trUsa = Math.min(tr, amt); val efUsa = Math.min(ef, amt - trUsa); val resto = r2(amt - trUsa - efUsa)
+            sobra = r2(tr - trUsa) to r2(ef - efUsa)
+            val base = x - "cob" - "cobMed"
+            val piezas = listOfNotNull(
+                trUsa.takeIf { it >= 0.005 }?.let { JsonObject(base + mapOf("amt" to num(r2(it)), "dev" to JsonPrimitive(2), "cob" to (x["cob"] ?: JsonPrimitive(Fechas.hoy())), "cobMed" to JsonPrimitive(MEDIO_MP))) },
+                efUsa.takeIf { it >= 0.005 }?.let { JsonObject(base + mapOf("amt" to num(r2(it)), "dev" to JsonPrimitive(2), "cob" to (x["cob"] ?: JsonPrimitive(Fechas.hoy())), "cobMed" to JsonPrimitive(MEDIO_EFECTIVO))) },
+                resto.takeIf { it >= 0.005 }?.let { JsonObject(base + mapOf("amt" to num(it), "dev" to JsonPrimitive(1))) })
+            if (piezas.isEmpty()) return@cambiar
+            var nid = nuevoId(crudo)
+            lista[i] = piezas[0]
+            piezas.drop(1).forEachIndexed { k, p -> lista.add(i + 1 + k, JsonObject(p + ("id" to JsonPrimitive(nid++)))) }
+            this["spent"] = JsonArray(lista)
         }
-        this["spent"] = JsonArray(lista)
+        return sobra
     }
 
     /** Usa la plata a favor de `tp` para pagar sus deudas. Lo que se usa queda cobrado; lo que sobra sigue a favor
