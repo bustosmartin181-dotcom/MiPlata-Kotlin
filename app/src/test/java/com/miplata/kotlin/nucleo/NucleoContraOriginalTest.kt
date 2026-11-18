@@ -33,6 +33,10 @@ class NucleoContraOriginalTest {
         val S = Estado.desdeJson(caso["estado"]!!.jsonObject)
         val x = caso["esperado"]!!.jsonObject
         val c = Nucleo.calcular(S, hoy)
+        /* Cambio a propósito (11.8): con fondo y objetivo por día, la diferencia entre lo que te toca y el objetivo
+           también va al fondo (en la original quedaba suelta). En esos casos el fondo, los aportes y la proyección
+           del objetivo ya no son iguales a la original: se prueban aparte en FondoConObjetivoTest. */
+        val cambioObjetivoFondo = S.modoFondo && (S.objetivo > 0 || S.recal?.obj == true)
         fun n(k: String, v: Double?) = igual("$nom · $k", x[k], v)
         n("total", c.total); n("porPagar", c.porPagar); n("disp", c.disp); n("dias", c.dias.toDouble())
         n("hoyIdx", c.hoyIdx.toDouble()); n("base", c.base); n("rendDisp", c.rendDisp); n("baseHoy", c.baseHoy)
@@ -45,11 +49,12 @@ class NucleoContraOriginalTest {
             else filas.forEachIndexed { i, f ->
                 val a = f.jsonArray; val r = c.filas[i]
                 igual("$nom · fila $i presupuesto", a[0], r.presupuesto); igual("$nom · fila $i gasto", a[1], r.gasto)
-                igual("$nom · fila $i sobra", a[2], r.sobra); igual("$nom · fila $i aporte", a[3], r.aporte)
+                igual("$nom · fila $i sobra", a[2], r.sobra); if (!cambioObjetivoFondo) igual("$nom · fila $i aporte", a[3], r.aporte)
             }
         } else if (c.filas != null) errores += "$nom · filas: no esperaba filas"
         val fo = x["fondo"]
-        if (fo is JsonObject) {
+        if (fo is JsonObject && cambioObjetivoFondo) { if (!c.fondo.activo) errores += "$nom · fondo: debería estar activo" }
+        else if (fo is JsonObject) {
             val f = c.fondo
             if (!f.activo) errores += "$nom · fondo: debería estar activo"
             igual("$nom · fondo.ahorroPeriodo", fo["ahorroPeriodo"], f.ahorroPeriodo); igual("$nom · fondo.usos", fo["usos"], f.usos)
@@ -94,12 +99,13 @@ class NucleoContraOriginalTest {
                 listOf("obj" to or.obj, "faltan" to or.faltan.toDouble(), "gastoHoy" to or.gastoHoy, "disponibleHoy" to or.disponibleHoy,
                     "promedio" to or.promedio, "proyectado" to or.proyectado, "ahorroHoy" to or.ahorroHoy,
                     "ahorradoAntes" to or.ahorradoAntes, "diasPrevios" to or.diasPrevios.toDouble())
+                    .filter { !(cambioObjetivoFondo && it.first == "proyectado") }
                     .forEach { (k, v) -> igual("$nom · objetivo.$k", ob[k], v) }
                 val es = ob["escenarios"]!!.jsonArray
                 if (es.size != or.escenarios.size) errores += "$nom · objetivo.escenarios cantidad"
                 else es.forEachIndexed { i, e ->
                     igual("$nom · esc $i o", e.jsonObject["o"], or.escenarios[i].o)
-                    igual("$nom · esc $i sobra", e.jsonObject["sobra"], or.escenarios[i].sobra)
+                    if (!cambioObjetivoFondo) igual("$nom · esc $i sobra", e.jsonObject["sobra"], or.escenarios[i].sobra)
                 }
             }
         } else if (or != null) errores += "$nom · objetivo: esperaba null"

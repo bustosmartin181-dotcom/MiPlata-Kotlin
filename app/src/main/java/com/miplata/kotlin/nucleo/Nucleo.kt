@@ -112,6 +112,8 @@ object Nucleo {
             val extraRetiro = HashMap<Int, Double>()
             S.fondoUsos.forEach { x -> if (x.para != "cubre") { val k = idxUso(x); extraRetiro[k] = (extraRetiro[k] ?: 0.0) + x.amt } }
             fun usosHastaDia(i: Int) = S.fondoUsos.filter { it.para != "cubre" && idxUso(it) <= i }.sumOf { it.amt }
+            /* Con un objetivo por día más bajo que lo que te toca, esa diferencia también va al fondo (si no, queda suelta) */
+            fun diferenciaObjetivo(i: Int) = if (recal != null && recal.obj && i >= recal.day!!) max(0.0, base + extra(i) - recal.base) else 0.0
             val fs = mutableListOf<Fila>()
             var arrastre = 0.0
             var aportesAcum = 0.0
@@ -122,7 +124,7 @@ object Nucleo {
                 val gasto = gastado(i.toLong(), i.toLong())
                 val sobra = presupuesto - gasto
                 val previo = i < iniFondo
-                val aporte = if (previo) 0.0 else if (regla == "fondo") sobra else max(0.0, sobra)
+                val aporte = if (previo) 0.0 else (if (regla == "fondo") sobra else max(0.0, sobra)) + diferenciaObjetivo(i)
                 fs += Fila(i, presupuesto, gasto, sobra, aporte)
                 arrastre = if (previo) sobra else if (regla == "siguiente") min(0.0, sobra) else 0.0
                 if (i < hoyIdx) sumarRendDisp(i, aportesAcum, usosHastaDia(i))
@@ -162,7 +164,7 @@ object Nucleo {
                 rend = rendPrev + rendPer, rendPend = rendPend, totalConRend = previo + ahorroPeriodo - usos + rendPrev + rendPer,
                 rendEnMP = S.rendEnMP,
                 acumulado = previo + S.fondoRetirado + ahorroPeriodo,
-                hoySuma = if (regla == "fondo") quedaHoyF else max(0.0, quedaHoyF),
+                hoySuma = (if (regla == "fondo") quedaHoyF else max(0.0, quedaHoyF)) + diferenciaObjetivo(hoyIdx),
                 disponible = saldoPeriodo - ahorroPeriodo + usosParaGastar,
             )
         }
@@ -264,7 +266,27 @@ object Nucleo {
     data class Objetivo(
         val obj: Double, val faltan: Int, val gastoHoy: Double, val disponibleHoy: Double, val promedio: Double,
         val proyectado: Double, val ahorroHoy: Double, val ahorradoAntes: Double, val diasPrevios: Int, val escenarios: List<Escenario>,
+        /** Lo que te toca por día sin objetivo (la base del período). */
+        val tocaPorDia: Double = 0.0,
+        val conFondo: Boolean = false,
     )
+
+    /** ¿Cuánto ahorrarías si gastaras `o` por día desde hoy?
+        Sin fondo: lo que te sobraría al final del período. Con fondo: lo que tendrías en el fondo al final
+        (lo que ya tiene + la diferencia segura de cada día que falta), si no te pasás. */
+    fun probarObjetivo(S: Estado, hoy: String, o: Double): Double {
+        val c = calcular(S, hoy)
+        if (!S.modoFondo) return c.saldo + c.gastoHoy - o * c.faltan
+        var futuro = 0.0
+        for (i in c.hoyIdx until c.dias) futuro += max(0.0, c.base + c.extra(i) - o)
+        return c.fondo.total + futuro
+    }
+
+    /** Lo que te toca por día (sin objetivo), para la calculadora. */
+    fun tocaPorDia(S: Estado, hoy: String): Double {
+        val c = calcular(S, hoy)
+        return if (S.modoFondo) c.base + c.extra(c.hoyIdx) else (c.saldo + c.gastoHoy) / c.faltan
+    }
 
     /** Objetivo diario: cuánto querés gastar por día y cuánto te sobra si lo cumplís. */
     fun objetivoDiario(S: Estado, hoy: String): Objetivo? {
@@ -280,9 +302,10 @@ object Nucleo {
         for (i in desdeIdx until c.hoyIdx) ahorradoAntes += obj - dias[i].gasto
         val paso = max(500.0, Math.round(obj * 0.1 / 500).toDouble() * 500)
         val escenarios = listOf(-2, -1, 0, 1).map { obj + it * paso }.filter { it > 0 }
-            .map { Escenario(it, proyectadoCon(it), it == obj) }
-        return Objetivo(obj, c.faltan, c.gastoHoy, disponibleHoy, disponibleHoy / c.faltan, proyectadoCon(obj),
-            obj - c.gastoHoy, ahorradoAntes, c.hoyIdx - desdeIdx, escenarios)
+            .map { Escenario(it, if (S.modoFondo) probarObjetivo(S, hoy, it) else proyectadoCon(it), it == obj) }
+        return Objetivo(obj, c.faltan, c.gastoHoy, disponibleHoy, disponibleHoy / c.faltan,
+            if (S.modoFondo) probarObjetivo(S, hoy, obj) else proyectadoCon(obj),
+            obj - c.gastoHoy, ahorradoAntes, c.hoyIdx - desdeIdx, escenarios, tocaPorDia(S, hoy), S.modoFondo)
     }
 
     /* Metas */

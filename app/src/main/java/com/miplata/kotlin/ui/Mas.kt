@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.8" to listOf("🐷 Fondo + objetivo por día: si te toca $21.000 y tu objetivo es $15.000, los $6.000 de diferencia van al fondo todos los días, más lo que no gastes (antes quedaban sueltos)",
+        "🧮 Calculadora en \"Mi objetivo por día\": escribí o mové la barrita con la cifra que quieras y ves cuánto ahorrarías antes de usarla"),
     "11.7" to listOf("👥 Taller por persona: en Gastos y entradas, una tarjeta por compañero con todo lo que pidió en el día (aunque hayas pagado en dos negocios)",
         "🧾 Cada tarjeta muestra cuánto pagó en efectivo 💵, por transferencia 📲, cuánto debe ⏳ y lo que tiene a favor 🤝",
         "👆 Tocándola se abre su ficha: el detalle, \"Me entregó plata\" y el cobro por WhatsApp"),

@@ -48,7 +48,12 @@ class PeriodoContraOriginalTest {
             iguales(s1, c["trasCambios"], "caso $n montos")
             val p = c["periodo"]!!.jsonObject
             val r = Periodo.iniciar(antes, hoy, p["previo"]!!.jsonPrimitive.double, p["inicio"]!!.jsonPrimitive.content, p["fin"]!!.jsonPrimitive.content)
-            iguales(r.estado, c["despues"], "caso $n período")
+            /* con fondo + objetivo, el fondo que pasa al período nuevo es más grande a propósito (ver NucleoContraOriginalTest) */
+            val est = Estado.desdeJson(antes)
+            if (est.modoFondo && (est.objetivo > 0 || est.recal?.obj == true)) {
+                val sinFondo = { o: JsonObject -> JsonObject(o - "fondoPrev" - "hist") }
+                iguales(sinFondo(r.estado), sinFondo(c["despues"]!!.jsonObject), "caso $n período")
+            } else iguales(r.estado, c["despues"], "caso $n período")
             if (r.terminadas != c["terminadas"]!!.jsonArray.map { it.jsonPrimitive.content }) errores += "caso $n terminadas"
         }
         assertTrue("${errores.size} diferencias:\n" + errores.take(25).joinToString("\n"), errores.isEmpty())

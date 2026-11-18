@@ -304,6 +304,35 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
 }
 
 /* ---------- Objetivo por día y recalibrar (en Días) ---------- */
+
+/** 🧮 Probá cualquier cifra: escribila o movés la barrita, y ves cuánto ahorrarías antes de usarla. */
+@Composable
+private fun CalculadoraObjetivo(S: Estado, hoy: String, alPoner: (Double) -> Unit) {
+    val k = LocalColores.current
+    val toca = remember(S) { Nucleo.tocaPorDia(S, hoy) }
+    if (toca <= 0) return
+    val tope = (Math.ceil(toca / 1000.0) * 1000).coerceAtLeast(1000.0)
+    var prueba by remember { mutableStateOf(if (S.objetivo > 0) S.objetivo else Math.round(toca * 0.7 / 500) * 500.0) }
+    var texto by remember { mutableStateOf(textoMonto(prueba)) }
+    val resultado = remember(S, prueba) { Nucleo.probarObjetivo(S, hoy, prueba) }
+    val c = remember(S) { Nucleo.calcular(S, hoy) }
+    Column(Modifier.fillMaxWidth().background(k.verdeClaro, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("🧮 Calculadora: ¿y si gasto por día…?", fontWeight = FontWeight.Bold, color = k.texto)
+        Text("Te toca ${dinero(toca)} por día. Probá la cifra que quieras:", fontSize = 13.sp, color = k.suave)
+        CampoMonto(texto, { texto = it; aNumero(it).takeIf { v -> v >= 0 }?.let { v -> prueba = v } }, "Gastar por día")
+        Slider(value = prueba.coerceIn(0.0, tope).toFloat(), onValueChange = { v ->
+            prueba = Math.round(v / 500.0) * 500.0; texto = textoMonto(prueba) }, valueRange = 0f..tope.toFloat())
+        val porDia = toca - prueba
+        if (porDia >= 0) {
+            Renglon(if (S.modoFondo) "🐷 Al fondo seguro por día" else "Ahorrás por día", dinero(porDia), colorDer = k.verde)
+            Renglon(if (S.modoFondo) "🐷 Fondo al final (mínimo)" else "Al final te sobraría", dinero(resultado), colorDer = if (resultado >= 0) k.verde else k.rojo)
+            Text("En ${c.faltan} días que faltan, gastando ${dinero(prueba)} por día" + (if (S.modoFondo) " y sin pasarte." else "."),
+                fontSize = 12.sp, color = k.suave)
+        } else Text("Con ${dinero(prueba)} por día te pasás ${dinero(-porDia)} por día de lo que te toca.", fontSize = 13.sp, color = k.rojo)
+        if (Math.abs(prueba - S.objetivo) >= 1 && prueba > 0)
+            Button(onClick = { alPoner(prueba) }, Modifier.fillMaxWidth()) { Text("Usar ${dinero(prueba)} como mi objetivo") }
+    }
+}
 @Composable
 fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Unit, alQuitarRecal: () -> Unit) {
     val k = LocalColores.current
@@ -313,14 +342,21 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
     var preguntarRecal by remember { mutableStateOf(false) }
     Tarjeta {
         Titulo("Mi objetivo por día")
-        Subtitulo("Cuánto querés gastar por día. Pasa a ser tu límite desde hoy, y lo que no gastes se suma al día siguiente.")
+        Subtitulo(if (S.modoFondo) "Cuánto querés gastar por día. Pasa a ser tu límite desde hoy. A tu fondo va, todos los días, lo que te toca de más y lo que no gastes."
+            else "Cuánto querés gastar por día. Pasa a ser tu límite desde hoy, y lo que no gastes se suma al día siguiente.")
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CampoMonto(valor, { valor = it }, "Objetivo por día", Modifier.weight(1f), demoClave = "obj.campo")
             Button(onClick = { alPoner(aNumero(valor)) }, Modifier.demo("obj.usar", accion = { alPoner(aNumero(valor)) })) { Text("Usar") }
         }
         if (o != null) {
-            Renglon("Podrías gastar parejo", dinero(o.promedio) + " por día", negrita = false)
-            Renglon("Al final te sobraría", dinero(o.proyectado), colorDer = if (o.proyectado >= 0) k.verde else k.rojo)
+            if (o.conFondo) {
+                Renglon("Te toca por día", dinero(o.tocaPorDia), negrita = false)
+                Renglon("🐷 Seguro al fondo por día", dinero(Math.max(0.0, o.tocaPorDia - o.obj)) + " + lo que no gastes", colorDer = k.verde)
+                Renglon("🐷 Fondo al final (mínimo)", dinero(o.proyectado), colorDer = k.verde)
+            } else {
+                Renglon("Podrías gastar parejo", dinero(o.promedio) + " por día", negrita = false)
+                Renglon("Al final te sobraría", dinero(o.proyectado), colorDer = if (o.proyectado >= 0) k.verde else k.rojo)
+            }
             if (o.diasPrevios > 0) Renglon("Ahorrado vs. objetivo", dinero(o.ahorradoAntes), colorDer = if (o.ahorradoAntes >= 0) k.verde else k.rojo)
             Text("Si gastaras por día…", fontSize = 13.sp, color = k.suave)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -328,12 +364,14 @@ fun TarjetaObjetivo(S: Estado, alPoner: (Double) -> Unit, alRecalibrar: () -> Un
                     Column(Modifier.weight(1f).background(if (e.actual) k.verdeClaro else k.fondo, RoundedCornerShape(12.dp)).padding(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(dinero(e.o), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
-                        Text("sobra " + dinero(e.sobra), fontSize = 11.sp, color = if (e.sobra >= 0) k.verde else k.rojo, textAlign = TextAlign.Center)
+                        Text((if (o.conFondo) "fondo " else "sobra ") + dinero(e.sobra), fontSize = 11.sp, color = if (e.sobra >= 0) k.verde else k.rojo, textAlign = TextAlign.Center)
                     }
                 }
             }
             TextButton(onClick = { alPoner(0.0) }) { Text("Quitar objetivo") }
-        } else {
+        }
+        CalculadoraObjetivo(S, hoy, alPoner)
+        if (o == null) {
             HorizontalDivider(color = k.linea)
             if (S.recal != null && !S.recal.obj) {
                 Text("Recalibrado: cada día vale ${dinero(S.recal.base)}.", color = k.texto, fontSize = 14.sp)
