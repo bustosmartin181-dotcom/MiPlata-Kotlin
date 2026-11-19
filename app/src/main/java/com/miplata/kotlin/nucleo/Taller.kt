@@ -176,9 +176,9 @@ data class Taller(
             val total = lineas.sumOf { it.second }
             val detalle = if (lineas.size == 1) "Te paso lo del taller: ${lineas[0].first} → *${pesos(total)}*."
                 else "Te paso lo del taller:\n" + lineas.joinToString("\n") { "• ${it.first}: ${pesos(it.second)}" } + "\nTotal: *${pesos(total)}*."
-            return "Hola $nombre! 👋 $detalle\n\nMe lo podés pagar por Mercado Pago" +
-                (if (link.isNotBlank()) " desde este link (poné ${pesos(total)}): $link" else "") +
-                (if (alias.isNotBlank()) (if (link.isNotBlank()) "\no transferime al alias: *$alias*" else " al alias: *$alias*") else "") +
+            /* Solo el alias (transferencia sin comisión): el link de Mercado Pago nunca va en el mensaje */
+            return "Hola $nombre! 👋 $detalle" +
+                (if (alias.isNotBlank()) "\n\nMe lo podés transferir al alias: *$alias*" else "") +
                 "\n\n¡Gracias! 🙌"
         }
 
