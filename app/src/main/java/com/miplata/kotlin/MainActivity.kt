@@ -9,6 +9,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         almacen = Almacen(applicationContext)
         com.miplata.kotlin.ui.Bordes.cargar(applicationContext)
+        com.miplata.kotlin.ui.Estilo.cargar(applicationContext)
         bloqueada.value = pidePin()
         almacen.estado?.let { apariencia.value = it.color to it.tema }
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
@@ -593,21 +596,37 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 @Composable
 fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit) {
     val k = LocalColores.current
-    val forma = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-    Row(
-        Modifier.fillMaxWidth()
+    val estilo = com.miplata.kotlin.ui.Estilo.actual
+    /* original: plana de lado a lado · moderno: puntas de arriba redondeadas · oneui: píldora flotante con sombra */
+    val forma = when (estilo) {
+        "original" -> androidx.compose.ui.graphics.RectangleShape
+        "oneui" -> RoundedCornerShape(30.dp)
+        else -> RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+    }
+    val fondo = when (estilo) {
+        "original" -> Modifier.fillMaxWidth().background(k.tarjeta).navigationBarsPadding()
+        "oneui" -> Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 14.dp, end = 14.dp, bottom = 10.dp)
+            .shadow(10.dp, forma, clip = false, ambientColor = androidx.compose.ui.graphics.Color(0x40192819), spotColor = androidx.compose.ui.graphics.Color(0x33192819))
             .background(k.tarjeta, forma)
-            .border(1.dp, k.linea, forma)
-            .navigationBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
+        else -> Modifier.fillMaxWidth().background(k.tarjeta, forma).border(1.dp, k.linea, forma).navigationBarsPadding()
+    }
+    Row(
+        fondo.padding(horizontal = 8.dp, vertical = if (estilo == "oneui") 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         @Composable fun Boton(p: Pestana) {
             val elegido = p == actual
-            Column(
+            if (estilo == "original") Column(Modifier.weight(1f).demo("nav.${p.name}", accion = { alElegir(p) }).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.background(if (elegido) k.verdeClaro else k.tarjeta, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Icon(p.icono, contentDescription = p.titulo, tint = if (elegido) k.verde else k.suave)
+                }
+                Text(p.titulo, fontSize = 12.sp, color = if (elegido) k.verde else k.suave, fontWeight = if (elegido) FontWeight.SemiBold else FontWeight.Normal)
+            }
+            else Column(
                 Modifier.weight(1f)
                     .demo("nav.${p.name}", accion = { alElegir(p) })
+                    .clip(RoundedCornerShape(22.dp))
                     .clickable { alElegir(p) }
                     .padding(vertical = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -630,15 +649,21 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         Boton(Pestana.HOY)
         Boton(Pestana.PLAN)
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            FloatingActionButton(
-                onClick = alSumar,
-                modifier = Modifier.size(54.dp).demo("fab", alSumar),
-                shape = RoundedCornerShape(19.dp),
-                containerColor = k.verde,
-                contentColor = k.sobreVerde,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 5.dp, pressedElevation = 2.dp)
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto", modifier = Modifier.size(27.dp))
+            when (estilo) {
+                "original" -> FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
+                    elevation = FloatingActionButtonDefaults.elevation(2.dp)) {
+                    Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto")
+                }
+                else -> FloatingActionButton(
+                    onClick = alSumar,
+                    modifier = Modifier.size(if (estilo == "oneui") 58.dp else 54.dp).demo("fab", alSumar),
+                    shape = RoundedCornerShape(if (estilo == "oneui") 22.dp else 19.dp),
+                    containerColor = k.verde,
+                    contentColor = k.sobreVerde,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 5.dp, pressedElevation = 2.dp)
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto", modifier = Modifier.size(27.dp))
+                }
             }
         }
         Boton(Pestana.DIAS)

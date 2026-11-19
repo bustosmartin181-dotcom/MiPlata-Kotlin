@@ -48,10 +48,10 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
     val sobreHero = if (clase == "") k.sobreVerde else Color.White
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        verticalArrangement = Arrangement.spacedBy(Estilo.separacion)) {
         Row(Modifier.demo("hoy.arriba"), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("${saludoSegunHora(LocalTime.now().hour)}, $nombre", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto)
+                TituloPantalla("${saludoSegunHora(LocalTime.now().hour)}, $nombre")
                 Text(fraseDeEstado(c, clase), fontSize = 14.sp, color = k.suave)
             }
             if (S.ocultar) IconButton(onClick = alOjo) { Icon(if (Privacidad.oculto) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
@@ -134,7 +134,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
             when (id) {
                 /* Lo principal: cuánto te queda hoy */
                 "hoy" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Column(Modifier.fillMaxWidth().background(fondoHero, RoundedCornerShape(28.dp)).padding(24.dp),
+                    Column(Modifier.fillMaxWidth().background(fondoHero, RoundedCornerShape(Estilo.radioHero)).padding(Estilo.rellenoHero),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Te queda para hoy", color = sobreHero.copy(alpha = 0.85f), fontSize = 15.sp)
                         Text(dineroCentavos(numeroAnimado(c.quedaHoy)), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
