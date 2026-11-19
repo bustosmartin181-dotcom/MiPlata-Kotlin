@@ -38,9 +38,9 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
     LaunchedEffect(abrirPeriodoNuevo) { if (abrirPeriodoNuevo) { hoja = HojaPlan.Nuevo; alAbrirPeriodo() } }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Plan del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.weight(1f))
+            Text("Plan del período", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.weight(1f))
             IconButton(onClick = { ordenando = !ordenando }) {
                 androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Edit, "Ordenar bloques", tint = if (ordenando) k.verde else k.suave) }
             FilledTonalButton(onClick = { hoja = HojaPlan.Nuevo }) { Text("Período nuevo") }
