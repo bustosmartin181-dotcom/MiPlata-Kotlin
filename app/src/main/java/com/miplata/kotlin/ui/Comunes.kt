@@ -26,12 +26,12 @@ object Bordes {
 
 @Composable
 fun Modifier.bordeBloque(radio: Int = 22): Modifier =
-    if (Bordes.activos) this.border(1.5.dp, LocalColores.current.verde.copy(alpha = 0.45f), RoundedCornerShape(radio.dp)) else this
+    if (Bordes.activos) this.border(1.dp, LocalColores.current.linea, RoundedCornerShape(radio.dp)) else this
 
 @Composable
 fun Tarjeta(modifier: Modifier = Modifier, color: Color = LocalColores.current.tarjeta, contenido: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().bordeBloque(22).background(color, RoundedCornerShape(22.dp)).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp), content = contenido)
+    Column(modifier.fillMaxWidth().bordeBloque(24).background(color, RoundedCornerShape(24.dp)).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp), content = contenido)
 }
 
 @Composable
