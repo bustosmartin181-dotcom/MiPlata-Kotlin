@@ -46,7 +46,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Días del período", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
+                Text("Días del período", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto)
                 Text("Del ${Fechas.diaYMes(S.start)} al ${Fechas.diaYMes(S.end)} · lo que sobra pasa al día siguiente", fontSize = 13.sp, color = k.suave)
             }
             IconButton(onClick = { ordenando = !ordenando }) {
