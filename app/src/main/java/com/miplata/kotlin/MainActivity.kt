@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -594,7 +595,7 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         @Composable fun Boton(p: Pestana) {
             val elegido = p == actual
             Column(Modifier.weight(1f).demo("nav.${p.name}", accion = { alElegir(p) }).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.background(if (elegido) k.verdeClaro else Color.Transparent, RoundedCornerShape(50)).padding(horizontal = 17.dp, vertical = 6.dp)) {
+                Box(Modifier.background(if (elegido) k.verdeClaro else k.tarjeta.copy(alpha = 0f), RoundedCornerShape(50)).padding(horizontal = 17.dp, vertical = 6.dp)) {
                     Icon(p.icono, null, tint = if (elegido) k.verde else k.suave)
                 }
                 Text(p.titulo, fontSize = 12.sp, color = if (elegido) k.verde else k.suave, fontWeight = if (elegido) FontWeight.SemiBold else FontWeight.Normal)
