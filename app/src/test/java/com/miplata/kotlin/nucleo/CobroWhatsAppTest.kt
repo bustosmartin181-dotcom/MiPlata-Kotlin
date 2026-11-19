@@ -24,5 +24,9 @@ class CobroWhatsAppTest {
         val dos = Taller.mensajeCobro("Rodrigo", listOf("16/11: 2 Torta de hoja" to 800.0, "17/11: 1 Bananas" to 600.0), Taller.LINK_COBRO, Taller.ALIAS_COBRO, p)
         println("MSG2\n$dos")
         assertTrue(dos.contains("Total: *$1400*"))
+        // aunque haya un link guardado, en el mensaje va solo el alias
+        val conLink = Taller.mensajeCobro("Ismael", listOf("19/11: 2 Tortas raspadas" to 800.0), "https://link.mercadopago.com.ar/otro", Taller.ALIAS_COBRO, p)
+        println("MSG3\n$conLink")
+        assertTrue(!conLink.contains("http") && !conLink.contains("link") && conLink.contains("al alias: *MartinchoLujanino*"))
     }
 }

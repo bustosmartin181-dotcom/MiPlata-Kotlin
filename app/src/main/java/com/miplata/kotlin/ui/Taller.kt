@@ -384,14 +384,12 @@ fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alI
     var horario by remember { mutableStateOf(false) }
     Hoja(alCerrar, "🔧 Compras del taller") {
         Subtitulo("Cuando comprás para los muchachos, tu parte va como gasto tuyo y la de cada uno queda en \"Me deben\". Cuando te pagan, tocás \"Me lo pagaron\".")
-        /* Cobrar por WhatsApp: el link y el alias que van en el mensaje */
-        var link by remember(t.linkCobro) { mutableStateOf(t.linkCobro) }
+        /* Cobrar por WhatsApp: el alias que va en el mensaje (el link de Mercado Pago ya no se manda) */
         var alias by remember(t.aliasCobro) { mutableStateOf(t.aliasCobro) }
         Text("📲 Cobrar por WhatsApp", fontWeight = FontWeight.SemiBold, color = k.texto)
         Subtitulo("En \"Me deben\" tocás \"📲 Cobrar\" y se abre WhatsApp con el mensaje listo: cuánto te debe, de qué y tu alias (la transferencia por alias no tiene comisión).")
-        OutlinedTextField(link, { link = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Link de cobro (opcional: Mercado Pago cobra comisión)") }, singleLine = true)
         OutlinedTextField(alias, { alias = it.trim() }, Modifier.fillMaxWidth(), label = { Text("Alias (transferencia sin comisión)") }, singleLine = true)
-        if (link != t.linkCobro || alias != t.aliasCobro) Button(onClick = { alGuardar(t.copy(linkCobro = link, aliasCobro = alias)) }, Modifier.fillMaxWidth()) { Text("Guardar link y alias") }
+        if (alias != t.aliasCobro) Button(onClick = { alGuardar(t.copy(aliasCobro = alias)) }, Modifier.fillMaxWidth()) { Text("Guardar alias") }
         HorizontalDivider(color = k.linea)
         Interruptor("Avisarme a la hora de comprar", t.aviso, { alGuardar(t.copy(aviso = it)); if (it) alPermisoAvisos() },
             "Al empezar el desayuno o la merienda, y otra vez al terminar si no anotaste nada")
