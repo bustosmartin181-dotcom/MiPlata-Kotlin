@@ -589,12 +589,12 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 @Composable
 fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit) {
     val k = LocalColores.current
-    Row(Modifier.fillMaxWidth().background(k.tarjeta).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
+    Row(Modifier.fillMaxWidth().background(k.tarjeta).border(1.dp, k.linea, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)).navigationBarsPadding().padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
         @Composable fun Boton(p: Pestana) {
             val elegido = p == actual
             Column(Modifier.weight(1f).demo("nav.${p.name}", accion = { alElegir(p) }).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.background(if (elegido) k.verdeClaro else k.tarjeta, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 4.dp)) {
+                Box(Modifier.background(if (elegido) k.verdeClaro else Color.Transparent, RoundedCornerShape(50)).padding(horizontal = 17.dp, vertical = 6.dp)) {
                     Icon(p.icono, null, tint = if (elegido) k.verde else k.suave)
                 }
                 Text(p.titulo, fontSize = 12.sp, color = if (elegido) k.verde else k.suave, fontWeight = if (elegido) FontWeight.SemiBold else FontWeight.Normal)
@@ -602,8 +602,8 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         }
         Boton(Pestana.HOY); Boton(Pestana.PLAN)
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
-                elevation = FloatingActionButtonDefaults.elevation(2.dp)) {
+            FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = RoundedCornerShape(20.dp), containerColor = k.verde, contentColor = k.sobreVerde,
+                elevation = FloatingActionButtonDefaults.elevation(4.dp)) {
                 Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto")
             }
         }
