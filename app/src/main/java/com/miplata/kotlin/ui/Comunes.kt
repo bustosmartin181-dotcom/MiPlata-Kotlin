@@ -18,7 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Preferencias visuales compartidas por todas las pantallas. */
+/** Línea fina del color del tema en el borde de cada bloque, para ver bien dónde empieza y termina
+    (se apaga en Ajustes → Apariencia). */
 object Bordes {
     var activos by mutableStateOf(true)
     fun cargar(ctx: android.content.Context) { activos = ctx.getSharedPreferences("apariencia", 0).getBoolean("bordes", true) }
@@ -27,9 +28,9 @@ object Bordes {
 
 @Composable
 fun Modifier.bordeBloque(radio: Int = 22): Modifier =
-    if (Bordes.activos) this.border(1.dp, LocalColores.current.linea, RoundedCornerShape(radio.dp)) else this
+    if (Bordes.activos) this.border(1.5.dp, LocalColores.current.verde.copy(alpha = 0.45f), RoundedCornerShape(radio.dp)) else this
 
-/** Tarjeta base: sombra muy suave, borde visible y radios consistentes en toda la app. */
+/** Tarjeta base: sombra muy suave, borde del color del tema y radios consistentes en toda la app. */
 @Composable
 fun Tarjeta(
     modifier: Modifier = Modifier,
@@ -43,7 +44,7 @@ fun Tarjeta(
         .clip(forma)
         .background(color)
     Column(
-        base.then(if (Bordes.activos) Modifier.border(1.dp, LocalColores.current.linea, forma) else Modifier)
+        base.then(if (Bordes.activos) Modifier.border(1.5.dp, LocalColores.current.verde.copy(alpha = 0.45f), forma) else Modifier)
             .padding(horizontal = 20.dp, vertical = 19.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = contenido
