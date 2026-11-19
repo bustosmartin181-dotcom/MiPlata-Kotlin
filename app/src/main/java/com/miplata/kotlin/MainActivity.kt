@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -589,24 +590,55 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 @Composable
 fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit) {
     val k = LocalColores.current
-    Row(Modifier.fillMaxWidth().background(k.tarjeta).navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceEvenly) {
+    val forma = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+    Row(
+        Modifier.fillMaxWidth()
+            .background(k.tarjeta, forma)
+            .border(1.dp, k.linea, forma)
+            .navigationBarsPadding()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
         @Composable fun Boton(p: Pestana) {
             val elegido = p == actual
-            Column(Modifier.weight(1f).demo("nav.${p.name}", accion = { alElegir(p) }).clickable { alElegir(p) }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.background(if (elegido) k.verdeClaro else k.tarjeta, RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Icon(p.icono, null, tint = if (elegido) k.verde else k.suave)
+            Column(
+                Modifier.weight(1f)
+                    .demo("nav.${p.name}", accion = { alElegir(p) })
+                    .clickable { alElegir(p) }
+                    .padding(vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Box(
+                    Modifier.width(52.dp).height(30.dp)
+                        .background(if (elegido) k.verdeClaro else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(50)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(p.icono, contentDescription = p.titulo, tint = if (elegido) k.verde else k.suave)
                 }
-                Text(p.titulo, fontSize = 12.sp, color = if (elegido) k.verde else k.suave, fontWeight = if (elegido) FontWeight.SemiBold else FontWeight.Normal)
+                Text(
+                    p.titulo, fontSize = 11.sp,
+                    color = if (elegido) k.verde else k.suave,
+                    fontWeight = if (elegido) FontWeight.Bold else FontWeight.Medium
+                )
             }
         }
-        Boton(Pestana.HOY); Boton(Pestana.PLAN)
+        Boton(Pestana.HOY)
+        Boton(Pestana.PLAN)
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
-                elevation = FloatingActionButtonDefaults.elevation(2.dp)) {
-                Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto")
+            FloatingActionButton(
+                onClick = alSumar,
+                modifier = Modifier.size(54.dp).demo("fab", alSumar),
+                shape = RoundedCornerShape(19.dp),
+                containerColor = k.verde,
+                contentColor = k.sobreVerde,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 5.dp, pressedElevation = 2.dp)
+            ) {
+                Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto", modifier = Modifier.size(27.dp))
             }
         }
-        Boton(Pestana.DIAS); Boton(Pestana.AJUSTES)
+        Boton(Pestana.DIAS)
+        Boton(Pestana.AJUSTES)
     }
 }

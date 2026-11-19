@@ -46,8 +46,8 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
     var eligiendoHora by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Ajustes", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Ajustes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto)
 
         Tarjeta {
             Titulo("Vos")

@@ -45,12 +45,12 @@ fun colores(color: String, oscuro: Boolean): Colores {
     val p = PALETAS[color] ?: PALETAS["verde"]!!
     val arg = color == "argentina"
     return if (!oscuro) Colores(
-        fondo = if (arg) Color(0xFFF4F8FC) else Color(0xFFF3EFE8), tarjeta = Color.White, texto = Color(0xFF1F1D1A),
-        suave = Color(0xFF5E5850), linea = Color(0xFFE6E0D6),
+        fondo = if (arg) Color(0xFFF3F7FB) else Color(0xFFF4F7F4), tarjeta = Color.White, texto = Color(0xFF18251D),
+        suave = Color(0xFF68766D), linea = Color(0xFFE3EAE4),
         verde = p.claro, sobreVerde = Color.White, verdeClaro = p.suaveClaro, naranja = Color(0xFFB4670E), rojo = Color(0xFFC0392B), argentina = arg)
     else Colores(
-        fondo = if (arg) Color(0xFF0E1A26) else Color(0xFF131512), tarjeta = if (arg) Color(0xFF172636) else Color(0xFF1E211D),
-        texto = Color(0xFFF0EEE9), suave = Color(0xFFB3ADA3), linea = Color(0xFF2E322C),
+        fondo = if (arg) Color(0xFF0D1924) else Color(0xFF101713), tarjeta = if (arg) Color(0xFF172635) else Color(0xFF19231D),
+        texto = Color(0xFFEDF5EF), suave = Color(0xFFA7B5AA), linea = Color(0xFF2B3930),
         verde = p.oscuro, sobreVerde = Color(0xFF101418), verdeClaro = p.suaveOscuro, naranja = Color(0xFFF0A54A), rojo = Color(0xFFFF7A6B),
         argentina = arg, oscuro = true)
 }
