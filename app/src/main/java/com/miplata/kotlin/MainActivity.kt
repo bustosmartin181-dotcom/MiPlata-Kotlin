@@ -339,7 +339,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 
     Box(Modifier.fillMaxSize().background(k.fondo)) { FondoArgentina() }
     /* Con el cartel "Ayudá al creador" abierto, la app queda borrosa detrás (Android 12 o más nuevo) */
-    val borroso by androidx.compose.animation.core.animateDpAsState(if (colaboraAbierta) 14.dp else 0.dp, label = "borroso")
+    val borroso by androidx.compose.animation.core.animateDpAsState(if (colaboraAbierta || com.miplata.kotlin.ui.FocoDeuda.abierto) 14.dp else 0.dp, label = "borroso")
     Scaffold(modifier = Modifier.blur(borroso), containerColor = if (k.argentina) androidx.compose.ui.graphics.Color.Transparent else k.fondo, bottomBar = {
         if (estado != null && !Demo.bienvenida) BarraAbajo(pestana, { pestana = it; ordenandoBloques = false }) { abrirAnotar() }
     }) { relleno ->
@@ -575,14 +575,17 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         },
     )
 
+    /* La tarjeta de una persona de "Me deben", levantada al frente (fuera del borroso) */
+    LaunchedEffect(pestana) { com.miplata.kotlin.ui.FocoDeuda.cerrarYa() }
+
     /* "Ayudá al creador" flotante: burbuja que se convierte en el cartel grande */
     ColaboraFlotante(puede = estado != null && pestana == Pestana.HOY && !estado.demo && !Demo.corriendo &&
-        estado.spent.size >= 5 && hojaHoy.isEmpty() && !hojaAbierta,
+        estado.spent.size >= 5 && hojaHoy.isEmpty() && !hojaAbierta && com.miplata.kotlin.ui.FocoDeuda.clave == null,
         alCopiar = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
         alAbrirMP = ::abrirMP,
         alYaColabore = { Colabora.yaColaboro(ctx); aviso("¡Gracias de corazón! 💚") },
         alCambiarAbierto = { colaboraAbierta = it },
-        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && !Demo.vitrina && !Demo.bienvenida && !ordenandoBloques)
+        corazon = estado != null && pestana == Pestana.HOY && hojaHoy.isEmpty() && !hojaAbierta && com.miplata.kotlin.ui.FocoDeuda.clave == null && !Demo.vitrina && !Demo.bienvenida && !ordenandoBloques)
 
     CapaDemo()
 }
