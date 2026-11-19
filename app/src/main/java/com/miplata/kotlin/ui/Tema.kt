@@ -44,13 +44,24 @@ val PALETAS = linkedMapOf(
 fun colores(color: String, oscuro: Boolean): Colores {
     val p = PALETAS[color] ?: PALETAS["verde"]!!
     val arg = color == "argentina"
+    /* Los grises de fondo, tarjeta, texto y líneas cambian con el estilo visual; el color principal es el elegido */
+    data class Neutros(val fondo: Color, val fondoArg: Color, val tarjeta: Color, val tarjetaArg: Color, val texto: Color, val suave: Color, val linea: Color)
+    val n = when (Estilo.actual) {
+        "original" -> if (!oscuro) Neutros(Color(0xFFF3EFE8), Color(0xFFF4F8FC), Color.White, Color.White, Color(0xFF1F1D1A), Color(0xFF5E5850), Color(0xFFE6E0D6))
+            else Neutros(Color(0xFF131512), Color(0xFF0E1A26), Color(0xFF1E211D), Color(0xFF172636), Color(0xFFF0EEE9), Color(0xFFB3ADA3), Color(0xFF2E322C))
+        /* One UI: fondo cálido y tarjetas marfil (de la beta "One UI"); de noche, negro como Samsung */
+        "oneui" -> if (!oscuro) Neutros(Color(0xFFF4F2EC), Color(0xFFF3F7FB), Color(0xFFFFFEFA), Color.White, Color(0xFF19251F), Color(0xFF536359), Color(0xFFE1E3DA))
+            else Neutros(Color(0xFF050605), Color(0xFF0A1520), Color(0xFF1A1C1A), Color(0xFF162638), Color(0xFFF2F3F1), Color(0xFFA6ACA6), Color(0xFF2A2D2A))
+        else -> if (!oscuro) Neutros(Color(0xFFF4F7F4), Color(0xFFF3F7FB), Color.White, Color.White, Color(0xFF18251D), Color(0xFF68766D), Color(0xFFE3EAE4))
+            else Neutros(Color(0xFF101713), Color(0xFF0D1924), Color(0xFF19231D), Color(0xFF172635), Color(0xFFEDF5EF), Color(0xFFA7B5AA), Color(0xFF2B3930))
+    }
     return if (!oscuro) Colores(
-        fondo = if (arg) Color(0xFFF3F7FB) else Color(0xFFF4F7F4), tarjeta = Color.White, texto = Color(0xFF18251D),
-        suave = Color(0xFF68766D), linea = Color(0xFFE3EAE4),
+        fondo = if (arg) n.fondoArg else n.fondo, tarjeta = if (arg) n.tarjetaArg else n.tarjeta, texto = n.texto,
+        suave = n.suave, linea = n.linea,
         verde = p.claro, sobreVerde = Color.White, verdeClaro = p.suaveClaro, naranja = Color(0xFFB4670E), rojo = Color(0xFFC0392B), argentina = arg)
     else Colores(
-        fondo = if (arg) Color(0xFF0D1924) else Color(0xFF101713), tarjeta = if (arg) Color(0xFF172635) else Color(0xFF19231D),
-        texto = Color(0xFFEDF5EF), suave = Color(0xFFA7B5AA), linea = Color(0xFF2B3930),
+        fondo = if (arg) n.fondoArg else n.fondo, tarjeta = if (arg) n.tarjetaArg else n.tarjeta,
+        texto = n.texto, suave = n.suave, linea = n.linea,
         verde = p.oscuro, sobreVerde = Color(0xFF101418), verdeClaro = p.suaveOscuro, naranja = Color(0xFFF0A54A), rojo = Color(0xFFFF7A6B),
         argentina = arg, oscuro = true)
 }

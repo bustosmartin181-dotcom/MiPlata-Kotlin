@@ -46,8 +46,8 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
     var eligiendoHora by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Ajustes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto)
+        verticalArrangement = Arrangement.spacedBy(Estilo.separacion)) {
+        TituloPantalla("Ajustes")
 
         Tarjeta {
             Titulo("Vos")
@@ -64,9 +64,20 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                     SegmentedButton(S.tema == v, { a.tema(v) }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(t, fontSize = 13.sp) }
                 }
             }
+            val ctxB = androidx.compose.ui.platform.LocalContext.current
+            Text("Estilo visual", color = k.suave, fontSize = 13.sp)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                Estilo.OPCIONES.forEachIndexed { i, (v, t) ->
+                    SegmentedButton(Estilo.actual == v, { Estilo.guardar(ctxB, v) }, SegmentedButtonDefaults.itemShape(i, Estilo.OPCIONES.size)) { Text(t, fontSize = 13.sp) }
+                }
+            }
+            Text(when (Estilo.actual) {
+                "original" -> "Como era Mi plata al principio: bordes de color, barra de abajo plana y botón + redondo."
+                "oneui" -> "Al estilo Samsung One UI: títulos grandes, tarjetas bien redondeadas y barra de abajo flotante."
+                else -> "El rediseño: sombras suaves, más aire entre bloques y barra con puntas redondeadas."
+            }, fontSize = 12.sp, color = k.suave)
             Text("Color", color = k.suave, fontSize = 13.sp)
             SelectorColor(S.color, a.color)
-            val ctxB = androidx.compose.ui.platform.LocalContext.current
             Interruptor("Línea de color en el borde de los bloques", Bordes.activos, { Bordes.guardar(ctxB, it) },
                 "Para ver bien dónde empieza y termina cada bloque")
         }
