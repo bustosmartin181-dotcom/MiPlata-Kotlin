@@ -43,7 +43,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(scroll).onGloballyPositioned { contenido = it }.padding(16.dp, 12.dp, 16.dp, 110.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Días del período", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = k.texto)
