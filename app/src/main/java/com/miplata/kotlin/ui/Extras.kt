@@ -1,6 +1,11 @@
 package com.miplata.kotlin.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -232,6 +237,7 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
     var confirmar by remember { mutableStateOf<Deuda?>(null) }
     var pedirTel by remember { mutableStateOf<Deuda?>(null) }
     var cobrando by remember { mutableStateOf<Deuda?>(null) }
+    var eligiendo by remember { mutableStateOf<List<Deuda>?>(null) }   // "No me paga algo…": de qué cosa
     /* Le manda todo lo que te debe esa persona junto, en un solo mensaje */
     fun cobrar(d: Deuda, tel: String) {
         if (d.tp != null) { mandarCobro(ctx, d.tp, lista, taller, tel); return }
@@ -239,47 +245,44 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
         val texto = Taller.mensajeCobro("", listOf(lineaDeuda(d) to d.monto), taller.linkCobro, taller.aliasCobro, ::pesos)
         if (!abrirWhatsApp(ctx, num, texto)) android.widget.Toast.makeText(ctx, "No encontré WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
     }
-    Tarjeta {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    /* Una tarjeta por persona (todo lo de un compañero junto); lo que no es de un compañero va en la suya.
+       Al tocar una, se levanta al frente y se opera solo con esa persona. */
+    val grupos = lista.groupBy { it.tp ?: "#${it.id}" }
+    val marcos = remember { mutableMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    /* si la levantada ya no tiene nada (le cobraste todo), se baja sola */
+    SideEffect { FocoDeuda.clave?.let { c -> if (c !in grupos.keys) FocoDeuda.cerrarYa() } }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Titulo("Me deben"); Spacer(Modifier.weight(1f))
-            Text(dinero(lista.filter { !it.aFavor }.sumOf { it.monto }), fontWeight = FontWeight.Bold, color = k.naranja)
+            Text(dinero(lista.filter { !it.aFavor }.sumOf { it.monto }), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = k.naranja)
         }
-        /* Una burbuja por compañero del taller (todo lo suyo junto); lo que no es de un compañero va suelto */
-        val grupos = lista.groupBy { it.tp ?: "#${it.id}" }
-        grupos.values.forEachIndexed { i, l ->
-            if (i > 0) HorizontalDivider(color = k.linea)
+        grupos.forEach { (clave, l) ->
             val d0 = l.first()
-            if (d0.tp != null) BurbujaPersona(l, taller,
+            val acciones = AccionesPersona(
+                /* los diálogos se abren encima de la tarjeta levantada; si al final ya no debe nada, se baja sola */
                 alMePago = { neto -> val vieja = l.filter { !it.aFavor }.minWithOrNull(compareBy({ it.fecha }, { it.id })) ?: d0
-                    cobrando = vieja.copy(monto = neto) },
+                    cobrando = if (d0.tp != null) vieja.copy(monto = neto) else d0 },
                 alCobrarWa = { val tel = taller.muchachos.firstOrNull { it.id == d0.tp }?.tel.orEmpty()
                     if (Taller.numeroWhatsApp(tel) != null) cobrar(d0, tel) else pedirTel = d0 },
-                alNoPaga = { confirmar = it }, alDevolviFavor = alDevolviFavor)
-            else if (d0.aFavor) Column(Modifier.padding(vertical = 4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(d0.nota, color = k.texto)
-                        Text(Fechas.diaYMes(d0.fecha) + (if (d0.efectivo) " · 💵 en efectivo" else " · 📲 por transferencia") +
-                            " · se descuenta solo en lo próximo que pida", fontSize = 12.sp, color = k.suave)
-                    }
-                    Text("🤝 " + dinero(-d0.monto), fontWeight = FontWeight.SemiBold, color = k.verde)
-                }
-                TextButton(onClick = { alDevolviFavor(d0) }) { Text("Ya se lo devolví", fontSize = 12.sp) }
-            } else Column(Modifier.padding(vertical = 4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(d0.nota.ifBlank { "Compra para otros" }, color = k.texto)
-                        Text(Fechas.diaYMes(d0.fecha) + if (d0.previo) " · del período anterior" else "", fontSize = 12.sp, color = k.suave)
-                    }
-                    Text(dinero(d0.monto), fontWeight = FontWeight.SemiBold, color = k.texto)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FilledTonalButton(onClick = { cobrando = d0 }) { Text("Me lo pagaron") }
-                    OutlinedButton(onClick = { pedirTel = d0 }) { Text("📲 Cobrar") }
-                    TextButton(onClick = { confirmar = d0 }) { Text("No me lo pagan", fontSize = 12.sp) }
-                }
+                alNoPaga = { confirmar = it }, alDevolviFavor = alDevolviFavor,
+                alElegirNoPaga = { eligiendo = it })
+            val levantada = FocoDeuda.clave == clave
+            if (levantada) CapaFocoDeuda { TarjetaPersona(l, taller, grande = true, acciones = acciones) }
+            Box(Modifier.onGloballyPositioned { val p = it.positionOnScreen()
+                    marcos[clave] = androidx.compose.ui.geometry.Rect(p, androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat())) }
+                .graphicsLayer { alpha = if (levantada) 0f else 1f }
+                .clickable { FocoDeuda.abrir(clave, marcos[clave]) }) {
+                TarjetaPersona(l, taller, grande = false, acciones = acciones)
             }
         }
+    }
+    eligiendo?.let { debe ->
+        val m = taller.muchachos.firstOrNull { it.id == debe.first().tp }
+        AlertDialog(onDismissRequest = { eligiendo = null },
+            title = { Text("¿Qué no te va a pagar${m?.let { " " + it.mostrar } ?: ""}?") },
+            text = { Column { debe.forEach { d -> TextButton(onClick = { eligiendo = null; confirmar = d }, Modifier.fillMaxWidth()) {
+                Text("${lineaDeuda(d)} · ${dinero(d.monto)}", modifier = Modifier.fillMaxWidth()) } } } },
+            confirmButton = {}, dismissButton = { TextButton(onClick = { eligiendo = null }) { Text("Cancelar") } })
     }
     cobrando?.let { d ->
         val m = taller.muchachos.firstOrNull { it.id == d.tp }
@@ -310,48 +313,62 @@ fun TarjetaMeDeben(lista: List<Deuda>, alCobrar: (Deuda, Cobro) -> Unit, alNoPag
         dismissButton = { TextButton(onClick = { confirmar = null }) { Text("Cancelar") } }) }
 }
 
-/** Todo lo que te debe un compañero en una sola burbuja: nombre y total arriba, cada cosa abajo,
-    y los botones una sola vez (el cobro se reparte solo, de lo más viejo a lo más nuevo). */
+/** Lo que se puede hacer con una persona desde su tarjeta. */
+class AccionesPersona(val alMePago: (Double) -> Unit, val alCobrarWa: () -> Unit, val alNoPaga: (Deuda) -> Unit, val alDevolviFavor: (Deuda) -> Unit,
+                      val alElegirNoPaga: (List<Deuda>) -> Unit)
+
+/** La tarjeta de una persona: nombre y total arriba, cada cosa con su fecha abajo, con marco como los bloques de Hoy.
+    Chica (en la lista): solo para ver, se toca para levantarla. Grande (levantada): con los botones. */
 @Composable
-private fun BurbujaPersona(l: List<Deuda>, taller: Taller, alMePago: (Double) -> Unit, alCobrarWa: () -> Unit,
-                           alNoPaga: (Deuda) -> Unit, alDevolviFavor: (Deuda) -> Unit) {
+fun TarjetaPersona(l: List<Deuda>, taller: Taller, grande: Boolean, acciones: AccionesPersona) {
     val k = LocalColores.current
-    val m = taller.muchachos.firstOrNull { it.id == l.first().tp }
-    val nombre = m?.mostrar ?: l.first().nota.removePrefix("Taller · ").substringBefore(":").removePrefix("a favor de ")
+    val d0 = l.first()
+    val m = taller.muchachos.firstOrNull { it.id == d0.tp }
+    val nombre = when {
+        m != null -> m.mostrar
+        d0.tp != null -> d0.nota.removePrefix("Taller · ").substringBefore(":").removePrefix("a favor de ")
+        else -> d0.nota.ifBlank { "Compra para otros" }
+    }
     val debe = l.filter { !it.aFavor }.sortedWith(compareBy({ it.fecha }, { it.id }))
     val favor = l.filter { it.aFavor }
     val neto = l.sumOf { it.monto }
-    var eligiendo by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val forma = RoundedCornerShape(if (grande) 28.dp else 22.dp)
+    val chico = if (grande) 1.2f else 1f
+    Column(Modifier.fillMaxWidth()
+            .shadow(if (grande) 0.dp else 2.dp, forma, clip = false)
+            .background(k.tarjeta, forma)
+            .border(if (grande) 2.dp else 1.5.dp, k.verde.copy(alpha = 0.7f), forma)
+            .padding(horizontal = if (grande) 22.dp else 18.dp, vertical = if (grande) 22.dp else 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (grande) 14.dp else 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(nombre, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = k.texto, modifier = Modifier.weight(1f))
-            if (neto > 0.005) Text(dinero(neto), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = k.texto)
-            else Text("🤝 ${dinero(-neto)} a favor", fontWeight = FontWeight.SemiBold, color = k.verde)
+            Text(nombre, fontWeight = FontWeight.Bold, fontSize = (16 * chico).sp, color = k.texto, modifier = Modifier.weight(1f))
+            if (neto > 0.005) Text(dinero(neto), fontWeight = FontWeight.Bold, fontSize = (17 * chico).sp, color = k.naranja)
+            else Text("🤝 ${dinero(-neto)} a favor", fontWeight = FontWeight.SemiBold, fontSize = (15 * chico).sp, color = k.verde)
         }
-        Column(Modifier.fillMaxWidth().background(k.fondo, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             debe.forEach { d -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(lineaDeuda(d), fontSize = 14.sp, color = k.suave, modifier = Modifier.weight(1f))
-                Text(dinero(d.monto), fontSize = 14.sp, color = k.texto)
+                val que = if (d.tp != null) lineaDeuda(d) else Fechas.diaYMes(d.fecha) + if (d.previo) " · del período anterior" else ""
+                Text(que, fontSize = (14 * chico).sp, color = k.suave, modifier = Modifier.weight(1f))
+                if (debe.size > 1 || favor.isNotEmpty()) Text(dinero(d.monto), fontSize = (14 * chico).sp, color = k.texto)
             } }
             favor.forEach { d -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🤝 A su favor (" + (if (d.efectivo) "efectivo" else "transferencia") + ")", fontSize = 14.sp, color = k.verde, modifier = Modifier.weight(1f))
-                Text("−" + dinero(-d.monto), fontSize = 14.sp, color = k.verde)
+                Text("🤝 A su favor (" + (if (d.efectivo) "efectivo" else "transferencia") + ")" +
+                    (if (debe.isEmpty()) " · se descuenta solo en lo próximo que pida" else ""), fontSize = (14 * chico).sp, color = k.verde, modifier = Modifier.weight(1f))
+                if (debe.isNotEmpty()) Text("−" + dinero(-d.monto), fontSize = (14 * chico).sp, color = k.verde)
             } }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (neto > 0.005) {
-                FilledTonalButton(onClick = { alMePago(neto) }) { Text("Me pagó") }
-                OutlinedButton(onClick = alCobrarWa) { Text("📲 Cobrar") }
-                TextButton(onClick = { if (debe.size == 1) alNoPaga(debe[0]) else eligiendo = true }) { Text("No me paga…", fontSize = 12.sp) }
-            } else favor.firstOrNull()?.let { d -> TextButton(onClick = { alDevolviFavor(d) }) { Text("Ya se lo devolví", fontSize = 12.sp) } }
+        if (!grande) Text("Tocá para cobrar", fontSize = 12.sp, color = k.verde)
+        else if (neto > 0.005) {
+            Button(onClick = { acciones.alMePago(neto) }, Modifier.fillMaxWidth().height(54.dp)) { Text("💵 Me pagó", fontSize = 17.sp) }
+            OutlinedButton(onClick = acciones.alCobrarWa, Modifier.fillMaxWidth().height(50.dp)) { Text("📲 Cobrar por WhatsApp", fontSize = 16.sp) }
+            TextButton(onClick = { if (debe.size == 1) acciones.alNoPaga(debe[0]) else acciones.alElegirNoPaga(debe) }, Modifier.fillMaxWidth()) {
+                Text(if (debe.size == 1) "No me lo paga (pasa a ser gasto mío)" else "No me paga algo…", fontSize = 14.sp) }
+            TextButton(onClick = { FocoDeuda.cerrar() }, Modifier.fillMaxWidth()) { Text("Cerrar", color = k.suave) }
+        } else {
+            favor.firstOrNull()?.let { d -> OutlinedButton(onClick = { acciones.alDevolviFavor(d) }, Modifier.fillMaxWidth().height(50.dp)) { Text("Ya se lo devolví") } }
+            TextButton(onClick = { FocoDeuda.cerrar() }, Modifier.fillMaxWidth()) { Text("Cerrar", color = k.suave) }
         }
     }
-    if (eligiendo) AlertDialog(onDismissRequest = { eligiendo = false },
-        title = { Text("¿Qué no te va a pagar $nombre?") },
-        text = { Column { debe.forEach { d -> TextButton(onClick = { eligiendo = false; alNoPaga(d) }, Modifier.fillMaxWidth()) {
-            Text("${lineaDeuda(d)} · ${dinero(d.monto)}", modifier = Modifier.fillMaxWidth()) } } } },
-        confirmButton = {}, dismissButton = { TextButton(onClick = { eligiendo = false }) { Text("Cancelar") } })
 }
 
 /* ---------- Objetivo por día y recalibrar (en Días) ---------- */
