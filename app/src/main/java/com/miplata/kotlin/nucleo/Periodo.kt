@@ -112,7 +112,7 @@ object Periodo {
         items = items.filter { i -> tieneCuotas(i) || !((i["f"] as? JsonPrimitive)?.booleanOrNull == false) }
         val nuevos = items.map { i ->
             val m = i.mutable()
-            m["p"] = JsonPrimitive(false); m.remove("d"); m.remove("x")
+            m["p"] = JsonPrimitive(false); m.remove("d"); m.remove("x"); m.remove("pMed"); m.remove("pMonto")
             val prox = m["prox"]
             if (prox != null && prox !is JsonNull && !(prox is JsonPrimitive && prox.isString && prox.content == "")) m["a"] = num(prox.num())
             else if (m["v"].verdadero() && !tieneCuotas(i)) m["a"] = num(0.0)

@@ -290,11 +290,37 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
     }
 
     /** Marca o desmarca un gasto importante como pagado. */
-    fun marcarPagado(indice: Int, pagado: Boolean) = cambiar {
+    /** Gasto importante pagado / pendiente. Con `medio` ("mp" o "ef") baja `monto` de esa cuenta;
+        al volverlo a pendiente, esa plata vuelve a la misma cuenta. Sin medio: solo la marca. */
+    fun marcarPagado(indice: Int, pagado: Boolean, medio: String? = null, monto: Double = 0.0) = cambiar(moverCuenta = false) {
         val items = (this["items"] as? JsonArray)?.toMutableList() ?: return@cambiar
         val o = items.getOrNull(indice) as? JsonObject ?: return@cambiar
-        items[indice] = JsonObject(o + ("p" to JsonPrimitive(pagado)))
+        val m = o.toMutableMap()
+        val mover = marcaDePago(m, pagado, medio, monto)
+        items[indice] = JsonObject(m)
         this["items"] = JsonArray(items)
+        moverPago(this, mover)
+    }
+
+    /** Pone la marca de pagado/pendiente y devuelve (medio, monto) a mover en las cuentas (monto negativo = sale). */
+    private fun marcaDePago(m: MutableMap<String, JsonElement>, pagado: Boolean, medio: String?, monto: Double): Pair<String, Double>? {
+        if (pagado) {
+            if (m["p"].verdadero()) return null                 // ya estaba pagado: no se descuenta dos veces
+            m["p"] = JsonPrimitive(true)
+            if (medio == null || monto < 0.005) return null
+            val r = com.miplata.kotlin.nucleo.redondear2(monto)
+            m["pMed"] = JsonPrimitive(medio); m["pMonto"] = num(r)
+            return medio to -r
+        }
+        m["p"] = JsonPrimitive(false)
+        val antes = m["pMed"].texto(); val cuanto = m["pMonto"].num()
+        m.remove("pMed"); m.remove("pMonto")
+        return if (antes != null && cuanto > 0.005) antes to cuanto else null
+    }
+    private fun moverPago(datos: MutableMap<String, JsonElement>, mover: Pair<String, Double>?) {
+        val (medio, monto) = mover ?: return
+        val o = if (medio == MEDIO_EFECTIVO) sumarAEfectivo(JsonObject(datos), monto) else sumarAMercadoPago(JsonObject(datos), monto)
+        o["cuentas"]?.let { datos["cuentas"] = it }
     }
 
     /** Cambio general sobre el JSON completo. */
@@ -351,25 +377,10 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         val i = l.indexOfFirst { it["id"].num().toLong() == id }
         if (i < 0) return@cambiar
         val m = l[i].toMutableMap()
-        var mover = 0.0; var medioMover: String? = null
-        if (pagado && m["p"].verdadero() != true) {
-            m["p"] = JsonPrimitive(true)
-            if (medio != null && monto > 0.005) {
-                m["pMed"] = JsonPrimitive(medio); m["pMonto"] = num(com.miplata.kotlin.nucleo.redondear2(monto))
-                mover = -monto; medioMover = medio
-            }
-        } else if (!pagado) {
-            m["p"] = JsonPrimitive(false)
-            val antes = m["pMed"].texto()
-            if (antes != null) { mover = m["pMonto"].num(); medioMover = antes }
-            m.remove("pMed"); m.remove("pMonto")
-        }
+        val mover = marcaDePago(m, pagado, medio, monto)
         l[i] = JsonObject(m)
         this["planes"] = JsonArray(l)
-        if (medioMover != null && Math.abs(mover) >= 0.005) {
-            val o = if (medioMover == MEDIO_EFECTIVO) sumarAEfectivo(JsonObject(this), mover) else sumarAMercadoPago(JsonObject(this), mover)
-            o["cuentas"]?.let { this["cuentas"] = it }
-        }
+        moverPago(this, mover)
     }
 
     fun agregarItem(): Int {

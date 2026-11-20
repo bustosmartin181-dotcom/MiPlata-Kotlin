@@ -109,14 +109,41 @@ fun HojaAnotar(
         DialogoCobro(quien?.let { it.apodo.ifBlank { it.nombre } } ?: "", editando.amt, alCerrar = { cobrando = false },
             puedeFavor = quien != null) { c -> cobrando = false; alCobrar(editando, c) }
     }
+    fun listaTaller() = if (modoTaller && !entrada) taller.activos.filter { partes.containsKey(it.id) }.map { it to aNumero(partes[it.id] ?: "") }.filter { it.second > 0 } else emptyList()
+    /** Revisa que esté todo para anotar; si falta algo, muestra el error y devuelve false. */
+    fun validar(): Boolean {
+        val n = aNumero(monto); val lista = listaTaller()
+        error = when {
+            n <= 0 -> if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
+            modoTaller && !entrada && lista.isEmpty() -> "Elegí quiénes entraron y cuánto le toca a cada uno"
+            lista.sumOf { it.second } > n + 0.005 -> "Lo de los muchachos suma más que el total"
+            else -> null
+        }
+        return error == null
+    }
     val guardarClick: () -> Unit = {
-        val n = aNumero(monto)
-        val lista = if (modoTaller && !entrada) taller.activos.filter { partes.containsKey(it.id) }.map { it to aNumero(partes[it.id] ?: "") }.filter { it.second > 0 } else emptyList()
-        if (n <= 0) error = if (modoTaller) "Escribí el total que pagaste" else "Escribí un monto"
-        else if (modoTaller && !entrada && lista.isEmpty()) error = "Elegí quiénes entraron y cuánto le toca a cada uno"
-        else if (lista.sumOf { it.second } > n + 0.005) error = "Lo de los muchachos suma más que el total"
-        else alGuardar(NuevoMovimiento(n, nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo, conMP && !efectivo, efectivo))
+        if (validar()) {
+            val lista = listaTaller()
+            alGuardar(NuevoMovimiento(aNumero(monto), nota.trim(), categoria, entrada, devuelven && lista.isEmpty(), fecha, editando?.id, lista, queLlevo, conMP && !efectivo, efectivo))
+        }
         conMP = false
+    }
+    /* Anotar algo nuevo: primero la ventanita "¿Transferencia o efectivo?", así la plata sale (o entra) de la cuenta correcta */
+    var preguntandoMedio by remember { mutableStateOf(false) }
+    if (preguntandoMedio) {
+        fun elegir(enEfectivo: Boolean, abrirMP: Boolean) {
+            preguntandoMedio = false; efectivo = enEfectivo; conMP = abrirMP; guardarClick()
+        }
+        AlertDialog(onDismissRequest = { preguntandoMedio = false },
+            title = { Text(if (entrada) "¿Cómo te entraron ${pesos(aNumero(monto))}?" else "¿Cómo pagaste ${pesos(aNumero(monto))}?") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onClick = { elegir(false, !entrada) }, Modifier.fillMaxWidth().height(54.dp)) {
+                    Text(if (entrada) "📲 Transferencia (a Mercado Pago)" else "📲 Transferencia · abre Mercado Pago", fontSize = 16.sp) }
+                FilledTonalButton(onClick = { elegir(true, false) }, Modifier.fillMaxWidth().height(54.dp)) { Text("💵 Efectivo", fontSize = 16.sp) }
+                if (!entrada) TextButton(onClick = { elegir(false, false) }, Modifier.fillMaxWidth()) {
+                    Text("Ya lo pagué con Mercado Pago (no abrir)", fontSize = 13.sp) }
+            } },
+            confirmButton = {}, dismissButton = { TextButton(onClick = { preguntandoMedio = false }) { Text("Cancelar") } })
     }
 
     if (escuchando) androidx.compose.ui.window.Dialog(onDismissRequest = { escuchando = false },
@@ -179,7 +206,8 @@ fun HojaAnotar(
             }
             /* Con qué pagaste (o en qué te entró): así el efectivo no se mezcla con Mercado Pago */
             /* (al corregir algo que te deben no se muestra: eso se cobra con "Me lo pagaron") */
-            if (editando == null || editando.dev == 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            /* (algo nuevo: se pregunta en la ventanita al tocar Anotar) */
+            if (editando != null && editando.dev == 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (entrada) "Entró en:" else if (devuelven) "En el negocio pagué con:" else "Pagué con:", color = k.suave, modifier = Modifier.align(Alignment.CenterVertically))
                 FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Mercado Pago") })
                 FilterChip(selected = efectivo, onClick = { efectivo = true }, label = { Text("💵 Efectivo") })
@@ -203,12 +231,10 @@ fun HojaAnotar(
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             /* Un solo botón: todo gasto nuevo (también la compra del taller) se anota y abre Mercado Pago para pagarlo.
                Excepciones: entradas, cambios y la demo. */
-            val conPago = editando == null && !entrada && !Demo.corriendo && !efectivo
-            val principal: () -> Unit = { conMP = conPago; guardarClick() }
+            val principal: () -> Unit = { if (editando == null && !Demo.corriendo) { if (validar()) preguntandoMedio = true } else guardarClick() }
             Button(onClick = principal, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
-                Text(when { editando != null -> "Guardar cambios"; entrada -> "Anotar entrada"; conPago -> "💳 Anotar y pagar con Mercado Pago"
-                    efectivo && modoTaller -> "💵 Anotar compra del taller (efectivo)"; efectivo -> "💵 Anotar gasto en efectivo"
-                    modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = if (conPago) 16.sp else 17.sp)
+                Text(when { editando != null -> "Guardar cambios"; entrada -> "Anotar entrada"
+                    modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = 17.sp)
             }
 
             /* Ya cobrado: ¿cómo te pagó? (se puede corregir, y también parte y parte) */

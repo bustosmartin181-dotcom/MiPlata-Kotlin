@@ -600,3 +600,25 @@ fun HojaPin(hayPin: Boolean, alCerrar: () -> Unit, alGuardar: (actual: String, n
         Text("Si te olvidás el PIN, la única forma de entrar es desinstalar y recuperar una copia. Guardá copias seguido.", fontSize = 12.sp, color = k.suave)
     }
 }
+
+
+/** ✅ Pagado (gasto importante o plan): ¿con qué lo pagaste? Baja esa cuenta en Mis cuentas.
+    `alElegir(medio, monto)`: medio = "mp", "ef" o null (solo marcar, sin tocar las cuentas). */
+@Composable
+fun DialogoConQuePagaste(nombre: String, montoInicial: Double, alCerrar: () -> Unit, alElegir: (String?, Double) -> Unit) {
+    var monto by remember { mutableStateOf(if (montoInicial > 0) textoMonto(montoInicial) else "") }
+    val n = aNumero(monto)
+    AlertDialog(onDismissRequest = alCerrar,
+        title = { Text("¿Con qué pagaste ${nombre.ifBlank { "esto" }}?") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            CampoMonto(monto, { monto = it }, "Cuánto pagaste")
+            Button(onClick = { alElegir(com.miplata.kotlin.datos.MEDIO_MP, n) }, Modifier.fillMaxWidth().height(54.dp), enabled = n > 0) {
+                Text("📲 Transferencia / Mercado Pago", fontSize = 16.sp) }
+            FilledTonalButton(onClick = { alElegir(com.miplata.kotlin.datos.MEDIO_EFECTIVO, n) }, Modifier.fillMaxWidth().height(54.dp), enabled = n > 0) {
+                Text("💵 Efectivo", fontSize = 16.sp) }
+            TextButton(onClick = { alElegir(null, 0.0) }, Modifier.fillMaxWidth()) { Text("Solo marcar (no tocar mis cuentas)", fontSize = 13.sp) }
+            Text("Se descuenta de esa cuenta en Mis cuentas. Tu plata del día no cambia: esto ya estaba descontado.", fontSize = 12.sp,
+                color = LocalColores.current.suave)
+        } },
+        confirmButton = {}, dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
+}

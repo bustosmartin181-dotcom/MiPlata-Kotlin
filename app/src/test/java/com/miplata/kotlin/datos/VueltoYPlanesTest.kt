@@ -105,4 +105,28 @@ class VueltoYPlanesTest {
         a.marcarPlanPagado(id, false)
         assertEquals(99000.0, a.mp(), 1e-6)
     }
+
+    /** ✅ Pagado en un gasto importante (Telecom): baja la cuenta; pendiente: vuelve; período nuevo: se limpia la marca. */
+    @Test fun gastoImportantePagadoMueveLaCuenta() {
+        val a = nuevo()
+        val k = a.agregarItem()
+        a.cambiarItem(k, mapOf("n" to kotlinx.serialization.json.JsonPrimitive("Telecom"), "f" to kotlinx.serialization.json.JsonPrimitive(true)))
+        a.cambiarMontoItem(k, 57722.0)
+        val hoy0 = a.quedaHoy(); val dif0 = a.dif()
+        a.marcarPagado(k, true, MEDIO_MP, 57722.0)
+        assertEquals(99000.0 - 57722.0, a.mp(), 1e-6)
+        assertTrue(a.estado!!.items[k].p); assertEquals(hoy0, a.quedaHoy(), 1e-6)
+        assertEquals(dif0 - 57722.0, a.dif(), 1e-6)       // la app ya lo daba por gastado: ahora las cuentas coinciden con la realidad
+        a.marcarPagado(k, true, MEDIO_MP, 57722.0)          // dos veces no descuenta dos veces
+        assertEquals(99000.0 - 57722.0, a.mp(), 1e-6)
+        a.marcarPagado(k, false)
+        assertEquals(99000.0, a.mp(), 1e-6); assertFalse(a.estado!!.items[k].p)
+        a.marcarPagado(k, true, MEDIO_EFECTIVO, 1000.0)
+        assertEquals(200.0, a.ef(), 1e-6)
+        val fin = a.estado!!.end
+        a.periodoNuevo(0.0, fin, Fechas.mesSiguiente(fin))
+        assertNull(a.estado!!.items[k].extra["pMed"])      // período nuevo: queda pendiente y sin marca de pago
+        a.marcarPagado(k, false)
+        assertEquals(200.0, a.ef(), 1e-6)                    // y no devuelve plata de otro período
+    }
 }

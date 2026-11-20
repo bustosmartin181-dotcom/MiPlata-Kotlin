@@ -64,7 +64,12 @@ class VentanitaActivity : ComponentActivity() {
     private fun Hoja(editando: Movimiento?, dictar: Boolean = false, monto: String = "", nota: String = "") {
         HojaAnotar(editando = editando, alCerrar = { finish() }, dictarAlAbrir = dictar, montoInicial = monto, notaInicial = nota,
             alGuardar = { m ->
-                almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId)
+                almacen.anotar(m.monto, m.nota, m.categoria, m.entrada, m.meLoDevuelven, m.fecha, m.editarId, efectivo = m.efectivo)
+                if (m.pagarConMP) {
+                    val texto = if (m.monto % 1.0 == 0.0) m.monto.toLong().toString() else "%.2f".format(java.util.Locale("es", "AR"), m.monto)
+                    com.miplata.kotlin.ui.MercadoPago.copiar(this, "Monto", texto)
+                    com.miplata.kotlin.ui.MercadoPago.abrirTransferir(this)
+                }
                 Toast.makeText(this, (if (m.entrada) "Entrada anotada" else if (m.editarId != null) "Cambiado" else "Anotado") +
                     ". Te quedan ${pesos(quedaHoy())} hoy", Toast.LENGTH_LONG).show()
                 alDia(cerrar = true)

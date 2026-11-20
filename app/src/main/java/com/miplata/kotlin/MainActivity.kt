@@ -534,7 +534,9 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         val item = estado?.items?.getOrNull(i)
         AlertDialog(onDismissRequest = { preguntarPago = null }, title = { Text("¿Ya lo pagaste?") },
             text = { Text("${n.ifBlank { "Gasto" }} · ${pesos(item?.a ?: 0.0)}") },
-            confirmButton = { TextButton(onClick = { preguntarPago = null; almacen.marcarPagado(i, true); vuelta++; aviso("Marcado como pagado ✅") }) { Text("Sí, marcar pagado") } },
+            confirmButton = { TextButton(onClick = { preguntarPago = null; val monto = almacen.estado?.items?.getOrNull(i)?.a ?: 0.0
+                almacen.marcarPagado(i, true, com.miplata.kotlin.datos.MEDIO_MP, monto); vuelta++
+                aviso("Pagado ✅ · bajaron ${pesos(monto)} de Mercado Pago") }) { Text("Sí, marcar pagado") } },
             dismissButton = { TextButton(onClick = { preguntarPago = null }) { Text("Todavía no") } })
     }
 
