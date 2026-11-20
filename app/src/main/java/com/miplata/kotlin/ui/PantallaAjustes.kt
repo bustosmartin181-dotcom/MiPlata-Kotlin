@@ -153,7 +153,10 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                     "Importante: con esto prendido, no anotes a mano las transferencias que te entran (se contarían dos veces)")
                 var repE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.repartirA(ctxE)) }
                 OutlinedTextField(repE, { repE = it }, Modifier.fillMaxWidth(), label = { Text("Repartir siempre lo que me mande (separá con coma)") })
-                Button(onClick = { com.miplata.kotlin.aviso.EntradasMP.guardarRepartirA(ctxE, repE); a.avisar("Guardado") }) { Text("Guardar nombres") }
+                var nuncaE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.nuncaDe(ctxE)) }
+                OutlinedTextField(nuncaE, { nuncaE = it }, Modifier.fillMaxWidth(), label = { Text("No anotar nunca lo que venga de (vos, la empresa)") })
+                Text("Tampoco se anota solo nada de más de ${com.miplata.kotlin.ui.pesos(com.miplata.kotlin.aviso.EntradasMP.TOPE)} (sueldo, aguinaldo): te avisa y lo cargás vos.", color = k.suave, fontSize = 13.sp)
+                Button(onClick = { com.miplata.kotlin.aviso.EntradasMP.guardarRepartirA(ctxE, repE); com.miplata.kotlin.aviso.EntradasMP.guardarNuncaDe(ctxE, nuncaE); a.avisar("Guardado") }) { Text("Guardar nombres") }
                 val ult = com.miplata.kotlin.aviso.EntradasMP.ultimas(ctxE)
                 if (ult.isNotEmpty()) {
                     Text("Últimas notificaciones de Mercado Pago que leyó:", color = k.suave, fontSize = 13.sp)

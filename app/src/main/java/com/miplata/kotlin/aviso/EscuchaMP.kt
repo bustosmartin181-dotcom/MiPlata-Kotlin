@@ -50,6 +50,12 @@ object EntradasMP {
     /** Nombres a los que siempre se les reparte la plata en los días que quedan (separados por coma). */
     fun repartirA(ctx: Context): String = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("repartir", "Mariela Villegas") ?: ""
     fun guardarRepartirA(ctx: Context, nombres: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("repartir", nombres.trim()).apply()
+    /** Nombres que NUNCA se anotan solos (ej.: vos mismo pasando el sueldo del banco, o la empresa con el aguinaldo). */
+    fun nuncaDe(ctx: Context): String = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("nunca", "Martin Enrique Bustos, El Trapiche") ?: ""
+    fun guardarNuncaDe(ctx: Context, nombres: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("nunca", nombres.trim()).apply()
+    /** Más que esto no se anota solo (sueldo, aguinaldo): solo avisa. */
+    const val TOPE = 150_000.0
+
     /** Apagado a mano desde Ajustes (aunque el permiso siga dado). */
     fun encendida(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("on", true)
     fun encender(ctx: Context, on: Boolean) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("on", on).apply()
@@ -125,6 +131,14 @@ object EntradasMP {
         val a = Almacen(ctx)
         val S = a.estado ?: return
         val de = if (l.nombre.isNotBlank()) " de ${l.nombre}" else ""
+        /* Sueldo, aguinaldo o plata tuya que pasás del banco: NO se anota sola (no es plata para gastar hoy) */
+        val esNunca = l.nombre.isNotBlank() && nuncaDe(ctx).split(",").any { it.isNotBlank() && coincide(l.nombre, it) }
+        if (esNunca || l.monto > TOPE) {
+            avisar(ctx, "💰 Te entraron ${pesos(l.monto)}$de", "No lo anoté solo " +
+                (if (esNunca) "(está en \"No anotar nunca\")" else "porque es mucha plata (¿sueldo o aguinaldo?)") +
+                ". Si querés, cargalo vos en la app como corresponda.", 0L, 0L, emptyList())
+            return
+        }
         val nota = if (l.nombre.isNotBlank()) "Entrada MP · ${l.nombre}" else "Entrada MP"
         var entrada = 0L; var repartida = 0L; var cobradas = emptyList<Long>()
         val texto: String
@@ -166,7 +180,8 @@ object EntradasMP {
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         nm.notify(id, NotificationCompat.Builder(ctx, CANAL).setSmallIcon(R.drawable.ic_noti)
             .setContentTitle(titulo).setContentText(cuerpo).setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
-            .setContentIntent(abrir).setAutoCancel(true).addAction(0, "Deshacer", deshacer).build())
+            .setContentIntent(abrir).setAutoCancel(true)
+            .apply { if (entrada != 0L || repartida != 0L || cobradas.isNotEmpty()) addAction(0, "Deshacer", deshacer) }.build())
     }
 }
 
