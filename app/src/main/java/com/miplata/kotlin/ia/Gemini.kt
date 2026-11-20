@@ -129,7 +129,7 @@ $contexto"""
         b.appendLine("Ingresos: " + S.ingresos.joinToString { "${it.cat} ${pesos(it.a)}" } + (if (S.previo != 0.0) "; saldo previo ${pesos(S.previo)}" else ""))
         b.appendLine("Gastos importantes (total ${pesos(c.total)}, falta pagar ${pesos(c.porPagar)}): " +
             S.items.filter { it.n.isNotBlank() || it.a > 0 }.joinToString { "${it.n} ${pesos(it.a)}${if (it.p) " (pagado)" else " (pendiente)"}" })
-        b.appendLine("Hoy: presupuesto ${pesos(c.quedaHoy + c.gastoHoy)}, gastó ${pesos(c.gastoHoy)}, le queda ${pesos(c.quedaHoy)}. Mañana tendría ${c.manana?.let(::pesos) ?: "-"}.")
+        b.appendLine("Hoy: presupuesto ${pesos(c.quedaHoy + c.gastoHoy)}, gastó ${pesos(c.gastoHoy)}, ${if (c.quedaHoy < 0) "se pasó ${pesos(-c.quedaHoy)}" else "le queda ${pesos(c.quedaHoy)}"}. Mañana tendría ${c.manana?.let(::pesos) ?: "-"}.")
         b.appendLine("Base por día: ${pesos(c.baseHoy)}. Saldo del período: ${pesos(c.saldo)}.")
         /* Cuánta plata debería tener en total (Mercado Pago + banco + efectivo), igual que "Mis cuentas" */
         val f = c.fondo

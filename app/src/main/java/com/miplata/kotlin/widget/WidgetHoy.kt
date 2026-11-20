@@ -60,7 +60,8 @@ class WidgetHoy : GlanceAppWidget() {
         val tam = LocalSize.current
         val chico = tam.height < 110.dp
         val fondo = when (d?.clase) {
-            "neg" -> ColorProvider(Color(0xFFC0392B), Color(0xFF8E2A20))
+            "neg" -> if (com.miplata.kotlin.ui.sePasoPoco(d!!.queda, d.gastoHoy)) ColorProvider(Color(0xFFB4670E), Color(0xFF8A4E0A))
+                     else ColorProvider(Color(0xFFC0392B), Color(0xFF8E2A20))
             "warn" -> ColorProvider(Color(0xFFB4670E), Color(0xFF8A4E0A))
             else -> (com.miplata.kotlin.ui.PALETAS[d?.color ?: "verde"] ?: com.miplata.kotlin.ui.PALETAS["verde"]!!).let { ColorProvider(it.claro, it.claro) }
         }
@@ -74,8 +75,8 @@ class WidgetHoy : GlanceAppWidget() {
                     Text("Mi plata", style = TextStyle(color = blanco, fontSize = 18.sp, fontWeight = FontWeight.Bold))
                     Text("Abrí la app e importá tu copia", style = TextStyle(color = suave, fontSize = 13.sp))
                 } else {
-                    Text("Te queda hoy", style = TextStyle(color = suave, fontSize = 13.sp))
-                    Text(if (d.oculto) "$ ••••" else pesos(d.queda), style = TextStyle(color = blanco, fontSize = if (chico) 24.sp else 30.sp, fontWeight = FontWeight.Bold))
+                    Text(if (d.queda < 0) "Te pasaste hoy" else "Te queda hoy", style = TextStyle(color = suave, fontSize = 13.sp))
+                    Text(if (d.oculto) "$ ••••" else pesos(Math.abs(d.queda)), style = TextStyle(color = blanco, fontSize = if (chico) 24.sp else 30.sp, fontWeight = FontWeight.Bold))
                     if (!chico) {
                         Spacer(GlanceModifier.height(4.dp))
                         LinearProgressIndicator(progress = if (d.oculto) 0f else d.fraccion, modifier = GlanceModifier.fillMaxWidth().height(6.dp),
