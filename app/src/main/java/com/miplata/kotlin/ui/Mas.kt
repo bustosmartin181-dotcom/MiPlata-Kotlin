@@ -67,6 +67,7 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.11" to listOf("📈 Tasa de Mercado Pago automática: la app baja sola la TNA de Mercado Fondo (datos de la CNV) y actualiza el \"Rinde %\". Se apaga si escribís la tasa a mano (Ajustes → Rendimiento)"),
     "11.10" to listOf("🔧 Arreglo: al sacar del fondo o pagar algo, Mis cuentas sumaba otra vez todo el rendimiento estimado del mes (Mercado Pago y Reserva quedaban con plata de más)"),
     "11.9" to listOf("🐷 Sacar del fondo: nueva opción \"La reparto en los días que quedan del mes\". La plata se divide en partes iguales entre hoy y el resto del período, y te muestra cuánto más tenés por día"),
     "11.8" to listOf("🐷 Fondo + objetivo por día: si te toca $21.000 y tu objetivo es $15.000, los $6.000 de diferencia van al fondo todos los días, más lo que no gastes (antes quedaban sueltos)",

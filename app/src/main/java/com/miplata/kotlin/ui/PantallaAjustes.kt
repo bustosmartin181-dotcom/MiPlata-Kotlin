@@ -29,6 +29,7 @@ class AccionesAjustes(
     val ocultar: (Boolean) -> Unit = {}, val recordatorio: (Boolean) -> Unit = {}, val horaRecordatorio: (String) -> Unit = {},
     val excel: () -> Unit = {}, val pdf: () -> Unit = {}, val copias: List<String> = emptyList(), val restaurarCierre: (Int) -> Unit = {},
     val demo: (Boolean) -> Unit = {},
+    val tasaAuto: (Boolean) -> Unit = {},
     val reproducirDemo: () -> Unit = {},
     val abrirWebIA: () -> Unit = {}, val avisar: (String) -> Unit = {},
     val abrirTaller: () -> Unit = {},
@@ -129,6 +130,8 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             Interruptor("Sumar rendimiento a mi dinero disponible", S.rendDispOn, a.rendDisp)
             if (S.modoFondo) Interruptor("Sumar rendimiento a mi fondo de ahorro", S.rendOn, a.rendFondo)
             if (S.rendDispOn || S.rendOn) {
+                Interruptor("Actualizar la tasa sola", S.rendTasaAuto, a.tasaAuto,
+                    "La baja de internet: la TNA de Mercado Fondo (el fondo donde rinde tu plata de Mercado Pago), publicada por la CNV. Si escribís una tasa a mano, se apaga.")
                 OutlinedTextField(tasa, { tasa = it.filter { c -> c.isDigit() || c == ',' || c == '.' } }, Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("Tasa anual (TNA)") }, suffix = { Text("%") })
                 Button(onClick = { a.tasa(aNumero(tasa).coerceIn(0.0, 300.0)) }) { Text("Guardar tasa") }

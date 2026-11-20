@@ -102,6 +102,8 @@ data class Estado(
     val rendDesde: String = "",
     val rendPrev: Double = 0.0,
     val rendTasa: Double = 0.0,
+    /** La tasa se baja sola de internet (Mercado Fondo). Si la cambiás a mano, se apaga. */
+    val rendTasaAuto: Boolean = true,
     val rendEnMP: Boolean = false,
     val rendDispOn: Boolean = false,
     val rendDispDesde: String = "",
@@ -186,6 +188,7 @@ data class Estado(
             rendDesde = o["rendDesde"].texto() ?: "",
             rendPrev = o["rendPrev"].num(),
             rendTasa = o["rendTasa"].num(),
+            rendTasaAuto = (o["rendTasaAuto"] as? JsonPrimitive)?.booleanOrNull != false,
             rendEnMP = o["rendEnMP"].verdadero(),
             rendDispOn = o["rendDispOn"].verdadero(),
             rendDispDesde = o["rendDispDesde"].texto() ?: "",

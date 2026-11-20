@@ -220,6 +220,17 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     /* Al abrir: si el aviso de la noche está activo y falta el permiso, pedirlo (si no, el aviso queda mudo) */
     LaunchedEffect(Unit) { if (estado?.modoFondo == true && estado.resAviso) asegurarNotis() }
     fun campo(clave: String, valor: kotlinx.serialization.json.JsonElement) { almacen.cambiarCampo(clave, valor); vuelta++ }
+    /* Tasa de Mercado Pago automática (Mercado Fondo, datos de la CNV): si cambió, se actualiza sola */
+    LaunchedEffect(Unit) {
+        val e = estado
+        if (e != null && (e.rendOn || e.rendDispOn) && e.rendTasaAuto && TasaMP.toca(ctx)) {
+            val d = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TasaMP.bajar(ctx) }
+            if (d != null && Math.abs(d.tasa - e.rendTasa) >= 0.05) {
+                campo("rendTasa", com.miplata.kotlin.nucleo.num(d.tasa))
+                aviso("Mercado Pago ahora rinde ${formatoTasa(d.tasa)}%: tasa actualizada")
+            }
+        }
+    }
     fun abrirMP() { if (!MercadoPago.abrir(ctx)) aviso("No encontré la app de Mercado Pago") }
 
     /* Pagar un gasto importante en Mercado Pago: copia el alias o código, abre MP,
@@ -408,7 +419,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         pasado = { almacen.fijarPasado(it); vuelta++; aviso("Montos guardados") },
                         rendDisp = { almacen.activarRendDisp(it); vuelta++ },
                         rendFondo = { almacen.activarRendFondo(it); vuelta++ },
-                        tasa = { campo("rendTasa", num(it)); aviso("Tasa guardada") },
+                        tasa = { campo("rendTasa", num(it)); campo("rendTasaAuto", kotlinx.serialization.json.JsonPrimitive(false)); aviso("Tasa guardada (ya no se actualiza sola)") },
+                        tasaAuto = { on -> campo("rendTasaAuto", kotlinx.serialization.json.JsonPrimitive(on))
+                            if (on) { ctx.getSharedPreferences("tasa_mp", android.content.Context.MODE_PRIVATE).edit().putLong("cuando", 0).apply()
+                                aviso("Listo: la tasa se actualiza sola al abrir la app") } },
                         rendEnMP = { campo("rendEnMP", JsonPrimitive(it)) },
                         abrirPin = { hojaHoy = "pin" },
                         copiarAlias = { MercadoPago.copiar(ctx, "Alias", MercadoPago.ALIAS_CREADOR); aviso("Alias copiado: ${MercadoPago.ALIAS_CREADOR} 🙌") },
