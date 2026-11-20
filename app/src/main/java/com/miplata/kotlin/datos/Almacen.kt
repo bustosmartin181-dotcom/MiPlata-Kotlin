@@ -424,14 +424,14 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
 
     private fun lista(o: JsonObject, clave: String) = (o[clave] as? JsonArray)?.toMutableList() ?: mutableListOf()
 
-    /** Sacar plata del fondo. para = "hoy" (suma al límite de hoy) o "cubre" (cubre gastos ya hechos). */
+    /** Sacar plata del fondo. para = "hoy" (suma al límite de hoy), "reparte" (se reparte entre los días que quedan) o "cubre" (cubre gastos ya hechos). */
     fun usarFondo(monto: Double, nota: String, para: String) = cambiarTodo { o ->
         val l = lista(o, "fondoUsos")
         /* la plata sale de la reserva y vuelve a Mercado Pago: también baja lo "ya pasado a la reserva" (se guarda cuánto, para poder deshacerlo) */
         val pasado = o["resPasado"].num()
         val baja = Math.min(monto, Math.max(0.0, pasado))
         l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
-            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre") "cubre" else "hoy"),
+            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive(nota), "para" to JsonPrimitive(if (para == "cubre" || para == "reparte") para else "hoy"),
             "resBaja" to com.miplata.kotlin.nucleo.num(baja)))
         moverEnCuentas(JsonObject(o + mapOf("fondoUsos" to JsonArray(l),
             "resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(pasado - baja)))), -monto)

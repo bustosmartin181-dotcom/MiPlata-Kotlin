@@ -42,7 +42,7 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("${Fechas.diaYMes(u.date)} ${u.note.ifBlank { "Uso del fondo" }}", color = k.texto)
-                        Text(if (u.para == "cubre") "Cubrió gastos ya hechos" else "Para gastar ese día", fontSize = 12.sp, color = k.suave)
+                        Text(when (u.para) { "cubre" -> "Cubrió gastos ya hechos"; "reparte" -> "Repartido en los días que quedan"; else -> "Para gastar ese día" }, fontSize = 12.sp, color = k.suave)
                     }
                     Text("-" + dinero(u.amt), fontWeight = FontWeight.SemiBold, color = k.texto)
                     IconButton(onClick = { quitar = i }) { Icon(Icons.Outlined.Close, "Quitar retiro") }
@@ -57,6 +57,13 @@ fun HojaFondo(S: Estado, c: Calculo, alCerrar: () -> Unit, alSacar: (Double, Str
             Text("¿Qué hacés con esa plata?", color = k.texto)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(para == "hoy", { para = "hoy" }); Text("La gasto hoy (suma a mi límite de hoy)", color = k.texto, fontSize = 14.sp)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(para == "reparte", { para = "reparte" }); Text("La reparto en los días que quedan del mes", color = k.texto, fontSize = 14.sp)
+            }
+            if (para == "reparte") {
+                val n = aNumero(monto); val quedan = c.faltan
+                if (n > 0 && quedan > 0) Text("Son ${dinero(n / quedan)} más por día durante $quedan días (hoy incluido).", fontSize = 13.sp, color = k.suave)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(para == "cubre", { para = "cubre" }); Text("Cubre gastos que ya hice o cuadrar con la cuenta", color = k.texto, fontSize = 14.sp)
