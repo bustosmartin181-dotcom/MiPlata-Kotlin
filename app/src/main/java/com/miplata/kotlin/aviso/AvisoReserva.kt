@@ -121,8 +121,8 @@ object AvisoReserva {
     fun textoRecordatorio(ctx: Context): String? {
         val S = Almacen(ctx).estado ?: return null
         val c = Nucleo.calcular(S, Fechas.hoy())
-        return if (c.gastoHoy == 0.0) "¿Anotaste tus gastos de hoy? Todavía no cargaste nada. Te quedan ${pesos(c.quedaHoy)}."
-        else "¿Anotaste todo lo de hoy? Llevás ${pesos(c.gastoHoy)} y te quedan ${pesos(c.quedaHoy)}."
+        return if (c.gastoHoy == 0.0) "¿Anotaste tus gastos de hoy? Todavía no cargaste nada. ${com.miplata.kotlin.ui.textoQuedaHoy(c.quedaHoy)}."
+        else "¿Anotaste todo lo de hoy? Llevás ${pesos(c.gastoHoy)} y ${com.miplata.kotlin.ui.textoQuedaHoy(c.quedaHoy, mayus = false)}."
     }
 
     fun mostrar(ctx: Context, cuerpo: String, prueba: Boolean = false, recordatorio: Boolean = false, monto: Double = 0.0) {

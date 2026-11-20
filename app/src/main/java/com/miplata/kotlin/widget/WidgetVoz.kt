@@ -45,7 +45,8 @@ class WidgetVoz : GlanceAppWidget() {
         val tam = LocalSize.current
         val alto = tam.height >= 110.dp && tam.width < 180.dp      // cuadradito: micrófono abajo
         val fondo = when (d?.clase) {
-            "neg" -> ColorProvider(Color(0xFFC0392B), Color(0xFF8E2A20))
+            "neg" -> if (com.miplata.kotlin.ui.sePasoPoco(d!!.queda, d.gastoHoy)) ColorProvider(Color(0xFFB4670E), Color(0xFF8A4E0A))
+                     else ColorProvider(Color(0xFFC0392B), Color(0xFF8E2A20))
             "warn" -> ColorProvider(Color(0xFFB4670E), Color(0xFF8A4E0A))
             else -> (com.miplata.kotlin.ui.PALETAS[d?.color ?: "verde"] ?: com.miplata.kotlin.ui.PALETAS["verde"]!!).let { ColorProvider(it.claro, it.claro) }
         }
@@ -61,8 +62,8 @@ class WidgetVoz : GlanceAppWidget() {
                 Text("Mi plata", style = TextStyle(color = blanco, fontSize = 18.sp, fontWeight = FontWeight.Bold))
                 Text("Abrí la app primero", style = TextStyle(color = suave, fontSize = 12.sp))
             } else {
-                Text("Te queda hoy", style = TextStyle(color = suave, fontSize = 13.sp))
-                Text(if (d.oculto) "$ ••••" else pesos(d.queda), style = TextStyle(color = blanco, fontSize = 24.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                Text(if (d.queda < 0) "Te pasaste hoy" else "Te queda hoy", style = TextStyle(color = suave, fontSize = 13.sp))
+                Text(if (d.oculto) "$ ••••" else pesos(Math.abs(d.queda)), style = TextStyle(color = blanco, fontSize = 24.sp, fontWeight = FontWeight.Bold), maxLines = 1)
             }
         }
         @Composable fun Microfono(lado: Int) = MicConAro(lado, 7, escuchando, nivel, accionMic)

@@ -123,7 +123,7 @@ class ServicioVoz : Service() {
         almacen.anotar(monto, n, null, false, false)
         VozWidget.ultimoId = almacen.estado?.spent?.maxByOrNull { it.id }?.id ?: 0L
         val queda = almacen.estado?.let { Nucleo.calcular(it, Fechas.hoy()).quedaHoy } ?: 0.0
-        VozWidget.texto.value = "✅ ${pesos(monto)}" + (if (n.isNotBlank()) " · $n" else "") + "\nTe quedan ${pesos(queda)} hoy"
+        VozWidget.texto.value = "✅ ${pesos(monto)}" + (if (n.isNotBlank()) " · $n" else "") + "\n" + com.miplata.kotlin.ui.textoQuedaHoy(queda)
         VozWidget.version.intValue++
         alcance.launch { runCatching { WidgetHoy().updateAll(applicationContext) } }
         alcance.launch {

@@ -46,7 +46,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
     val fraccion = if (presupuesto > 0) (c.quedaHoy / presupuesto).coerceIn(0.0, 1.0).toFloat() else 0f
     /* Si te pasaste poquito (hasta 10% del presupuesto) se muestra en naranja; el rojo queda para cuando te pasás bastante */
     val pasado = c.quedaHoy < 0
-    val pasePoco = pasado && presupuesto > 0 && -c.quedaHoy <= presupuesto * 0.10
+    val pasePoco = sePasoPoco(c.quedaHoy, c.gastoHoy)
     val fondoHero = when { clase == "neg" && pasePoco -> k.naranja; clase == "neg" -> k.rojo; clase == "warn" -> k.naranja; else -> k.verde }
     val sobreHero = if (clase == "") k.sobreVerde else Color.White
 

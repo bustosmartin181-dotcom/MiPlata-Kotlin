@@ -71,7 +71,7 @@ class VentanitaActivity : ComponentActivity() {
                     com.miplata.kotlin.ui.MercadoPago.abrirTransferir(this)
                 }
                 Toast.makeText(this, (if (m.entrada) "Entrada anotada" else if (m.editarId != null) "Cambiado" else "Anotado") +
-                    ". Te quedan ${pesos(quedaHoy())} hoy", Toast.LENGTH_LONG).show()
+                    ". " + com.miplata.kotlin.ui.textoQuedaHoy(quedaHoy()), Toast.LENGTH_LONG).show()
                 alDia(cerrar = true)
             },
             alBorrar = { id -> almacen.borrarMovimiento(id); Toast.makeText(this, "Borrado", Toast.LENGTH_SHORT).show(); alDia(cerrar = true) },
@@ -123,7 +123,7 @@ class VentanitaActivity : ComponentActivity() {
                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("✅ Anotado: ${pesos(p.monto)}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = k.texto)
                 if (p.nota.isNotBlank()) Text(p.nota, fontSize = 16.sp, color = k.texto)
-                Text("Te quedan ${pesos(p.queda)} hoy", fontSize = 14.sp, color = if (p.queda >= 0) k.verde else k.rojo, fontWeight = FontWeight.SemiBold)
+                Text(com.miplata.kotlin.ui.textoQuedaHoy(p.queda), fontSize = 14.sp, color = if (p.queda >= 0) k.verde else k.rojo, fontWeight = FontWeight.SemiBold)
                 LinearProgressIndicator(progress = { tiempo.value }, modifier = Modifier.fillMaxWidth().height(3.dp),
                     color = k.verde, trackColor = k.linea, gapSize = 0.dp, drawStopIndicator = {})
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -136,8 +136,8 @@ object Exportar {
     fun resumenTexto(S: Estado, hoy: String): String {
         val c = Nucleo.calcular(S, hoy)
         val fechaLarga = java.text.SimpleDateFormat("EEEE d 'de' MMMM", java.util.Locale("es", "AR")).format(java.util.Date())
-        val b = StringBuilder("💰 Mi plata · $fechaLarga\nPresupuesto de hoy: ${pesos(c.quedaHoy + c.gastoHoy)}\nGasté hoy: ${pesos(c.gastoHoy)}\nMe queda para hoy: ${pesos(c.quedaHoy)}")
-        c.manana?.let { b.append("\nMañana tendré: ${pesos(it)}") }
+        val b = StringBuilder("💰 Mi plata · $fechaLarga\nPresupuesto de hoy: ${pesos(c.quedaHoy + c.gastoHoy)}\nGasté hoy: ${pesos(c.gastoHoy)}\n" + (if (c.quedaHoy < 0) "Hoy me pasé: ${pesos(-c.quedaHoy)}" else "Me queda para hoy: ${pesos(c.quedaHoy)}"))
+        c.manana?.let { b.append("\nMañana voy a tener: ${pesos(it)}") }
         if (c.fondo.activo) b.append("\n🏦 Mi fondo de ahorro: ${pesos(c.fondo.totalConRend)}")
         b.append("\nDías hasta el próximo cobro: ${c.faltan}")
         S.metas.filter { it.t > 0 }.forEach { m -> b.append("\n🎯 ${m.n}: ${Math.round(Nucleo.juntadoEnMeta(S, m) / m.t * 100)}% juntado") }
