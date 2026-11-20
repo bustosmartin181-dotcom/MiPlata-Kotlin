@@ -220,13 +220,25 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     /* Al abrir: si el aviso de la noche está activo y falta el permiso, pedirlo (si no, el aviso queda mudo) */
     LaunchedEffect(Unit) { if (estado?.modoFondo == true && estado.resAviso) asegurarNotis() }
     fun campo(clave: String, valor: kotlinx.serialization.json.JsonElement) { almacen.cambiarCampo(clave, valor); vuelta++ }
+    /* Una sola vez: la tasa ya había bajado sola hoy (19,8% → 18,9%) antes de que existiera el historial de tasas.
+       Se anota ese cambio con su fecha, así los días anteriores vuelven a contar con 19,8%. */
+    LaunchedEffect(Unit) {
+        val pm = ctx.getSharedPreferences("migraciones", android.content.Context.MODE_PRIVATE)
+        val e = estado
+        if (!pm.getBoolean("tasa_hist_1", false) && e != null) {
+            if (e.rendTasas.isEmpty() && Math.abs(e.rendTasa - 18.9) < 0.01 && Fechas.hoy() <= "2026-11-23")
+                campo("rendTasas", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonObject(mapOf(
+                    "d" to kotlinx.serialization.json.JsonPrimitive("2026-11-20"), "t" to com.miplata.kotlin.nucleo.num(18.9), "a" to com.miplata.kotlin.nucleo.num(19.8))))))
+            pm.edit().putBoolean("tasa_hist_1", true).apply()
+        }
+    }
     /* Tasa de Mercado Pago automática (Mercado Fondo, datos de la CNV): si cambió, se actualiza sola */
     LaunchedEffect(Unit) {
         val e = estado
         if (e != null && (e.rendOn || e.rendDispOn) && e.rendTasaAuto && TasaMP.toca(ctx)) {
             val d = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TasaMP.bajar(ctx) }
             if (d != null && Math.abs(d.tasa - e.rendTasa) >= 0.05) {
-                campo("rendTasa", com.miplata.kotlin.nucleo.num(d.tasa))
+                almacen.cambiarTasa(d.tasa); vuelta++
                 aviso("Mercado Pago ahora rinde ${formatoTasa(d.tasa)}%: tasa actualizada")
             }
         }
@@ -419,7 +431,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         pasado = { almacen.fijarPasado(it); vuelta++; aviso("Montos guardados") },
                         rendDisp = { almacen.activarRendDisp(it); vuelta++ },
                         rendFondo = { almacen.activarRendFondo(it); vuelta++ },
-                        tasa = { campo("rendTasa", num(it)); campo("rendTasaAuto", kotlinx.serialization.json.JsonPrimitive(false)); aviso("Tasa guardada (ya no se actualiza sola)") },
+                        tasa = { almacen.cambiarTasa(it, auto = false); vuelta++; aviso("Tasa guardada desde hoy (ya no se actualiza sola)") },
                         tasaAuto = { on -> campo("rendTasaAuto", kotlinx.serialization.json.JsonPrimitive(on))
                             if (on) { ctx.getSharedPreferences("tasa_mp", android.content.Context.MODE_PRIVATE).edit().putLong("cuando", 0).apply()
                                 aviso("Listo: la tasa se actualiza sola al abrir la app") } },

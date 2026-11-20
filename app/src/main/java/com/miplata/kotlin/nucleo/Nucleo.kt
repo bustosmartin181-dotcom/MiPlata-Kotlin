@@ -79,13 +79,20 @@ object Nucleo {
         /* Rendimiento estimado del dinero disponible (Mercado Pago) */
         val tasaD = min(300.0, max(0.0, S.rendTasa))
         val rendDispActivo = S.rendDispOn && tasaD > 0 && S.rendDispDesde.isNotEmpty()
+        /* Tasa del día k: cada cambio de tasa vale desde su fecha (los días anteriores siguen con la de antes) */
+        fun tasaDelDia(k: Int): Double {
+            if (S.rendTasas.isEmpty()) return min(300.0, max(0.0, S.rendTasa))
+            val iso = Fechas.iso(inicio + k)
+            val c = S.rendTasas.lastOrNull { it.desde <= iso }
+            return min(300.0, max(0.0, c?.tasa ?: S.rendTasas.first().antes))
+        }
         val rD = tasaD / 100 / 365
         val kD0 = if (rendDispActivo) max(0L, Fechas.dia(S.rendDispDesde) - inicio).toInt() else 0
         var rendDisp = 0.0
         var pendD = 0.0
         fun sumarRendDisp(k: Int, aportesPrevios: Double, usosHasta: Double) {
             if (!rendDispActivo || k < kD0) return
-            val y = max(0.0, disp - gastado(-1_000_000_000L, (k - 1).toLong()) - aportesPrevios + usosHasta) * rD
+            val y = max(0.0, disp - gastado(-1_000_000_000L, (k - 1).toLong()) - aportesPrevios + usosHasta) * (if (S.rendTasas.isEmpty()) rD else tasaDelDia(k) / 100 / 365)
             pendD += y
             if (Fechas.esHabil(inicio + k + 1)) {
                 descuentos += Descuento(pendD, Fechas.iso(inicio + k + 1))
@@ -160,7 +167,7 @@ object Nucleo {
                     if (k > 0) acum += fs[k - 1].aporte
                     if (k < k0) continue
                     val usado = S.fondoUsos.filter { idxUso(it) <= k }.sumOf { it.amt }
-                    pend += max(0.0, previo + acum - usado + rendPrev + rendPer) * r
+                    pend += max(0.0, previo + acum - usado + rendPrev + rendPer) * (if (S.rendTasas.isEmpty()) r else tasaDelDia(k) / 100 / 365)
                     if (Fechas.esHabil(inicio + k + 1)) { rendPer += pend; pend = 0.0 }
                 }
                 rendPend = pend

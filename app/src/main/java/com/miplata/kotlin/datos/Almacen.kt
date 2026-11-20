@@ -579,6 +579,17 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         return id
     }
 
+    /** Cambia la tasa desde HOY: los días que ya pasaron siguen con la tasa de antes (como Mercado Pago). */
+    fun cambiarTasa(nueva: Double, auto: Boolean? = null) = cambiarTodo { o ->
+        val vieja = o["rendTasa"].num(); val hoy = Fechas.hoy()
+        val l = lista(o, "rendTasas").mapNotNull { it as? JsonObject }.toMutableList()
+        val iHoy = l.indexOfFirst { it["d"].texto() == hoy }
+        if (iHoy >= 0) l[iHoy] = JsonObject(l[iHoy] + ("t" to num(nueva)))
+        else if (Math.abs(nueva - vieja) >= 0.001) l += JsonObject(mapOf("d" to JsonPrimitive(hoy), "t" to num(nueva), "a" to num(vieja)))
+        JsonObject(o + mapOf("rendTasa" to num(nueva), "rendTasas" to JsonArray(l.takeLast(90))) +
+            (if (auto != null) mapOf("rendTasaAuto" to JsonPrimitive(auto)) else emptyMap()))
+    }
+
     /* ---------- Plata que entra por Mercado Pago (se anota sola desde la notificación) ---------- */
 
     /** Entrada común a Mercado Pago (suma a tu día). Devuelve el id, para poder deshacerla. */

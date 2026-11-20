@@ -65,6 +65,8 @@ data class Recal(val day: Int?, val base: Double, val obj: Boolean = false)
 
 data class UsoFondo(val id: Long, val date: String, val amt: Double, val note: String = "", val para: String = "hoy")
 
+data class CambioTasa(val desde: String, val tasa: Double, val antes: Double)
+
 data class Cuenta(val n: String, val m: Double, val excluida: Boolean = false)
 
 data class Ingreso(val cat: String, val a: Double)
@@ -104,6 +106,8 @@ data class Estado(
     val rendTasa: Double = 0.0,
     /** La tasa se baja sola de internet (Mercado Fondo). Si la cambiás a mano, se apaga. */
     val rendTasaAuto: Boolean = true,
+    /** Cambios de tasa: (desde qué día, tasa nueva, tasa de antes). Cada tasa vale desde su día, sin tocar los días que ya pasaron. */
+    val rendTasas: List<CambioTasa> = emptyList(),
     val rendEnMP: Boolean = false,
     val rendDispOn: Boolean = false,
     val rendDispDesde: String = "",
@@ -189,6 +193,7 @@ data class Estado(
             rendPrev = o["rendPrev"].num(),
             rendTasa = o["rendTasa"].num(),
             rendTasaAuto = (o["rendTasaAuto"] as? JsonPrimitive)?.booleanOrNull != false,
+            rendTasas = o.lista("rendTasas").map { CambioTasa(it["d"].texto() ?: "", it["t"].num(), it["a"].num()) }.filter { it.desde.isNotEmpty() }.sortedBy { it.desde },
             rendEnMP = o["rendEnMP"].verdadero(),
             rendDispOn = o["rendDispOn"].verdadero(),
             rendDispDesde = o["rendDispDesde"].texto() ?: "",
