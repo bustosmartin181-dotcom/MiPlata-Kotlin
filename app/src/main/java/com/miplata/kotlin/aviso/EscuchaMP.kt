@@ -22,9 +22,11 @@ import java.text.Normalizer
 
 /* Plata que te entra por Mercado Pago.
    Mercado Pago te avisa con una notificación cuando te transfieren ("Fulano te transfirió $2.800").
-   Mi plata la lee (solo las de Mercado Pago), y te pregunta con un toque si la anota como entrada.
-   Si el que te pagó es un compañero del taller que te debe, te lo dice para que lo marques cobrado en "Me deben"
-   (así no se anota dos veces). */
+   Mi plata la lee (solo las de Mercado Pago) y la anota SOLA, sin preguntar:
+   - si es un compañero del taller que te debe → marca cobrado lo que te debía en "Me deben";
+   - si es alguien de "Repartir siempre" (ej.: Mariela) → se reparte entre hoy y los días que quedan;
+   - cualquier otro → entrada que suma a tu día.
+   Después te deja un aviso chiquito de lo que anotó, con "Deshacer" por si se equivocó. */
 class EscuchaMP : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val n = sbn ?: return
@@ -43,17 +45,14 @@ class EscuchaMP : NotificationListenerService() {
 object EntradasMP {
     private const val CANAL = "entradas_mp"
     private const val PREFS = "entradas_mp"
-    const val ANOTAR = "com.miplata.kotlin.ENTRADA_MP_ANOTAR"
-    const val REPARTIR = "com.miplata.kotlin.ENTRADA_MP_REPARTIR"
-    const val NO = "com.miplata.kotlin.ENTRADA_MP_NO"
+    const val DESHACER = "com.miplata.kotlin.ENTRADA_MP_DESHACER"
 
-    /* Lo que elegiste la última vez con cada persona (ej.: Mariela → repartir), para proponértelo primero */
-    fun clavePersona(nombre: String) = "eleccion_" + Normalizer.normalize(nombre, Normalizer.Form.NFD).replace(Regex("\\p{M}"), "").lowercase().trim()
-    fun recordar(ctx: Context, nombre: String, accion: String) {
-        if (nombre.isNotBlank()) ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(clavePersona(nombre), accion).apply()
-    }
-    private fun recordada(ctx: Context, nombre: String) =
-        if (nombre.isBlank()) null else ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(clavePersona(nombre), null)
+    /** Nombres a los que siempre se les reparte la plata en los días que quedan (separados por coma). */
+    fun repartirA(ctx: Context): String = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("repartir", "Mariela Villegas") ?: ""
+    fun guardarRepartirA(ctx: Context, nombres: String) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("repartir", nombres.trim()).apply()
+    /** Apagado a mano desde Ajustes (aunque el permiso siga dado). */
+    fun encendida(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("on", true)
+    fun encender(ctx: Context, on: Boolean) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("on", on).apply()
 
     data class Leida(val monto: Double, val nombre: String)
 
@@ -105,84 +104,86 @@ object EntradasMP {
         /* guarda las últimas 6 para poder revisarlas en Ajustes */
         val linea = (titulo + " — " + texto).replace("\n", " ").take(160)
         p.edit().putString("ultimas", (listOf(linea) + ultimas(ctx)).distinct().take(6).joinToString("\n")).apply()
+        if (!encendida(ctx)) return
         val l = leer(titulo, texto) ?: return
         /* Mercado Pago a veces repite la misma notificación: no la cuenta dos veces */
         val clave = "${l.monto}|${sinTildes(l.nombre)}|${cuando / 120_000}"
         val vistas = (p.getString("vistas", "") ?: "").split(",").filter { it.isNotBlank() }
         if (clave in vistas) return
         p.edit().putString("vistas", (listOf(clave) + vistas).take(40).joinToString(",")).apply()
-        mostrar(ctx, l)
+        Thread { runCatching { anotarSola(ctx, l) } }.start()
     }
 
-    /** Si el que te pagó es un compañero del taller que te debe: (nombre a mostrar, cuánto te debe). */
-    private fun deudor(ctx: Context, nombre: String): Pair<String, Double>? {
-        if (nombre.isBlank()) return null
-        val a = Almacen(ctx)
-        val S = a.estado ?: return null
+    private fun coincide(nombre: String, buscado: String): Boolean {
         val quien = sinTildes(nombre).split(Regex("\\s+")).toSet()
-        val m = Taller.de(a.crudo).muchachos.firstOrNull { mu ->
-            val partes = sinTildes(mu.nombre).split(Regex("\\s+")).filter { it.length > 1 }
-            partes.isNotEmpty() && partes.all { it in quien }
-        } ?: return null
-        val debe = S.spent.filter { it.dev == 1 && it.extra["tp"].texto() == m.id }.sumOf { it.amt }
-        if (debe < 1) return null
-        return (if (m.apodo.isNotBlank()) "${m.nombre} (${m.apodo})" else m.nombre) to debe
+        val partes = sinTildes(buscado).split(Regex("\\s+")).filter { it.length > 1 }
+        return partes.isNotEmpty() && partes.all { it in quien }
     }
 
-    private fun mostrar(ctx: Context, l: Leida) {
+    /** Anota sola la plata que entró y avisa qué hizo. */
+    private fun anotarSola(ctx: Context, l: Leida) {
+        val a = Almacen(ctx)
+        val S = a.estado ?: return
+        val de = if (l.nombre.isNotBlank()) " de ${l.nombre}" else ""
+        val nota = if (l.nombre.isNotBlank()) "Entrada MP · ${l.nombre}" else "Entrada MP"
+        var entrada = 0L; var repartida = 0L; var cobradas = emptyList<Long>()
+        val texto: String
+        /* 1) ¿Es un compañero del taller que te debe? Se cobran sus deudas (de la más vieja a la más nueva) hasta ese monto */
+        val mu = if (l.nombre.isBlank()) null else Taller.de(a.crudo).muchachos.firstOrNull { coincide(l.nombre, it.nombre) }
+        val deudas = if (mu == null) emptyList() else S.spent.filter { it.dev == 1 && it.extra["tp"].texto() == mu.id }.sortedBy { it.date + it.id }
+        if (mu != null && deudas.isNotEmpty()) {
+            var resto = l.monto; val ids = mutableListOf<Long>()
+            deudas.forEach { d -> if (d.amt <= resto + 0.5) { ids += d.id; resto -= d.amt } }
+            if (ids.isNotEmpty()) { a.cobrarPorMP(ids); cobradas = ids }
+            if (resto >= 1) entrada = a.anotarEntradaMP(resto, nota + (if (ids.isNotEmpty()) " (lo que sobró)" else ""))
+            val quien = if (mu.apodo.isNotBlank()) mu.apodo else mu.nombre
+            texto = if (ids.isNotEmpty()) "Marqué cobrado lo que te debía $quien del taller" + (if (resto >= 1) " y ${pesos(resto)} los sumé a tu día." else ".")
+                else "$quien te debe ${pesos(deudas.sumOf { it.amt })}, pero esto no alcanza para ninguna deuda: lo sumé a tu día. Si era a cuenta, deshacelo y marcalo en \"Me deben\"."
+        } else if (l.nombre.isNotBlank() && repartirA(ctx).split(",").any { it.isNotBlank() && coincide(l.nombre, it) }) {
+            /* 2) Alguien de "Repartir siempre" (ej.: Mariela): se reparte en los días que quedan */
+            repartida = a.entradaRepartida(l.monto, nota)
+            val faltan = runCatching { com.miplata.kotlin.nucleo.Nucleo.calcular(a.estado!!, com.miplata.kotlin.nucleo.Fechas.hoy()).faltan }.getOrDefault(0)
+            texto = "La repartí en los días que quedan" + (if (faltan > 0) ": ${pesos(l.monto / faltan)} más por día." else ".")
+        } else {
+            /* 3) Cualquier otro: suma a tu día */
+            entrada = a.anotarEntradaMP(l.monto, nota)
+            texto = "La sumé a lo que tenés para hoy."
+        }
+        runCatching { kotlinx.coroutines.runBlocking { com.miplata.kotlin.widget.Widget.actualizar(ctx) } }
+        avisar(ctx, "✅ Anoté ${pesos(l.monto)}$de", texto, entrada, repartida, cobradas)
+    }
+
+    private fun avisar(ctx: Context, titulo: String, cuerpo: String, entrada: Long, repartida: Long, cobradas: List<Long>) {
         if (!AvisoReserva.hayPermiso(ctx)) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CANAL, "Plata que te entra (Mercado Pago)", NotificationManager.IMPORTANCE_HIGH)
-            .apply { description = "Cuando Mercado Pago te avisa que te transfirieron, te pregunta si lo anota" })
+        nm.createNotificationChannel(NotificationChannel(CANAL, "Plata que te entra (Mercado Pago)", NotificationManager.IMPORTANCE_LOW)
+            .apply { description = "Te cuenta lo que Mi plata anotó solo cuando te entró plata a Mercado Pago" })
         val id = (System.currentTimeMillis() % 100_000).toInt() + 8000
-        fun accion(a: String) = PendingIntent.getBroadcast(ctx, id * 10 + when (a) { ANOTAR -> 1; REPARTIR -> 2; else -> 3 },
-            Intent(ctx, ReceptorEntradaMP::class.java).setAction(a).putExtra("monto", l.monto).putExtra("nombre", l.nombre).putExtra("id", id),
+        val deshacer = PendingIntent.getBroadcast(ctx, id, Intent(ctx, ReceptorEntradaMP::class.java).setAction(DESHACER)
+            .putExtra("id", id).putExtra("entrada", entrada).putExtra("repartida", repartida).putExtra("cobradas", cobradas.toLongArray()),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val d = deudor(ctx, l.nombre)
         val abrir = PendingIntent.getActivity(ctx, id, Intent(ctx, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP).putExtra(AvisoTaller.EXTRA_ABRIR, d != null),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val de = if (l.nombre.isNotBlank()) " de ${l.nombre}" else ""
-        val titulo = "💰 Te entraron ${pesos(l.monto)}$de"
-        val cuerpo = if (d != null)
-            "${d.first} te debe ${pesos(d.second)} del taller. Si es ese pago, tocá acá y marcalo cobrado en \"Me deben\" (no lo anotes como entrada, así no se cuenta dos veces)."
-        else {
-            val r = recordada(ctx, l.nombre)
-            val antes = when (r) { REPARTIR -> " La última vez la repartiste en los días."; ANOTAR -> " La última vez la sumaste a tu día."; else -> "" }
-            "¿Cómo la anoto en Mi plata?$antes\n• Suma a mi día: se suma a lo de hoy.\n• Repartir: se divide entre hoy y los días que quedan del mes."
-        }
-        val b = NotificationCompat.Builder(ctx, CANAL).setSmallIcon(R.drawable.ic_noti)
+            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        nm.notify(id, NotificationCompat.Builder(ctx, CANAL).setSmallIcon(R.drawable.ic_noti)
             .setContentTitle(titulo).setContentText(cuerpo).setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
-            .setContentIntent(abrir).setAutoCancel(true)
-        /* lo que elegiste la última vez con esa persona va primero */
-        val orden = if (recordada(ctx, l.nombre) == REPARTIR) listOf(REPARTIR, ANOTAR) else listOf(ANOTAR, REPARTIR)
-        orden.forEach { a -> b.addAction(0, when (a) { REPARTIR -> "Repartir en los días"; else -> if (d != null) "Es otra cosa: suma a mi día" else "Suma a mi día" }, accion(a)) }
-        b.addAction(0, "No anotar", accion(NO))
-        nm.notify(id, b.build())
+            .setContentIntent(abrir).setAutoCancel(true).addAction(0, "Deshacer", deshacer).build())
     }
 }
 
-/** Botones de la notificación "Te entraron …". */
+/** Botón "Deshacer" del aviso. */
 class ReceptorEntradaMP : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
-        val id = intent.getIntExtra("id", 0)
-        ctx.getSystemService(NotificationManager::class.java).cancel(id)
-        val accion = intent.action ?: return
-        val nombre = intent.getStringExtra("nombre").orEmpty()
-        EntradasMP.recordar(ctx, nombre, accion)
-        if (accion != EntradasMP.ANOTAR && accion != EntradasMP.REPARTIR) return
-        val monto = intent.getDoubleExtra("monto", 0.0)
-        if (monto <= 0) return
+        if (intent.action != EntradasMP.DESHACER) return
+        ctx.getSystemService(NotificationManager::class.java).cancel(intent.getIntExtra("id", 0))
         val fin = goAsync()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             runCatching {
-                val nota = if (nombre.isNotBlank()) "Entrada MP · $nombre" else "Entrada MP"
-                if (accion == EntradasMP.REPARTIR) Almacen(ctx).entradaRepartida(monto, nota)
-                else Almacen(ctx).anotar(monto, nota, null, entrada = true, meLoDevuelven = false)
+                Almacen(ctx).deshacerEntradaMP(intent.getLongExtra("entrada", 0), intent.getLongExtra("repartida", 0),
+                    intent.getLongArrayExtra("cobradas")?.toList() ?: emptyList())
             }
             runCatching { com.miplata.kotlin.widget.Widget.actualizar(ctx) }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                android.widget.Toast.makeText(ctx, if (accion == EntradasMP.REPARTIR) "Anotado: ${pesos(monto)} repartidos en los días que quedan" else "Anotado: entrada de ${pesos(monto)}", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(ctx, "Listo, lo deshice", android.widget.Toast.LENGTH_SHORT).show()
             }
             fin.finish()
         }

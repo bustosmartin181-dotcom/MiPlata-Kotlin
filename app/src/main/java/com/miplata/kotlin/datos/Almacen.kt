@@ -568,11 +568,56 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
 
     /** Plata que te entró a Mercado Pago y se reparte en partes iguales entre hoy y los días que quedan del período
         (no sube solo el límite de hoy). Sube el saldo de Mercado Pago en Mis cuentas. */
-    fun entradaRepartida(monto: Double, nota: String) = cambiarTodo { o ->
-        val l = lista(o, "ajustes"); val hoy = Fechas.hoy()
-        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(hoy),
-            "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive(nota), "mp" to JsonPrimitive(true)))
-        sumarAMercadoPago(JsonObject(o + ("ajustes" to JsonArray(l))), monto)
+    fun entradaRepartida(monto: Double, nota: String): Long {
+        var id = 0L
+        cambiarTodo { o ->
+            val l = lista(o, "ajustes"); val hoy = Fechas.hoy(); id = nuevoId(o)
+            l += JsonObject(mapOf("id" to JsonPrimitive(id), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(hoy),
+                "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive(nota), "mp" to JsonPrimitive(true)))
+            sumarAMercadoPago(JsonObject(o + ("ajustes" to JsonArray(l))), monto)
+        }
+        return id
+    }
+
+    /* ---------- Plata que entra por Mercado Pago (se anota sola desde la notificación) ---------- */
+
+    /** Entrada común a Mercado Pago (suma a tu día). Devuelve el id, para poder deshacerla. */
+    fun anotarEntradaMP(monto: Double, nota: String): Long {
+        var id = 0L
+        cambiar {
+            val lista = spent(); id = nuevoId(crudo)
+            lista += JsonObject(mapOf("id" to JsonPrimitive(id), "date" to JsonPrimitive(Fechas.hoy()),
+                "amt" to JsonPrimitive(-Math.abs(monto)), "note" to JsonPrimitive(nota), "auto" to JsonPrimitive("mp")))
+            this["spent"] = JsonArray(lista)
+        }
+        return id
+    }
+
+    /** Marca como cobradas por Mercado Pago esas deudas de "Me deben" (la plata entra sola a Mercado Pago). */
+    fun cobrarPorMP(ids: List<Long>) = cambiar {
+        this["spent"] = JsonArray(spent().map { e ->
+            val o = e as? JsonObject ?: return@map e
+            if (o["id"]?.jsonPrimitive?.longOrNull in ids) JsonObject(o + mapOf("dev" to JsonPrimitive(2), "cob" to JsonPrimitive(Fechas.hoy()),
+                "cobMed" to JsonPrimitive("mp"))) else o
+        })
+    }
+
+    /** Deshacer lo que se anotó solo: borra la entrada / el reparto, o vuelve las deudas a "Me deben". */
+    fun deshacerEntradaMP(entrada: Long, repartida: Long, cobradas: List<Long>) {
+        if (entrada != 0L) borrarMovimiento(entrada)
+        if (repartida != 0L) cambiarTodo { o -> val l = lista(o, "ajustes")
+            val i = l.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == repartida }
+            if (i < 0) o else {
+                val q = l.removeAt(i) as JsonObject
+                sumarAMercadoPago(JsonObject(o + ("ajustes" to JsonArray(l))), -q["amt"].num())
+            }
+        }
+        if (cobradas.isNotEmpty()) cambiar {
+            this["spent"] = JsonArray(spent().map { e ->
+                val o = e as? JsonObject ?: return@map e
+                if (o["id"]?.jsonPrimitive?.longOrNull in cobradas) JsonObject(o.filterKeys { it != "cob" && it != "cobMed" } + ("dev" to JsonPrimitive(1))) else o
+            })
+        }
     }
 
     /** Activar o apagar el fondo de ahorro (cuenta desde hoy: no toca lo que ya tenías). */

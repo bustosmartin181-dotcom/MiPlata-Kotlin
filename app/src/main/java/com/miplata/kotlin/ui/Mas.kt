@@ -67,9 +67,10 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
-    "11.12" to listOf("💰 Plata que te entra: cuando Mercado Pago te avisa que te transfirieron, Mi plata te pregunta si la suma a tu día, la reparte en los días que quedan o no la anota (Ajustes → Plata que te entra, hay que darle permiso una vez)",
-        "🧠 Recuerda lo que elegiste con cada persona y te lo propone primero",
-        "🤝 Si te pagó un compañero que te debe del taller, te avisa para que lo marques cobrado en \"Me deben\" y no se anote dos veces"),
+    "11.12" to listOf("💰 Plata que te entra: cuando Mercado Pago te avisa que te transfirieron, Mi plata la anota sola (Ajustes → Plata que te entra; hay que darle permiso una vez)",
+        "🤝 Si es un compañero que te debe del taller, marca cobrado lo que te debía en \"Me deben\"",
+        "📆 A los de \"Repartir siempre\" (ej.: Mariela) se les reparte la plata en los días que quedan; a los demás se les suma a tu día",
+        "↩️ Te deja un aviso de lo que anotó, con \"Deshacer\""),
     "11.11" to listOf("📈 Tasa de Mercado Pago automática: la app baja sola la TNA de Mercado Fondo (datos de la CNV) y actualiza el \"Rinde %\". Se apaga si escribís la tasa a mano (Ajustes → Rendimiento)"),
     "11.10" to listOf("🔧 Arreglo: al sacar del fondo o pagar algo, Mis cuentas sumaba otra vez todo el rendimiento estimado del mes (Mercado Pago y Reserva quedaban con plata de más)"),
     "11.9" to listOf("🐷 Sacar del fondo: nueva opción \"La reparto en los días que quedan del mes\". La plata se divide en partes iguales entre hoy y el resto del período, y te muestra cuánto más tenés por día"),

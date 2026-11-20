@@ -146,9 +146,14 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             /* se revisa solo, por si volvés de darle el permiso */
             LaunchedEffect(Unit) { while (true) { activaE = com.miplata.kotlin.aviso.EntradasMP.activa(ctxE); kotlinx.coroutines.delay(1500) } }
             Titulo("💰 Plata que te entra (Mercado Pago)")
-            Subtitulo("Cuando Mercado Pago te avisa que te transfirieron, Mi plata te pregunta con un toque: sumarla a tu día, repartirla en los días que quedan o no anotarla. Recuerda lo que elegiste con cada persona. Solo lee las notificaciones de Mercado Pago.")
+            Subtitulo("Cuando Mercado Pago te avisa que te transfirieron, Mi plata lo anota SOLA: si es un compañero que te debe del taller, lo marca cobrado; si es alguien de \"Repartir siempre\", lo reparte en los días que quedan; si no, lo suma a tu día. Te deja un aviso con \"Deshacer\". Solo lee las notificaciones de Mercado Pago.")
             if (activaE) {
-                Text("✅ Activado", color = k.verde, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                var onE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.encendida(ctxE)) }
+                Interruptor("Anotar sola la plata que me entra", onE, { onE = it; com.miplata.kotlin.aviso.EntradasMP.encender(ctxE, it) },
+                    "Importante: con esto prendido, no anotes a mano las transferencias que te entran (se contarían dos veces)")
+                var repE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.repartirA(ctxE)) }
+                OutlinedTextField(repE, { repE = it }, Modifier.fillMaxWidth(), label = { Text("Repartir siempre lo que me mande (separá con coma)") })
+                Button(onClick = { com.miplata.kotlin.aviso.EntradasMP.guardarRepartirA(ctxE, repE); a.avisar("Guardado") }) { Text("Guardar nombres") }
                 val ult = com.miplata.kotlin.aviso.EntradasMP.ultimas(ctxE)
                 if (ult.isNotEmpty()) {
                     Text("Últimas notificaciones de Mercado Pago que leyó:", color = k.suave, fontSize = 13.sp)
