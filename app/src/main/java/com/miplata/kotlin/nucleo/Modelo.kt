@@ -34,6 +34,8 @@ data class Plan(
     val hechas: Int = 0,             // cuotas de períodos anteriores ya descontadas
     val p: Boolean = false,          // pagado este período
     val fin: Boolean = false,        // cumplido: ya se descontaron todas las cuotas
+    val pMed: String? = null,        // con qué se pagó (si al marcarlo pagado bajó una cuenta): "ef" o "mp"
+    val pMonto: Double = 0.0,        // cuánto bajó esa cuenta (vuelve si se marca pendiente)
 ) {
     private val m get() = meses.coerceAtLeast(1)
     private val cuotaComun get() = Math.round(total / m).toDouble()
@@ -165,7 +167,7 @@ data class Estado(
             planes = o.lista("planes").map {
                 Plan(it["id"].num().toLong(), it["n"].texto() ?: "", it["total"].num(), it["meses"].num().toInt().coerceAtLeast(1),
                     it["activo"].verdadero(), it["desde"].texto()?.takeIf { s -> s.isNotEmpty() }, it["hechas"].num().toInt(),
-                    it["p"].verdadero(), it["fin"].verdadero())
+                    it["p"].verdadero(), it["fin"].verdadero(), it["pMed"].texto(), it["pMonto"].num())
             },
             ingresos = o.lista("ingresos").map { Ingreso(it["cat"].texto() ?: "Sueldo", it["a"].num()) },
             proximos = o.lista("proximos").map { Proximo(it["n"].texto() ?: "", it["a"].num()) },

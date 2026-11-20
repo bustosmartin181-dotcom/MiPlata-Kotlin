@@ -35,7 +35,28 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
     val c = Nucleo.calcular(S, Fechas.hoy())
     var hoja by remember { mutableStateOf<HojaPlan?>(if (abrirPeriodoNuevo) HojaPlan.Nuevo else null) }
     var ordenando by remember { mutableStateOf(false) }      // ✏️: ordenar las tarjetas
+    var pagandoPlan by remember { mutableStateOf<Plan?>(null) }   // ✅ Pagado: ¿con qué lo pagaste?
     LaunchedEffect(abrirPeriodoNuevo) { if (abrirPeriodoNuevo) { hoja = HojaPlan.Nuevo; alAbrirPeriodo() } }
+
+    pagandoPlan?.let { p ->
+        fun pagar(medio: String?) {
+            pagandoPlan = null
+            almacen.marcarPlanPagado(p.id, true, medio, p.cuota); alCambiar()
+            aviso(when (medio) {
+                null -> "Marcado como pagado ✅ (sin tocar tus cuentas)"
+                com.miplata.kotlin.datos.MEDIO_EFECTIVO -> "Pagado ✅ · bajaron ${dinero(p.cuota)} de tu Efectivo"
+                else -> "Pagado ✅ · bajaron ${dinero(p.cuota)} de Mercado Pago" })
+        }
+        AlertDialog(onDismissRequest = { pagandoPlan = null },
+            title = { Text("¿Con qué pagaste ${p.n.ifBlank { "el plan" }}?") },
+            text = { Text("Se descuentan ${dinero(p.cuota)} de esa cuenta en Mis cuentas. Tu plata del día no cambia: el plan ya estaba descontado.") },
+            confirmButton = { Column(horizontalAlignment = Alignment.End) {
+                TextButton(onClick = { pagar(com.miplata.kotlin.datos.MEDIO_MP) }) { Text("📱 Mercado Pago") }
+                TextButton(onClick = { pagar(com.miplata.kotlin.datos.MEDIO_EFECTIVO) }) { Text("💵 Efectivo") }
+                TextButton(onClick = { pagar(null) }) { Text("Solo marcar (ya lo descontaste vos)") }
+            } },
+            dismissButton = { TextButton(onClick = { pagandoPlan = null }) { Text("Cancelar") } })
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp, 12.dp, 16.dp, 110.dp),
         verticalArrangement = Arrangement.spacedBy(Estilo.separacion)) {
@@ -80,7 +101,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
                 TarjetaPlanes(S, c, alAgregar = { hoja = HojaPlan.UnPlan(null) }, alEditar = { hoja = HojaPlan.UnPlan(it) },
                     alActivar = { p, on -> almacen.activarPlan(p.id, on); alCambiar()
                         aviso(if (on) "Activado: se descuentan ${dinero(p.cuota)} de este período" else "Desactivado: la plata vuelve a tu disponible") },
-                    alPagado = { p, v -> almacen.marcarPlanPagado(p.id, v); alCambiar(); aviso(if (v) "Marcado como pagado ✅" else "Marcado como pendiente") })
+                    alPagado = { p, v ->
+                        if (v) pagandoPlan = p
+                        else { almacen.marcarPlanPagado(p.id, false); alCambiar()
+                            aviso("Marcado como pendiente" + (if (p.pMed != null) ": ${dinero(p.pMonto)} volvieron a ${if (p.pMed == com.miplata.kotlin.datos.MEDIO_EFECTIVO) "Efectivo" else "Mercado Pago"}" else "")) } })
                 }
                 "cuotas" -> TarjetaCuotas(S)
                 "metas" -> {

@@ -225,6 +225,8 @@ fun HojaAnotar(
                     val sobra = total - editando.amt
                     val esCompanero = editando.extra["tp"] != null
                     var aFavor by remember { mutableStateOf(true) }
+                    var vueltoEf by remember { mutableStateOf<Boolean?>(null) }
+                    val hayVuelto = total > 0 && sobra > 0.005 && !(esCompanero && aFavor)
                     when {
                         total <= 0 -> Text("Escribí cuánto te entregó", fontSize = 12.sp, color = k.naranja)
                         sobra > 0.005 && esCompanero -> {
@@ -234,13 +236,18 @@ fun HojaAnotar(
                                 FilterChip(selected = !aFavor, onClick = { aFavor = false }, label = { Text("🪙 Le di el vuelto") })
                             }
                             Text(if (aFavor) "Se le descuentan solos en lo próximo que pida." else "Le devolviste ${pesos(sobra)}.", fontSize = 12.sp, color = k.suave)
+                            if (!aFavor) ElegirVuelto(sobra, vueltoEf) { vueltoEf = it }
                         }
-                        sobra > 0.005 -> Text("Le diste ${pesos(sobra)} de vuelto", fontSize = 13.sp, color = k.naranja)
+                        sobra > 0.005 -> {
+                            Text("Le diste ${pesos(sobra)} de vuelto", fontSize = 13.sp, color = k.naranja)
+                            ElegirVuelto(sobra, vueltoEf) { vueltoEf = it }
+                        }
                         sobra < -0.005 -> Text("Te queda debiendo ${pesos(-sobra)}: vuelve a \"Me deben\"", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
                         else -> Text("✅ Te pagó justo", fontSize = 13.sp, color = k.verde)
                     }
-                    OutlinedButton(onClick = { alCambiarCobro(editando, Cobro(total, enEf.coerceAtMost(total), esCompanero && aFavor)) },
-                        Modifier.fillMaxWidth(), enabled = total > 0) { Text("Guardar cómo me pagó") }
+                    OutlinedButton(onClick = { alCambiarCobro(editando, Cobro(total, enEf.coerceAtMost(total), esCompanero && aFavor,
+                            vueltoEfectivo = if (hayVuelto) vueltoEf else null)) },
+                        Modifier.fillMaxWidth(), enabled = total > 0 && (!hayVuelto || vueltoEf != null)) { Text("Guardar cómo me pagó") }
                 }
             }
             if (editando != null) {

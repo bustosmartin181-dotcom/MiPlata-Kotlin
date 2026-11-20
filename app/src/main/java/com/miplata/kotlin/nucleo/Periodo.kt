@@ -137,7 +137,7 @@ object Periodo {
             val x = (e as? JsonObject)?.mutable() ?: return@map e
             if (x["activo"].verdadero() && !x["fin"].verdadero()) {
                 val hechas = x["hechas"].num().toInt() + 1
-                x["hechas"] = num(hechas.toDouble()); x["p"] = JsonPrimitive(false); x.remove("desde")
+                x["hechas"] = num(hechas.toDouble()); x["p"] = JsonPrimitive(false); x.remove("desde"); x.remove("pMed"); x.remove("pMonto")
                 if (hechas >= x["meses"].num().toInt().coerceAtLeast(1)) {
                     x["fin"] = JsonPrimitive(true); x["activo"] = JsonPrimitive(false)
                     terminadas += "Plan cumplido: " + (x["n"].texto()?.takeIf { it.isNotEmpty() } ?: "plan")

@@ -32,24 +32,51 @@ data class Deuda(val id: Long, val fecha: String, val monto: Double, val nota: S
 
 /** Lo que te entregó: cuánto en total, cuánto de eso en efectivo (el resto, por transferencia),
     y si lo que sobra queda a su favor (true) o le diste el vuelto (false). */
-data class Cobro(val dado: Double, val enEfectivo: Double, val aFavor: Boolean) {
+data class Cobro(val dado: Double, val enEfectivo: Double, val aFavor: Boolean,
+                 /** Cómo le diste el vuelto: true = efectivo, false = Mercado Pago, null = no hubo vuelto. */
+                 val vueltoEfectivo: Boolean? = null,
+                 /** Lo que `hasta` ya sacó del vuelto: cuánto del efectivo y cuánto de la transferencia. */
+                 val quitadoEf: Double = 0.0, val quitadoTr: Double = 0.0) {
     val efectivo get() = enEfectivo >= dado - 0.005
     val transferencia get() = Math.max(0.0, dado - enEfectivo)
-    /** Para pagar una parte: lo mismo, con otro total (el vuelto en efectivo sale del efectivo). */
-    fun hasta(tope: Double): Cobro = if (dado <= tope) this else Cobro(tope, Math.max(0.0, enEfectivo - (dado - tope)).coerceAtMost(tope), aFavor)
+    /** Para pagar una parte: lo mismo, con otro total (el vuelto sale primero del efectivo; si diste el vuelto
+        por otro lado, `vueltoCruzado` dice cuánto hay que pasar de una cuenta a la otra). */
+    fun hasta(tope: Double): Cobro {
+        if (dado <= tope) return this
+        val ef = Math.max(0.0, enEfectivo - (dado - tope)).coerceAtMost(tope)
+        val qEf = enEfectivo - ef
+        return copy(dado = tope, enEfectivo = ef, quitadoEf = qEf, quitadoTr = Math.max(0.0, (dado - tope) - qEf))
+    }
+    /** Lo que la app sacó del vuelto por el medio equivocado (si diste el vuelto por MP y salió del efectivo, o al revés). */
+    val vueltoCruzado: Double get() = when (vueltoEfectivo) { false -> quitadoEf; true -> quitadoTr; null -> 0.0 }
+}
+
+/** ¿Cómo le diste el vuelto? 💵 Efectivo / 📱 Mercado Pago (obligatorio elegir uno). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun ElegirVuelto(sobra: Double, elegido: Boolean?, alElegir: (Boolean) -> Unit) {
+    val k = LocalColores.current
+    Text("¿Cómo le diste los ${pesos(sobra)} de vuelto?", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(selected = elegido == true, onClick = { alElegir(true) }, label = { Text("💵 En efectivo") })
+        FilterChip(selected = elegido == false, onClick = { alElegir(false) }, label = { Text("📱 Por Mercado Pago") })
+    }
+    if (elegido == null) Text("Elegí cómo se lo diste, así sale de la cuenta correcta.", fontSize = 12.sp, color = k.naranja)
 }
 
 /** Elegir cómo te pagó: 💵 Efectivo, 📲 Transferencia o 💵+📲 Parte y parte (con cuánto de cada uno).
     Devuelve (total, en efectivo). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ElegirComoPago(inicialTotal: Double, inicialEfectivo: Double, cambio: (Double, Double) -> Unit) {
+fun ElegirComoPago(inicialTotal: Double, inicialEfectivo: Double, sinElegir: Boolean = false, cambio: (Double, Double) -> Unit) {
     val k = LocalColores.current
-    var modo by remember { mutableStateOf(when { inicialEfectivo < 0.005 && inicialTotal > 0 -> 1; inicialEfectivo >= inicialTotal - 0.005 -> 0; else -> 2 }) }
+    /* sinElegir: no viene nada marcado (-1) y hay que tocar Efectivo o Transferencia */
+    var modo by remember { mutableStateOf(when { sinElegir -> -1; inicialEfectivo < 0.005 && inicialTotal > 0 -> 1; inicialEfectivo >= inicialTotal - 0.005 -> 0; else -> 2 }) }
     var total by remember { mutableStateOf(if (inicialTotal > 0) textoMonto(inicialTotal) else "") }
     var ef by remember { mutableStateOf(if (inicialEfectivo > 0) textoMonto(inicialEfectivo) else "") }
     var tr by remember { mutableStateOf(if (inicialTotal - inicialEfectivo > 0.005) textoMonto(inicialTotal - inicialEfectivo) else "") }
     fun avisar() = when (modo) {
+        -1 -> Unit
         0 -> cambio(aNumero(total), aNumero(total))
         1 -> cambio(aNumero(total), 0.0)
         else -> cambio(aNumero(ef) + aNumero(tr), aNumero(ef))
@@ -67,6 +94,7 @@ fun ElegirComoPago(inicialTotal: Double, inicialEfectivo: Double, cambio: (Doubl
         CampoMonto(tr, { tr = it; avisar() }, "📲 Por transferencia")
         Text("Total que te entregó: ${pesos(aNumero(ef) + aNumero(tr))}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.texto)
     } else CampoMonto(total, { total = it; avisar() }, "Me entregó")
+    if (modo == -1) Text("👆 Elegí cómo te pagó: Efectivo o Transferencia.", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
 }
 
 /** Reparte lo que te dio entre sus deudas, de la más vieja a la más nueva.
@@ -92,13 +120,17 @@ fun DialogoCobro(quien: String, total: Double, alCerrar: () -> Unit, puedeFavor:
     var n by remember { mutableStateOf(total) }
     var enEf by remember { mutableStateOf(total) }
     var aFavor by remember { mutableStateOf(true) }
+    var elegido by remember { mutableStateOf(false) }              // ¿ya tocó Efectivo o Transferencia?
+    var vueltoEf by remember { mutableStateOf<Boolean?>(null) }    // ¿cómo le dio el vuelto?
     val sobra = n - total
+    /* hay vuelto: le sobra plata y no queda a su favor */
+    val hayVuelto = total > 0 && n > 0 && sobra > 0.005 && !(puedeFavor && aFavor)
     AlertDialog(onDismissRequest = alCerrar,
         title = { Text("¿Cuánto te entregó${if (quien.isNotBlank()) " $quien" else ""}?") },
         text = { Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (total > 0) "Tiene que pagar ${pesos(total)}" else "Queda a su favor para lo que pida", color = k.suave)
             if (aFavorAntes > 0.005) Text("🤝 Ya tenía ${pesos(aFavorAntes)} a favor (ya está descontado)", fontSize = 13.sp, color = k.verde)
-            ElegirComoPago(total, total) { t, e -> n = t; enEf = e }
+            ElegirComoPago(total, total, sinElegir = true) { t, e -> n = t; enEf = e; elegido = true }
             when {
                 n <= 0 -> Text("Escribí cuánto te dio (ej: 1000)", fontSize = 13.sp, color = k.naranja)
                 total <= 0 -> Text("🤝 Le quedan ${pesos(n)} a favor", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.verde)
@@ -110,16 +142,21 @@ fun DialogoCobro(quien: String, total: Double, alCerrar: () -> Unit, puedeFavor:
                     }
                     Text(if (aFavor) "No tenías vuelto: se le descuentan solos en lo próximo que pida." else "Le devolviste ${pesos(sobra)}.",
                         fontSize = 12.sp, color = k.suave)
+                    if (!aFavor) ElegirVuelto(sobra, vueltoEf) { vueltoEf = it }
                 }
-                sobra > 0.005 -> Text("Dale ${pesos(sobra)} de vuelto 🪙", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                sobra > 0.005 -> {
+                    Text("Dale ${pesos(sobra)} de vuelto 🪙", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
+                    ElegirVuelto(sobra, vueltoEf) { vueltoEf = it }
+                }
                 sobra < -0.005 -> Text("Te queda debiendo ${pesos(-sobra)} (sigue en \"Me deben\")",
                     fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = k.naranja)
                 else -> Text("✅ Te pagó justo", fontSize = 14.sp, color = k.verde)
             }
-            Text(when { enEf >= n - 0.005 -> "La plata va a tu Efectivo (no a Mercado Pago)."; enEf < 0.005 -> "La plata va a Mercado Pago."
+            if (elegido) Text(when { enEf >= n - 0.005 -> "La plata va a tu Efectivo (no a Mercado Pago)."; enEf < 0.005 -> "La plata va a Mercado Pago."
                 else -> "${pesos(enEf)} van a tu Efectivo y ${pesos(n - enEf)} a Mercado Pago." }, fontSize = 12.sp, color = k.suave)
         } },
-        confirmButton = { TextButton(enabled = n > 0, onClick = { alListo(Cobro(n, enEf.coerceAtMost(n), puedeFavor && aFavor)) }) { Text("Listo") } },
+        confirmButton = { TextButton(enabled = n > 0 && elegido && (!hayVuelto || vueltoEf != null),
+            onClick = { alListo(Cobro(n, enEf.coerceAtMost(n), puedeFavor && aFavor, vueltoEfectivo = if (hayVuelto) vueltoEf else null)) }) { Text("Listo") } },
         dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
 }
 

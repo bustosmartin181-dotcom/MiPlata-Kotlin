@@ -31,8 +31,23 @@ object CopiaAutomatica {
         prefs(ctx).edit().clear().apply()
     }
 
+    private val hilo = java.util.concurrent.Executors.newSingleThreadScheduledExecutor()
+    private var pendiente: java.util.concurrent.ScheduledFuture<*>? = null
+
+    /** Después de cada cambio guardado: escribe la copia en segundo plano (si varios cambios llegan juntos, una sola vez). */
+    fun programar(ctx: Context) {
+        val app = ctx.applicationContext
+        if (uri(app) == null) return
+        synchronized(this) {
+            pendiente?.cancel(false)
+            pendiente = hilo.schedule({ runCatching { guardar(app) } }, 700, java.util.concurrent.TimeUnit.MILLISECONDS)
+        }
+    }
+
     /** Escribe la copia (si está activada). Llamar fuera del hilo principal. */
-    fun guardar(ctx: Context): Boolean {
+    private val escribiendo = Any()
+    fun guardar(ctx: Context): Boolean = synchronized(escribiendo) { guardarYa(ctx) }
+    private fun guardarYa(ctx: Context): Boolean {
         val u = uri(ctx) ?: return false
         val texto = Almacen(ctx).crudo?.toString() ?: return false
         val ok = listOf("wt", "rwt").any { modo ->

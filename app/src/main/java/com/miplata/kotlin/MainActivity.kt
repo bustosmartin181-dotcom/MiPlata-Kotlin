@@ -143,9 +143,13 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     /** Lo que te entregó un compañero: si fue parte y parte, primero la transferencia y después el efectivo
         (así, si sobra, el vuelto o lo que queda a favor es en efectivo). */
     fun recibir(tp: String, c: Cobro, dejarAFavor: Boolean, primero: Long? = null) {
+        /* el vuelto sale de la cuenta con la que se lo diste (no siempre es la misma con la que te pagó) */
+        val medioVuelto = c.vueltoEfectivo?.let { if (it) com.miplata.kotlin.datos.MEDIO_EFECTIVO else com.miplata.kotlin.datos.MEDIO_MP }
         if (c.transferencia > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), c.transferencia, false,
-            dejarAFavor = dejarAFavor || c.enEfectivo > 0.005, primero = primero)
-        if (c.enEfectivo > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), c.enEfectivo, true, dejarAFavor, primero = primero)
+            dejarAFavor = dejarAFavor || c.enEfectivo > 0.005, primero = primero, medioVuelto = medioVuelto)
+        if (c.enEfectivo > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), c.enEfectivo, true, dejarAFavor, primero = primero, medioVuelto = medioVuelto)
+        /* si el vuelto ya se descontó antes (cobro "hasta" lo que debía) por el medio equivocado, se pasa de una cuenta a la otra */
+        if (c.vueltoCruzado > 0.005) almacen.corregirVuelto(tp, nombreDe(tp), c.vueltoCruzado, c.vueltoEfectivo == true)
     }
     fun cobrarDeuda(id: Long, tp: String?, previo: Boolean, monto: Double, c: Cobro) {
         if (tp != null && !previo) recibir(tp, c, c.aFavor, primero = id)
@@ -154,6 +158,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             val pago = c.hasta(monto)
             if (pago.transferencia > 0.005) almacen.cobrado(id, previo, false, if (pago.transferencia >= monto - 0.005) null else pago.transferencia)
             if (pago.enEfectivo > 0.005) almacen.cobrado(id, previo, true, if (pago.dado >= monto - 0.005 && pago.transferencia < 0.005) null else pago.enEfectivo)
+            if (pago.vueltoCruzado > 0.005) almacen.corregirVuelto(null, "", pago.vueltoCruzado, pago.vueltoEfectivo == true)
         }
         vuelta++
         val sobra = c.dado - monto
@@ -173,7 +178,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         runCatching { AvisoReserva.programarRecordatorio(ctx) }
         runCatching { com.miplata.kotlin.aviso.AvisoTaller.programar(ctx) }
         com.miplata.kotlin.widget.Widget.actualizar(ctx)
-        if (vuelta > 0) kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.miplata.kotlin.datos.CopiaAutomatica.guardar(ctx) }
+        /* la copia automática ya la escribe el Almacén cada vez que guarda un cambio */
     }
     /* Al abrir: cierre nocturno de los días que quedaron sin cerrar (si la app estaba cerrada a medianoche) */
     LaunchedEffect(Unit) { if (almacen.cambiarSiHace { com.miplata.kotlin.nucleo.Periodo.congelarDias(it, Fechas.hoy()) }) vuelta++ }
@@ -572,6 +577,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
             if (c.aFavor && tp != null) {
                 if (sobraTr > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), sobraTr, false, dejarAFavor = true)
                 if (sobraEf > 0.005) almacen.cobrarPersona(tp, nombreDe(tp), sobraEf, true, dejarAFavor = true)
+            } else if (c.vueltoEfectivo != null) {
+                /* le diste el vuelto: si fue por el otro medio, se pasa esa plata de una cuenta a la otra */
+                val cruzado = if (c.vueltoEfectivo) sobraTr else sobraEf
+                if (cruzado > 0.005) almacen.corregirVuelto(tp, tp?.let { nombreDe(it) } ?: "", cruzado, c.vueltoEfectivo)
             }
             hojaAbierta = false; vuelta++
             aviso(if (c.aFavor && sobraTr + sobraEf > 0.005) "Corregido · le quedan ${pesos(sobraTr + sobraEf)} a favor 🤝" else "Listo, corregido cómo te pagó")
