@@ -559,7 +559,21 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
             "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive("Recomposición")))
         JsonObject(o + ("ajustes" to JsonArray(l)))
     }
-    fun quitarRecomposicion(i: Int) = cambiarTodo { o -> val l = lista(o, "ajustes"); if (i in l.indices) l.removeAt(i); JsonObject(o + ("ajustes" to JsonArray(l))) }
+    fun quitarRecomposicion(i: Int) = cambiarTodo { o -> val l = lista(o, "ajustes")
+        val quitado = if (i in l.indices) l.removeAt(i) as? JsonObject else null
+        val sinEl = JsonObject(o + ("ajustes" to JsonArray(l)))
+        /* si era plata que entró a Mercado Pago (repartida), también sale de Mis cuentas */
+        if (quitado != null && quitado["mp"].verdadero()) sumarAMercadoPago(sinEl, -quitado["amt"].num()) else sinEl
+    }
+
+    /** Plata que te entró a Mercado Pago y se reparte en partes iguales entre hoy y los días que quedan del período
+        (no sube solo el límite de hoy). Sube el saldo de Mercado Pago en Mis cuentas. */
+    fun entradaRepartida(monto: Double, nota: String) = cambiarTodo { o ->
+        val l = lista(o, "ajustes"); val hoy = Fechas.hoy()
+        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(hoy),
+            "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)), "note" to JsonPrimitive(nota), "mp" to JsonPrimitive(true)))
+        sumarAMercadoPago(JsonObject(o + ("ajustes" to JsonArray(l))), monto)
+    }
 
     /** Activar o apagar el fondo de ahorro (cuenta desde hoy: no toca lo que ya tenías). */
     fun activarFondo(on: Boolean) = cambiarTodo { o ->

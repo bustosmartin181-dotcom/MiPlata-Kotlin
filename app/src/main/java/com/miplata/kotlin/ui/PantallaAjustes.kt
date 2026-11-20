@@ -141,6 +141,27 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
         }
 
         Tarjeta {
+            val ctxE = androidx.compose.ui.platform.LocalContext.current
+            var activaE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.activa(ctxE)) }
+            /* se revisa solo, por si volvés de darle el permiso */
+            LaunchedEffect(Unit) { while (true) { activaE = com.miplata.kotlin.aviso.EntradasMP.activa(ctxE); kotlinx.coroutines.delay(1500) } }
+            Titulo("💰 Plata que te entra (Mercado Pago)")
+            Subtitulo("Cuando Mercado Pago te avisa que te transfirieron, Mi plata te pregunta con un toque: sumarla a tu día, repartirla en los días que quedan o no anotarla. Recuerda lo que elegiste con cada persona. Solo lee las notificaciones de Mercado Pago.")
+            if (activaE) {
+                Text("✅ Activado", color = k.verde, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                val ult = com.miplata.kotlin.aviso.EntradasMP.ultimas(ctxE)
+                if (ult.isNotEmpty()) {
+                    Text("Últimas notificaciones de Mercado Pago que leyó:", color = k.suave, fontSize = 13.sp)
+                    ult.forEach { Text("• $it", color = k.suave, fontSize = 12.sp) }
+                }
+                TextButton(onClick = { com.miplata.kotlin.aviso.EntradasMP.abrirPermiso(ctxE) }) { Text("Desactivar (permiso de notificaciones)") }
+            } else {
+                Text("Para que funcione, Android te pide darle a Mi plata el permiso \"Acceso a notificaciones\". Tocá el botón, buscá Mi plata y activalo.", color = k.texto, fontSize = 14.sp)
+                Button(onClick = { if (!com.miplata.kotlin.aviso.EntradasMP.abrirPermiso(ctxE)) a.avisar("Buscalo en Ajustes del teléfono → Notificaciones → Acceso a notificaciones") }) { Text("Dar permiso") }
+            }
+        }
+
+        Tarjeta {
             Titulo("Seguridad")
             Subtitulo(if (S.pin.isNotEmpty()) "Tenés un PIN puesto." else "Poné un PIN para que nadie vea tu plata si agarra el teléfono.")
             OutlinedButton(onClick = a.abrirPin, Modifier.fillMaxWidth()) { Text(if (S.pin.isNotEmpty()) "Cambiar o quitar PIN" else "Poner PIN") }
