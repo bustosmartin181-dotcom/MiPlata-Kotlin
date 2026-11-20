@@ -44,7 +44,10 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
     val racha = Nucleo.rachaEnVerde(S, hoy)
     val presupuesto = c.quedaHoy + c.gastoHoy
     val fraccion = if (presupuesto > 0) (c.quedaHoy / presupuesto).coerceIn(0.0, 1.0).toFloat() else 0f
-    val fondoHero = when (clase) { "neg" -> k.rojo; "warn" -> k.naranja; else -> k.verde }
+    /* Si te pasaste poquito (hasta 10% del presupuesto) se muestra en naranja; el rojo queda para cuando te pasás bastante */
+    val pasado = c.quedaHoy < 0
+    val pasePoco = pasado && presupuesto > 0 && -c.quedaHoy <= presupuesto * 0.10
+    val fondoHero = when { clase == "neg" && pasePoco -> k.naranja; clase == "neg" -> k.rojo; clase == "warn" -> k.naranja; else -> k.verde }
     val sobreHero = if (clase == "") k.sobreVerde else Color.White
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
@@ -136,15 +139,18 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 "hoy" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Column(Modifier.fillMaxWidth().background(fondoHero, RoundedCornerShape(Estilo.radioHero)).padding(Estilo.rellenoHero),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Te queda para hoy", color = sobreHero.copy(alpha = 0.85f), fontSize = 15.sp)
-                        Text(dineroCentavos(numeroAnimado(c.quedaHoy)), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
+                        Text(if (pasado) "Hoy te pasaste" else "Te queda para hoy", color = sobreHero.copy(alpha = 0.85f), fontSize = 15.sp)
+                        val numero = numeroAnimado(Math.abs(c.quedaHoy))
+                        Text(if (pasado) dinero(numero) else dineroCentavos(numero), color = sobreHero, fontSize = 40.sp, fontFamily = Serif, fontWeight = FontWeight.Bold)
                         val barra by androidx.compose.animation.core.animateFloatAsState(fraccion, androidx.compose.animation.core.tween(900), label = "barra")
                         LinearProgressIndicator(progress = { barra }, modifier = Modifier.fillMaxWidth().height(8.dp),
                             color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
                         Text("Presupuesto ${dinero(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
                         c.manana?.let {
                             val luz = Demo.resaltado == "hoy.manana"
-                            Text("Mañana tendrás ${dinero(it)}", Modifier.demo("hoy.manana")
+                            /* Si lo de hoy le resta a mañana, se aclara para que se entienda que solo se reacomoda */
+                            val descuenta = pasado && c.baseManana != null && it < c.baseManana - 0.5
+                            Text((if (descuenta) "Se descuenta de mañana: vas a tener " else "Mañana vas a tener ") + dinero(it), Modifier.demo("hoy.manana")
                                 .then(if (luz) Modifier.border(3.dp, sobreHero, RoundedCornerShape(10.dp)).background(sobreHero.copy(alpha = 0.18f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp) else Modifier),
                                 color = sobreHero, fontSize = if (luz) 21.sp else 16.sp, fontWeight = if (luz) FontWeight.Bold else FontWeight.SemiBold)
                         }
