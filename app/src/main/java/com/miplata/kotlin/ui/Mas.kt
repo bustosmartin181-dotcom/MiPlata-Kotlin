@@ -67,6 +67,7 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.10" to listOf("🔧 Arreglo: al sacar del fondo o pagar algo, Mis cuentas sumaba otra vez todo el rendimiento estimado del mes (Mercado Pago y Reserva quedaban con plata de más)"),
     "11.9" to listOf("🐷 Sacar del fondo: nueva opción \"La reparto en los días que quedan del mes\". La plata se divide en partes iguales entre hoy y el resto del período, y te muestra cuánto más tenés por día"),
     "11.8" to listOf("🐷 Fondo + objetivo por día: si te toca $21.000 y tu objetivo es $15.000, los $6.000 de diferencia van al fondo todos los días, más lo que no gastes (antes quedaban sueltos)",
         "🧮 Calculadora en \"Mi objetivo por día\": escribí o mové la barrita con la cifra que quieras y ves cuánto ahorrarías antes de usarla"),
