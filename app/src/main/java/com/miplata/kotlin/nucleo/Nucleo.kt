@@ -110,12 +110,13 @@ object Nucleo {
             fun idxUso(x: UsoFondo) = min(max(Fechas.dia(x.date) - inicio, 0L), (dias - 1).toLong()).toInt()
             val iniFondo = if (S.fondoDesde.isNotEmpty()) min(max(Fechas.dia(S.fondoDesde) - inicio, 0L), (dias - 1).toLong()).toInt() else 0
             val extraRetiro = HashMap<Int, Double>()
+            val extraReparte = HashMap<Int, Double>()
             S.fondoUsos.forEach { x ->
                 val k = idxUso(x)
                 when (x.para) {
                     "cubre" -> {}
                     /* "reparte": se divide en partes iguales entre ese día y los que quedan del período */
-                    "reparte" -> { val parte = x.amt / max(1, dias - k); for (j in k until dias) extraRetiro[j] = (extraRetiro[j] ?: 0.0) + parte }
+                    "reparte" -> { val parte = x.amt / max(1, dias - k); for (j in k until dias) { extraRetiro[j] = (extraRetiro[j] ?: 0.0) + parte; extraReparte[j] = (extraReparte[j] ?: 0.0) + parte } }
                     else -> extraRetiro[k] = (extraRetiro[k] ?: 0.0) + x.amt
                 }
             }
@@ -165,7 +166,7 @@ object Nucleo {
                 rendPend = pend
             }
             quedaHoyF = fs[hoyIdx].presupuesto - fs[hoyIdx].gasto
-            mananaF = if (hayManana) presupuestoDia(hoyIdx + 1) + (extraRetiro[hoyIdx + 1] ?: 0.0) + (if (regla == "siguiente") min(0.0, quedaHoyF) else 0.0) else null
+            mananaF = if (hayManana) presupuestoDia(hoyIdx + 1) + (extraReparte[hoyIdx + 1] ?: 0.0) + (if (regla == "siguiente") min(0.0, quedaHoyF) else 0.0) else null
             fondo = Fondo(
                 activo = true, regla = regla, fondoPrev = previo, ahorroPeriodo = ahorroPeriodo, usos = usos,
                 total = previo + ahorroPeriodo - usos,
