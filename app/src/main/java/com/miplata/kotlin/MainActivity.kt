@@ -687,7 +687,7 @@ fun BarraAbajo(actual: Pestana, alElegir: (Pestana) -> Unit, alSumar: () -> Unit
         Boton(Pestana.PLAN)
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             when (estilo) {
-                "original" -> FloatingActionButton(onClick = alSumar, modifier = Modifier.demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
+                "original", "neobanco" -> FloatingActionButton(onClick = alSumar, modifier = Modifier.then(if (estilo == "neobanco") Modifier.size(56.dp) else Modifier).demo("fab", alSumar), shape = CircleShape, containerColor = k.verde, contentColor = k.sobreVerde,
                     elevation = FloatingActionButtonDefaults.elevation(2.dp)) {
                     Icon(Icons.Outlined.Add, contentDescription = "Anotar gasto")
                 }

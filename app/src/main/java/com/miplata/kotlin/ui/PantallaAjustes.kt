@@ -67,14 +67,18 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
             val ctxB = androidx.compose.ui.platform.LocalContext.current
             Text("Estilo visual", color = k.suave, fontSize = 13.sp)
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                Estilo.OPCIONES.forEachIndexed { i, (v, t) ->
-                    SegmentedButton(Estilo.actual == v, { Estilo.guardar(ctxB, v) }, SegmentedButtonDefaults.itemShape(i, Estilo.OPCIONES.size)) { Text(t, fontSize = 13.sp) }
+            /* De a dos por fila: con cuatro estilos en una sola fila no entran los nombres en el teléfono */
+            Estilo.OPCIONES.chunked(2).forEach { fila ->
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    fila.forEachIndexed { i, (v, t) ->
+                        SegmentedButton(Estilo.actual == v, { Estilo.guardar(ctxB, v) }, SegmentedButtonDefaults.itemShape(i, fila.size)) { Text(t, fontSize = 13.sp, maxLines = 1) }
+                    }
                 }
             }
             Text(when (Estilo.actual) {
                 "original" -> "Como era Mi plata al principio: bordes de color, barra de abajo plana y botón + redondo."
                 "oneui" -> "Al estilo Samsung One UI: títulos grandes, tarjetas bien redondeadas y barra de abajo flotante."
+                "neobanco" -> "Estilo banco digital: verde menta, letra Plus Jakarta Sans y tarjetas con borde finito. En oscuro, negro con verde neón. Se ve mejor con el color Verde."
                 else -> "El rediseño: sombras suaves, más aire entre bloques y barra con puntas redondeadas."
             }, fontSize = 12.sp, color = k.suave)
             Text("Color", color = k.suave, fontSize = 13.sp)

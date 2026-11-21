@@ -26,6 +26,7 @@ fun TarjetaGastosYEntradas(S: Estado, alTocar: (Movimiento) -> Unit, taller: Tal
         l.filter { it !in delTaller }.map { fecha to (it as Any) } + gruposTaller(delTaller, taller).map { fecha to (it as Any) }
     }
     val mostrar = if (verTodos) filas else filas.take(12)
+    val corrido = remember(S, hoy) { saldoCorrido(S, hoy) }
     Tarjeta {
         Titulo("Gastos y entradas")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -45,7 +46,7 @@ fun TarjetaGastosYEntradas(S: Estado, alTocar: (Movimiento) -> Unit, taller: Tal
             }
             when (fila) {
                 is GrupoTaller -> FilaPersonaTaller(fila) { alAbrirPersona(fila) }
-                is Movimiento -> FilaMovimiento(fila) { alTocar(fila) }
+                is Movimiento -> FilaMovimiento(fila, corrido[fila.id]) { alTocar(fila) }
             }
         }
         if (filas.size > 12) TextButton(onClick = { verTodos = !verTodos }) { Text(if (verTodos) "Ver menos" else "Ver todos (${filas.size})") }

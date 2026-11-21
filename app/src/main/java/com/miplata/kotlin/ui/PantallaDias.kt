@@ -58,7 +58,6 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
                 "lista" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { dias.forEach { d ->
             val futuro = d.i > c.hoyIdx
             val esHoy = d.i == c.hoyIdx
-            val colorSobra = when { futuro -> k.suave; d.sobra < 0 -> k.rojo; else -> k.verde }
             Column(Modifier.fillMaxWidth()
                 .then(if (esHoy) Modifier.onGloballyPositioned { tarjetaHoy = it } else Modifier)
                 .bordeBloque(16).background(if (esHoy) k.verdeClaro else k.tarjeta, RoundedCornerShape(16.dp))
@@ -75,13 +74,25 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
                             else "Tenías ${dinero(d.presupuesto)} · gastaste ${dinero(gastos)}" + (if (entradas > 0) " · entró ${dinero(entradas)}" else ""),
                             fontSize = 13.sp, color = k.suave)
                     }
-                    if (!futuro) Text((if (d.sobra >= 0) "+" else "") + dinero(d.sobra), fontWeight = FontWeight.Bold, color = colorSobra)
+                    /* Pastilla de color: Te queda (hoy) · Sobró (días cerrados) · Te pasaste */
+                    if (!futuro) {
+                        Spacer(Modifier.width(8.dp))
+                        when {
+                            d.sobra < 0 -> Pastilla("Te pasaste ${dinero(-d.sobra)}", false)
+                            esHoy -> Pastilla("Te queda ${dinero(d.sobra)}", true)
+                            else -> Pastilla("Sobró +${dinero(d.sobra)}", true)
+                        }
+                    }
                 }
                 Fechas.feriado(d.iso)?.let { Text("Feriado: ${it.nombre}", fontSize = 12.sp, color = k.suave) }
                 if (abierto == d.i) {
                     val movs = S.spent.filter { it.date == d.iso && !it.esMeta }.sortedByDescending { it.id }
                     if (movs.isEmpty()) Text("Sin movimientos", fontSize = 13.sp, color = k.suave, modifier = Modifier.padding(top = 6.dp))
-                    movs.forEach { FilaMovimiento(it) { alTocarMovimiento(it) } }
+                    /* saldo corrido del día: arranca en lo que tenías y baja con cada gasto */
+                    val corrido = HashMap<Long, Double>()
+                    if (!futuro) { var queda = d.presupuesto
+                        S.spent.filter { it.date == d.iso && it.cuentaEnDia }.sortedBy { it.id }.forEach { m -> queda -= m.amt; corrido[m.id] = queda } }
+                    movs.forEach { FilaMovimiento(it, corrido[it.id]) { alTocarMovimiento(it) } }
                 }
             }
                 } }

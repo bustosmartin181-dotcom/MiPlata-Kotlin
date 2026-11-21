@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.14" to listOf("🏦 Estilo nuevo \"Neobanco\" (Ajustes → Apariencia → Estilo visual): verde menta, letra Plus Jakarta Sans y tarjetas con borde finito; en oscuro, negro con verde neón",
+        "🧾 Saldo corrido: debajo de cada gasto ves cuánto te queda del día (\"Te quedan \$19.700\"); si te pasaste, en rojo",
+        "📅 En Días, cada día tiene su etiqueta de color: Te queda, Sobró o Te pasaste"),
     "11.13" to listOf("📈 Cuando cambia la tasa, vale desde ese día: los días que ya pasaron no se recalculan (como en Mercado Pago)"),
     "11.12" to listOf("💰 Plata que te entra: cuando Mercado Pago te avisa que te transfirieron, Mi plata la anota sola (Ajustes → Plata que te entra; hay que darle permiso una vez)",
         "🤝 Si es un compañero que te debe del taller, marca cobrado lo que te debía en \"Me deben\"",

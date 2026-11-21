@@ -224,7 +224,7 @@ fun Mini(titulo: String, valor: String, modifier: Modifier = Modifier, extra: St
 }
 
 @Composable
-fun FilaMovimiento(e: Movimiento, alTocar: () -> Unit) {
+fun FilaMovimiento(e: Movimiento, queda: Double? = null, alTocar: () -> Unit) {
     val k = LocalColores.current
     val entrada = e.amt < 0
     Row(Modifier.fillMaxWidth().clickable(onClick = alTocar).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -247,7 +247,12 @@ fun FilaMovimiento(e: Movimiento, alTocar: () -> Unit) {
             val detalle = listOfNotNull(e.cat.takeIf { !entrada }, estado).joinToString(" · ")
             if (detalle.isNotEmpty()) Text(detalle, color = when { favor && e.dev == 1 -> k.verde; e.dev == 1 -> k.naranja; else -> k.suave }, fontSize = 12.sp)
         }
-        Text(if (entrada) "+" + dinero(-e.amt) else dinero(e.amt), fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-            color = if (entrada) k.verde else k.texto)
+        Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(if (entrada) "+" + dinero(-e.amt) else dinero(e.amt), fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+                color = if (entrada) k.verde else k.texto)
+            /* Saldo corrido: cuánto te queda del día después de este movimiento */
+            if (queda != null) PastillaQueda(queda)
+        }
     }
 }

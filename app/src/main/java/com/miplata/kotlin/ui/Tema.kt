@@ -12,7 +12,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import com.miplata.kotlin.R
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -52,9 +56,21 @@ fun colores(color: String, oscuro: Boolean): Colores {
         /* One UI: fondo cálido y tarjetas marfil (de la beta "One UI"); de noche, negro como Samsung */
         "oneui" -> if (!oscuro) Neutros(Color(0xFFF4F2EC), Color(0xFFF3F7FB), Color(0xFFFFFEFA), Color.White, Color(0xFF19251F), Color(0xFF536359), Color(0xFFE1E3DA))
             else Neutros(Color(0xFF050605), Color(0xFF0A1520), Color(0xFF1A1C1A), Color(0xFF162638), Color(0xFFF2F3F1), Color(0xFFA6ACA6), Color(0xFF2A2D2A))
+        /* Neobanco (Google Stitch): claro gris azulado y tarjetas blancas; oscuro casi negro con tarjetas grafito */
+        "neobanco" -> if (!oscuro) Neutros(Color(0xFFF8FAFC), Color(0xFFF3F7FB), Color.White, Color.White, Color(0xFF0F172A), Color(0xFF64748B), Color(0xFFE2E8F0))
+            else Neutros(Color(0xFF0A0C10), Color(0xFF0A1520), Color(0xFF141820), Color(0xFF162638), Color(0xFFF1F3F7), Color(0xFF9CA3AF), Color(0xFF242B36))
         else -> if (!oscuro) Neutros(Color(0xFFF4F7F4), Color(0xFFF3F7FB), Color.White, Color.White, Color(0xFF18251D), Color(0xFF68766D), Color(0xFFE3EAE4))
             else Neutros(Color(0xFF101713), Color(0xFF0D1924), Color(0xFF19231D), Color(0xFF172635), Color(0xFFEDF5EF), Color(0xFFA7B5AA), Color(0xFF2B3930))
     }
+    /* En Neobanco el color Verde pasa a ser el verde menta del diseño; los otros colores quedan como siempre */
+    val menta = Estilo.actual == "neobanco" && color == "verde"
+    if (menta) return if (!oscuro) Colores(
+        fondo = n.fondo, tarjeta = n.tarjeta, texto = n.texto, suave = n.suave, linea = n.linea,
+        verde = Color(0xFF00A368), sobreVerde = Color.White, verdeClaro = Color(0xFFE8FAF2), naranja = Color(0xFFB4670E), rojo = Color(0xFFBA1A1A))
+    else Colores(
+        fondo = n.fondo, tarjeta = n.tarjeta, texto = n.texto, suave = n.suave, linea = n.linea,
+        verde = Color(0xFF00E599), sobreVerde = Color(0xFF003822), verdeClaro = Color(0xFF0F2E24), naranja = Color(0xFFF0A54A), rojo = Color(0xFFFF6B6B),
+        oscuro = true)
     return if (!oscuro) Colores(
         fondo = if (arg) n.fondoArg else n.fondo, tarjeta = if (arg) n.tarjetaArg else n.tarjeta, texto = n.texto,
         suave = n.suave, linea = n.linea,
@@ -67,7 +83,31 @@ fun colores(color: String, oscuro: Boolean): Colores {
 }
 
 val LocalColores = staticCompositionLocalOf { colores("verde", false) }
-val Serif = FontFamily.Serif
+
+/** Plus Jakarta Sans, la letra del estilo Neobanco. Viene adentro del APK (anda sin internet). */
+val Jakarta = FontFamily(
+    Font(R.font.jakarta_regular, FontWeight.Normal),
+    Font(R.font.jakarta_medium, FontWeight.Medium),
+    Font(R.font.jakarta_semibold, FontWeight.SemiBold),
+    Font(R.font.jakarta_bold, FontWeight.Bold),
+    Font(R.font.jakarta_extrabold, FontWeight.ExtraBold),
+)
+
+/** La letra de los montos grandes: con serifa en los estilos de siempre, Plus Jakarta Sans en Neobanco. */
+val Serif: FontFamily get() = if (Estilo.actual == "neobanco") Jakarta else FontFamily.Serif
+
+/** Toda la letra de la app en Plus Jakarta Sans, con números del mismo ancho (los montos no "bailan"). */
+private fun tipografiaNeobanco(): Typography {
+    val t = Typography()
+    fun TextStyle.j() = copy(fontFamily = Jakarta, fontFeatureSettings = "tnum")
+    return Typography(
+        displayLarge = t.displayLarge.j(), displayMedium = t.displayMedium.j(), displaySmall = t.displaySmall.j(),
+        headlineLarge = t.headlineLarge.j(), headlineMedium = t.headlineMedium.j(), headlineSmall = t.headlineSmall.j(),
+        titleLarge = t.titleLarge.j(), titleMedium = t.titleMedium.j(), titleSmall = t.titleSmall.j(),
+        bodyLarge = t.bodyLarge.j(), bodyMedium = t.bodyMedium.j(), bodySmall = t.bodySmall.j(),
+        labelLarge = t.labelLarge.j(), labelMedium = t.labelMedium.j(), labelSmall = t.labelSmall.j(),
+    )
+}
 
 /** tema: "auto", "claro" u "oscuro". color: una clave de PALETAS. */
 @Composable
@@ -81,7 +121,8 @@ fun TemaMiPlata(color: String = "verde", tema: String = "auto", contenido: @Comp
     else lightColorScheme(primary = c.verde, onPrimary = c.sobreVerde, background = c.fondo, surface = c.tarjeta, onSurface = c.texto,
             surfaceContainerLow = c.tarjeta, surfaceContainerHigh = c.tarjeta, surfaceContainerHighest = c.linea, secondaryContainer = c.verdeClaro,
             onSurfaceVariant = c.suave, outline = c.suave)
-    CompositionLocalProvider(LocalColores provides c) { MaterialTheme(colorScheme = esquema, content = contenido) }
+    val tipografia = if (Estilo.actual == "neobanco") tipografiaNeobanco() else Typography()
+    CompositionLocalProvider(LocalColores provides c) { MaterialTheme(colorScheme = esquema, typography = tipografia, content = contenido) }
 }
 
 /** Fondo del tema Argentina: franjas celeste, blanca y celeste, con el Sol de Mayo, bien suaves. */
