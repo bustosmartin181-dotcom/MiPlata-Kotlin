@@ -132,7 +132,8 @@ object Periodo {
                     "p" to JsonPrimitive(false), "f" to JsonPrimitive(false), "v" to JsonPrimitive(false)))
         }
         S["items"] = JsonArray(nuevos)
-        /* Mis planes: los activos suman una cuota descontada; si era la última, quedan cumplidos */
+        /* Mis planes: los activos suman una cuota descontada; si era la última, quedan cumplidos.
+           Los cumplidos se borran solos al empezar el período nuevo (ya se pagaron; el cartel de "Plan cumplido" avisa cuáles). */
         if (S["planes"] is JsonArray) S["planes"] = JsonArray(S["planes"].lista().map { e ->
             val x = (e as? JsonObject)?.mutable() ?: return@map e
             if (x["activo"].verdadero() && !x["fin"].verdadero()) {
@@ -144,7 +145,7 @@ object Periodo {
                 }
             }
             x.obj()
-        })
+        }.filterNot { (it as? JsonObject)?.get("fin").verdadero() })
         S["proximos"] = JsonArray(emptyList())
         S["fondoDesde"] = JsonPrimitive("")
         S["fondoUsos"] = JsonArray(emptyList())

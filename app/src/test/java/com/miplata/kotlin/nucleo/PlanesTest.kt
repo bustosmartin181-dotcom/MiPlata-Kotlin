@@ -49,7 +49,8 @@ class PlanesTest {
         assertEquals(0, S.planes.first { it.id == 2L }.hechas)      // el desactivado no avanza
         val r = Periodo.iniciar(o, "2027-01-01", 0.0, "2027-01-01", "2027-02-01")
         S = Estado.desdeJson(r.estado)
-        assertTrue(S.planes.first { it.id == 1L }.fin)
+        assertTrue(S.planes.none { it.id == 1L })                  // cumplido: se borra solo en el período nuevo
+        assertTrue(S.planes.any { it.id == 2L })                   // el que no se activó sigue esperando
         assertTrue(r.terminadas.any { it.contains("Heladera") })
     }
 }
