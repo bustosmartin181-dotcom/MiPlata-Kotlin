@@ -26,39 +26,50 @@ fun TarjetaPlanes(S: Estado, c: Calculo, alAgregar: () -> Unit, alEditar: (Plan)
                   alActivar: (Plan, Boolean) -> Unit, alPagado: (Plan, Boolean) -> Unit) {
     val k = LocalColores.current
     val pleg = rememberPlegado("planes")
-    Tarjeta {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CabeceraPlegable(pleg, Modifier.weight(1f)) { Titulo("🎯 Mis planes"); Spacer(Modifier.weight(1f)) }
-            TextButton(onClick = alAgregar) { Text("+ Agregar", fontWeight = FontWeight.SemiBold) }
+    Column(verticalArrangement = Arrangement.spacedBy(Estilo.separacion)) {
+        Tarjeta {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CabeceraPlegable(pleg, Modifier.weight(1f)) { Titulo("🎯 Mis planes"); Spacer(Modifier.weight(1f)) }
+                TextButton(onClick = alAgregar) { Text("+ Agregar", fontWeight = FontWeight.SemiBold) }
+            }
+            if (!pleg.abierto) {
+                val act = S.planes.filter { it.activo && !it.fin }
+                Text(if (S.planes.isEmpty()) "Todavía no anotaste planes" else "${S.planes.size} plan${if (S.planes.size > 1) "es" else ""}" +
+                    (if (act.isNotEmpty()) " · activos ${dinero(act.sumOf { it.cuota })}" else " · ninguno activo"),
+                    color = k.suave, fontWeight = FontWeight.SemiBold)
+                return@Tarjeta
+            }
+            Subtitulo("Gastos que tenés en mente. Con ❌ no tocan tu plata; con ✅ se descuentan como un gasto prioritario, repartidos entre los días que quedan. Tocá un plan para abrirlo.")
+            if (S.planes.isEmpty()) Text("Ej.: arreglar el radiador del auto · $100.000", fontSize = 13.sp, color = k.suave)
+            val activos = S.planes.filter { it.activo && !it.fin }
+            if (activos.isNotEmpty()) Text("Activos este período: ${dinero(activos.sumOf { it.cuota })}", fontWeight = FontWeight.SemiBold, color = k.verde)
         }
-        if (!pleg.abierto) {
-            val act = S.planes.filter { it.activo && !it.fin }
-            Text(if (S.planes.isEmpty()) "Todavía no anotaste planes" else "${S.planes.size} plan${if (S.planes.size > 1) "es" else ""}" +
-                (if (act.isNotEmpty()) " · activos ${dinero(act.sumOf { it.cuota })}" else " · ninguno activo"),
-                color = k.suave, fontWeight = FontWeight.SemiBold)
-            return@Tarjeta
+        if (pleg.abierto) S.planes.sortedWith(compareBy({ it.fin }, { !it.activo })).forEach { p ->
+            key(p.id) { TarjetaUnPlan(p, c, { alEditar(p) }, { alActivar(p, it) }, { alPagado(p, it) }) }
         }
-        Subtitulo("Gastos que tenés en mente. Con ❌ no tocan tu plata; con ✅ se descuentan como un gasto prioritario, repartidos entre los días que quedan.")
-        if (S.planes.isEmpty()) Text("Ej.: arreglar el radiador del auto · $100.000", fontSize = 13.sp, color = k.suave)
-        val activos = S.planes.filter { it.activo && !it.fin }
-        if (activos.isNotEmpty()) Text("Activos este período: ${dinero(activos.sumOf { it.cuota })}", fontWeight = FontWeight.SemiBold, color = k.verde)
-        S.planes.sortedWith(compareBy({ it.fin }, { !it.activo })).forEach { p -> FilaPlan(p, c, { alEditar(p) }, { alActivar(p, it) }, { alPagado(p, it) }) }
     }
 }
 
+/** Un plan = una tarjeta propia. Plegada solo se ve el título con un ícono de estado:
+    🟢 activo · ✅ pagado · ⚪ desactivado · 🏁 cumplido. Desplegada salen los botones. */
 @Composable
-private fun FilaPlan(p: Plan, c: Calculo, alEditar: () -> Unit, alActivar: (Boolean) -> Unit, alPagado: (Boolean) -> Unit) {
+private fun TarjetaUnPlan(p: Plan, c: Calculo, alEditar: () -> Unit, alActivar: (Boolean) -> Unit, alPagado: (Boolean) -> Unit) {
     val k = LocalColores.current
-    Column(Modifier.fillMaxWidth().alpha(if (p.fin) 0.6f else 1f).background(k.fondo, RoundedCornerShape(16.dp))
-        .clickable(onClick = alEditar).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    val pleg = rememberPlegado("plan_${p.id}", abiertoAlPrincipio = false)
+    val icono = when { p.fin -> "🏁"; p.activo && p.p -> "✅"; p.activo -> "🟢"; else -> "⚪" }
+    Tarjeta(Modifier.alpha(if (p.fin) 0.6f else 1f)) {
+        CabeceraPlegable(pleg, Modifier.fillMaxWidth()) {
+            Text(icono, fontSize = 16.sp)
+            Spacer(Modifier.width(8.dp))
             Text(p.n.ifBlank { "Plan" }, Modifier.weight(1f), fontWeight = FontWeight.Bold, color = k.texto, fontSize = 16.sp)
             if (p.total > 0) Text(dinero(p.total), fontWeight = FontWeight.Bold, color = k.texto)
             else Text("Monto a definir", fontWeight = FontWeight.SemiBold, color = k.naranja, fontSize = 14.sp)
+            Spacer(Modifier.width(4.dp))
         }
+        if (!pleg.abierto) return@Tarjeta
         Text(when {
             p.fin -> "✅ Cumplido" + if (p.meses > 1) " · ${p.meses} cuotas" else ""
-            p.total <= 0 -> "Cuando sepas cuánto sale, tocalo y cargá el monto para poder activarlo."
+            p.total <= 0 -> "Cuando sepas cuánto sale, tocá Editar y cargá el monto para poder activarlo."
             p.meses > 1 -> "En ${p.meses} meses · cuota ${p.cuotaNumero} de ${p.meses}: ${dinero(p.cuota)}"
             else -> "Un solo pago"
         }, fontSize = 13.sp, color = k.suave)
@@ -71,8 +82,8 @@ private fun FilaPlan(p: Plan, c: Calculo, alEditar: () -> Unit, alActivar: (Bool
                 OutlinedButton(onClick = { alActivar(false) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = k.rojo)) { Text("❌ Desactivar") }
                 FilterChip(selected = p.p, onClick = { alPagado(!p.p) }, label = { Text(if (p.p) "✅ Pagado" else "Pendiente") })
             } else if (p.total > 0) Button(onClick = { alActivar(true) }) { Text("✅ Activar") }
-            else OutlinedButton(onClick = alEditar) { Text("✏️ Poner monto") }
         }
+        TextButton(onClick = alEditar) { Text(if (p.total <= 0) "✏️ Poner monto" else "✏️ Editar") }
     }
 }
 
