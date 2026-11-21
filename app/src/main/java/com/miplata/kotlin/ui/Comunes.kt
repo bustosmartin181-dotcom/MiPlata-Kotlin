@@ -142,18 +142,22 @@ fun Pastilla(texto: String, bien: Boolean, modifier: Modifier = Modifier) {
         color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
 }
 
-/** Saldo corrido: después de cada gasto (o entrada) del día, cuánto te queda de lo que tenías para ese día.
- *  Devuelve id del movimiento -> lo que quedaba después. Solo días que ya empezaron. */
+/** Saldo corrido: después de cada gasto (o entrada), cuánta plata te quedaba EN CUENTAS (Mis cuentas, en general),
+ *  no solo la del día. Arranca en el saldo de hoy y va para atrás deshaciendo cada movimiento, como un resumen del banco.
+ *  Devuelve id del movimiento -> saldo después. Vacío si no cargaste Mis cuentas. */
 fun saldoCorrido(S: com.miplata.kotlin.nucleo.Estado, hoy: String): Map<Long, Double> {
     val c = com.miplata.kotlin.nucleo.Nucleo.calcular(S, hoy)
-    val dias = com.miplata.kotlin.nucleo.Nucleo.diasDelPeriodo(S, hoy, c)
+    val cc = com.miplata.kotlin.nucleo.Nucleo.conciliar(S, c)
+    if (!cc.hayCuentas) return emptyMap()
     val salida = HashMap<Long, Double>()
-    val porFecha = S.spent.filter { it.cuentaEnDia }.groupBy { it.date }
-    for (d in dias) {
-        if (d.i > c.hoyIdx) break
-        var queda = d.presupuesto
-        porFecha[d.iso]?.sortedBy { it.id }?.forEach { m -> queda -= m.amt; salida[m.id] = queda }
-    }
+    var saldo = cc.total
+    S.spent.filter { !it.esMeta }.sortedWith(compareByDescending<com.miplata.kotlin.nucleo.Movimiento> { it.date }.thenByDescending { it.id })
+        .forEach { m ->
+            salida[m.id] = saldo
+            /* lo que movió las cuentas: un gasto bajó el saldo, una entrada lo subió; si ya te lo devolvieron, se anuló */
+            val efecto = -m.amt + (if (m.dev == 2) m.amt else 0.0)
+            saldo -= efecto
+        }
     return salida
 }
 

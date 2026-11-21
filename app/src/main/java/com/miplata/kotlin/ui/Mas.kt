@@ -67,6 +67,9 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.15" to listOf("💚 Neobanco va siempre en verde menta, aunque tengas elegido otro color (antes con Argentina se veía celeste)",
+        "🧾 \"Te quedan\" debajo de cada gasto ahora es tu plata en cuentas (Mis cuentas), no la del día",
+        "💡 Idea de Mariela: en la tarjeta grande, en vez de \"Presupuesto\" dice \"En cuentas\" y baja con cada gasto"),
     "11.14" to listOf("🏦 Estilo nuevo \"Neobanco\" (Ajustes → Apariencia → Estilo visual): verde menta, letra Plus Jakarta Sans y tarjetas con borde finito; en oscuro, negro con verde neón",
         "🧾 Saldo corrido: debajo de cada gasto ves cuánto te queda del día (\"Te quedan \$19.700\"); si te pasaste, en rojo",
         "📅 En Días, cada día tiene su etiqueta de color: Te queda, Sobró o Te pasaste"),

@@ -29,6 +29,7 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
     val c = Nucleo.calcular(S, hoy)
     val dias = Nucleo.diasDelPeriodo(S, hoy, c)
     var abierto by remember { mutableStateOf(c.hoyIdx) }
+    val corrido = remember(S, hoy) { saldoCorrido(S, hoy) }   // saldo en cuentas después de cada movimiento
     var ordenando by remember { mutableStateOf(false) }      // ✏️: ordenar los bloques
     val scroll = rememberScrollState()
     var contenido by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
@@ -88,10 +89,6 @@ fun PantallaDias(S: Estado, alTocarMovimiento: (Movimiento) -> Unit,
                 if (abierto == d.i) {
                     val movs = S.spent.filter { it.date == d.iso && !it.esMeta }.sortedByDescending { it.id }
                     if (movs.isEmpty()) Text("Sin movimientos", fontSize = 13.sp, color = k.suave, modifier = Modifier.padding(top = 6.dp))
-                    /* saldo corrido del día: arranca en lo que tenías y baja con cada gasto */
-                    val corrido = HashMap<Long, Double>()
-                    if (!futuro) { var queda = d.presupuesto
-                        S.spent.filter { it.date == d.iso && it.cuentaEnDia }.sortedBy { it.id }.forEach { m -> queda -= m.amt; corrido[m.id] = queda } }
                     movs.forEach { FilaMovimiento(it, corrido[it.id]) { alTocarMovimiento(it) } }
                 }
             }

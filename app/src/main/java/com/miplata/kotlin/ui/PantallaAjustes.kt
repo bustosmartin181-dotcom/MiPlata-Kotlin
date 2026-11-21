@@ -78,7 +78,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             Text(when (Estilo.actual) {
                 "original" -> "Como era Mi plata al principio: bordes de color, barra de abajo plana y botón + redondo."
                 "oneui" -> "Al estilo Samsung One UI: títulos grandes, tarjetas bien redondeadas y barra de abajo flotante."
-                "neobanco" -> "Estilo banco digital: verde menta, letra Plus Jakarta Sans y tarjetas con borde finito. En oscuro, negro con verde neón. Se ve mejor con el color Verde."
+                "neobanco" -> "Estilo banco digital: verde menta, letra Plus Jakarta Sans y tarjetas con borde finito. En oscuro, negro con verde neón. Va siempre en verde menta: el Color de abajo se usa en los otros estilos."
                 else -> "El rediseño: sombras suaves, más aire entre bloques y barra con puntas redondeadas."
             }, fontSize = 12.sp, color = k.suave)
             Text("Color", color = k.suave, fontSize = 13.sp)

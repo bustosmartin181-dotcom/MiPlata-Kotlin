@@ -145,7 +145,11 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         val barra by androidx.compose.animation.core.animateFloatAsState(fraccion, androidx.compose.animation.core.tween(900), label = "barra")
                         LinearProgressIndicator(progress = { barra }, modifier = Modifier.fillMaxWidth().height(8.dp),
                             color = sobreHero, trackColor = sobreHero.copy(alpha = 0.25f), strokeCap = androidx.compose.ui.graphics.StrokeCap.Round, gapSize = 0.dp, drawStopIndicator = {})
-                        Text("Presupuesto ${dinero(presupuesto)} · " + (if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"), color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
+                        /* Idea de Mariela: en vez del presupuesto del día (ya está arriba en grande), la plata general
+                           que tenés en cuentas, que baja con cada gasto. Sin Mis cuentas cargadas, queda como antes. */
+                        val gastoTxt = if (c.gastoHoy < 0) "entró ${dinero(-c.gastoHoy)}" else "gastaste ${dinero(c.gastoHoy)}"
+                        Text((if (cc.hayCuentas) "En cuentas ${dinero(cc.total)}" else "Presupuesto ${dinero(presupuesto)}") + " · " + gastoTxt,
+                            color = sobreHero.copy(alpha = 0.85f), fontSize = 14.sp)
                         c.manana?.let {
                             val luz = Demo.resaltado == "hoy.manana"
                             /* Si lo de hoy le resta a mañana, se aclara para que se entienda que solo se reacomoda */

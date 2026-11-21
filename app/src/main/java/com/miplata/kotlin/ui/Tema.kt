@@ -62,8 +62,8 @@ fun colores(color: String, oscuro: Boolean): Colores {
         else -> if (!oscuro) Neutros(Color(0xFFF4F7F4), Color(0xFFF3F7FB), Color.White, Color.White, Color(0xFF18251D), Color(0xFF68766D), Color(0xFFE3EAE4))
             else Neutros(Color(0xFF101713), Color(0xFF0D1924), Color(0xFF19231D), Color(0xFF172635), Color(0xFFEDF5EF), Color(0xFFA7B5AA), Color(0xFF2B3930))
     }
-    /* En Neobanco el color Verde pasa a ser el verde menta del diseño; los otros colores quedan como siempre */
-    val menta = Estilo.actual == "neobanco" && color == "verde"
+    /* Neobanco va siempre en verde menta (es su identidad), sin importar el color elegido */
+    val menta = Estilo.actual == "neobanco"
     if (menta) return if (!oscuro) Colores(
         fondo = n.fondo, tarjeta = n.tarjeta, texto = n.texto, suave = n.suave, linea = n.linea,
         verde = Color(0xFF00A368), sobreVerde = Color.White, verdeClaro = Color(0xFFE8FAF2), naranja = Color(0xFFB4670E), rojo = Color(0xFFBA1A1A))
