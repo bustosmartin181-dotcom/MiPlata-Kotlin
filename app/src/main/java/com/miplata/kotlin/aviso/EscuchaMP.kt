@@ -99,9 +99,12 @@ object EntradasMP {
         if (m <= 0) return null
         val nombre = listOf(
             Regex("^\\s*([^.$!¡]+?)\\s+te\\s+(?:transfiri[oó]|envi[oó]|mand[oó]|pag[oó]|deposit[oó])", RegexOption.IGNORE_CASE),
-            Regex("\\bde\\s+([A-ZÁÉÍÓÚÑ][\\p{L}]+(?:\\s+[A-ZÁÉÍÓÚÑ][\\p{L}]+){0,4})"),
-        ).firstNotNullOfOrNull { r -> r.find(texto)?.groupValues?.get(1) ?: r.find(titulo)?.groupValues?.get(1) }
-            ?.trim()?.removeSuffix(".")?.takeIf { it.length in 2..60 && !it.contains("$") } ?: ""
+            /* "De Gustavo Martín Lemos desde su cuenta de Mercado Pago": el "De" puede venir con mayúscula.
+               Antes solo buscaba "de" en minúscula y se quedaba con el "de Mercado Pago" del final. */
+            Regex("\\b[Dd]e\\s+([A-ZÁÉÍÓÚÑ][\\p{L}]+(?:\\s+[A-ZÁÉÍÓÚÑ][\\p{L}]+){0,4})"),
+        ).firstNotNullOfOrNull { r -> (r.findAll(texto) + r.findAll(titulo)).map { it.groupValues[1].trim().removeSuffix(".") }
+                .firstOrNull { !esMercadoPago(it) } }
+            ?.takeIf { it.length in 2..60 && !it.contains("$") } ?: ""
         return Leida(m, nombre)
     }
 
@@ -120,10 +123,50 @@ object EntradasMP {
         Thread { runCatching { anotarSola(ctx, l) } }.start()
     }
 
-    private fun coincide(nombre: String, buscado: String): Boolean {
-        val quien = sinTildes(nombre).split(Regex("\\s+")).toSet()
-        val partes = sinTildes(buscado).split(Regex("\\s+")).filter { it.length > 1 }
-        return partes.isNotEmpty() && partes.all { it in quien }
+    private fun esMercadoPago(n: String) = sinTildes(n).let { it.startsWith("mercado") || it == "mp" }
+
+    /** Dos palabras se parecen si son iguales o, en palabras largas, difieren en una sola letra (Lemus / Lemos). */
+    fun parecida(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (a.length < 4 || b.length < 4 || Math.abs(a.length - b.length) > 1) return false
+        /* distancia de edición, cortando apenas pasa de 1 */
+        val d = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) d[i][0] = i
+        for (j in 0..b.length) d[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length)
+            d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+        return d[a.length][b.length] <= 1
+    }
+
+    private fun palabras(t: String) = sinTildes(t).split(Regex("[^a-z0-9ñ]+")).filter { it.length > 1 }
+
+    /** ¿El que te mandó plata ("Gustavo Martín Lemos") es el que buscás ("Gustavo Lemus")?
+        Cada palabra que escribiste tiene que estar en el nombre de Mercado Pago; el segundo nombre puede faltar.
+        flexible: acepta una letra distinta (solo para deudas, donde ya hay alguien que te debe; "Repartir" y "Nunca" van exactos). */
+    fun coincide(nombre: String, buscado: String, flexible: Boolean = false): Boolean {
+        val quien = palabras(nombre)
+        val partes = palabras(buscado)
+        return partes.isNotEmpty() && partes.all { p -> quien.any { if (flexible) parecida(it, p) else it == p } }
+    }
+
+    /** ¿Una deuda anotada a mano ("Tortas Gustavo Lemus") es de esta persona? Tienen que aparecer al menos
+        dos palabras de su nombre (ej.: nombre y apellido), así un "Gustavo" solo no se confunde con otro. */
+    fun notaEsDe(nota: String, nombre: String): Boolean {
+        val enNota = palabras(nota)
+        val suyas = palabras(nombre).filter { it.length >= 3 }
+        return suyas.count { w -> enNota.any { parecida(it, w) } } >= minOf(2, suyas.size)
+    }
+
+    /** Con lo que te pagó se cancelan sus deudas de la más vieja a la más nueva. Si no alcanza para la siguiente,
+        lo que queda va "a cuenta" de esa (pago parcial). Devuelve (deudas pagadas enteras, pago parcial (id, monto), sobrante). */
+    fun repartirPago(monto: Double, deudas: List<Pair<Long, Double>>): Triple<List<Long>, Pair<Long, Double>?, Double> {
+        var resto = monto; val enteras = mutableListOf<Long>(); var parcial: Pair<Long, Double>? = null
+        for ((id, amt) in deudas) {
+            if (resto < 1) break
+            if (amt <= resto + 0.5) { enteras += id; resto -= amt }
+            else { parcial = id to resto; resto = 0.0; break }
+        }
+        return Triple(enteras, parcial, Math.max(0.0, resto))
     }
 
     /** Anota sola la plata que entró y avisa qué hizo. */
@@ -141,18 +184,30 @@ object EntradasMP {
         }
         val nota = if (l.nombre.isNotBlank()) "Entrada MP · ${l.nombre}" else "Entrada MP"
         var entrada = 0L; var repartida = 0L; var cobradas = emptyList<Long>()
+        var parcialNuevo = 0L; var parcialDe = 0L; var parcialMonto = 0.0
         val texto: String
-        /* 1) ¿Es un compañero del taller que te debe? Se cobran sus deudas (de la más vieja a la más nueva) hasta ese monto */
-        val mu = if (l.nombre.isBlank()) null else Taller.de(a.crudo).muchachos.firstOrNull { coincide(l.nombre, it.nombre) }
-        val deudas = if (mu == null) emptyList() else S.spent.filter { it.dev == 1 && it.extra["tp"].texto() == mu.id }.sortedBy { it.date + it.id }
-        if (mu != null && deudas.isNotEmpty()) {
-            var resto = l.monto; val ids = mutableListOf<Long>()
-            deudas.forEach { d -> if (d.amt <= resto + 0.5) { ids += d.id; resto -= d.amt } }
-            if (ids.isNotEmpty()) { a.cobrarPorMP(ids); cobradas = ids }
-            if (resto >= 1) entrada = a.anotarEntradaMP(resto, nota + (if (ids.isNotEmpty()) " (lo que sobró)" else ""))
-            val quien = if (mu.apodo.isNotBlank()) mu.apodo else mu.nombre
-            texto = if (ids.isNotEmpty()) "Marqué cobrado lo que te debía $quien del taller" + (if (resto >= 1) " y ${pesos(resto)} los sumé a tu día." else ".")
-                else "$quien te debe ${pesos(deudas.sumOf { it.amt })}, pero esto no alcanza para ninguna deuda: lo sumé a tu día. Si era a cuenta, deshacelo y marcalo en \"Me deben\"."
+        /* 1) ¿Alguien que te debe? Un compañero del taller (por su nombre en Compras del taller) o una deuda anotada
+              a mano con su nombre en la nota (ej.: "Tortas Gustavo Lemus"). Se cobra de la más vieja a la más nueva;
+              si no alcanza, queda a cuenta (pago parcial) y en "Me deben" sigue lo que falta. */
+        val mu = if (l.nombre.isBlank()) null else Taller.de(a.crudo).muchachos.firstOrNull { coincide(l.nombre, it.nombre, flexible = true) }
+        val pendientes = S.spent.filter { it.dev == 1 && it.amt > 0 }
+        val deudas = when {
+            l.nombre.isBlank() -> emptyList()
+            mu != null && pendientes.any { it.extra["tp"].texto() == mu.id } -> pendientes.filter { it.extra["tp"].texto() == mu.id }
+            else -> pendientes.filter { it.extra["tp"] == null && notaEsDe(it.note, l.nombre) }
+        }.sortedBy { it.date + it.id }
+        if (deudas.isNotEmpty()) {
+            val (enteras, parcial, resto) = repartirPago(l.monto, deudas.map { it.id to it.amt })
+            if (enteras.isNotEmpty()) { a.cobrarPorMP(enteras); cobradas = enteras }
+            if (parcial != null) { parcialNuevo = a.cobrarParcialMP(parcial.first, parcial.second); parcialDe = parcial.first; parcialMonto = parcial.second }
+            if (resto >= 1) entrada = a.anotarEntradaMP(resto, nota + " (lo que sobró)")
+            val quien = when { mu != null && mu.apodo.isNotBlank() -> mu.apodo; mu != null -> mu.nombre; else -> l.nombre }
+            val falta = deudas.sumOf { it.amt } - (l.monto - resto)
+            texto = buildString {
+                append(if (parcial != null && enteras.isEmpty()) "Lo tomé a cuenta de lo que te debe $quien" else "Lo tomé como pago de lo que te debía $quien")
+                append(if (falta >= 1) ". Todavía te debe ${pesos(falta)}." else ". ¡Ya no te debe nada!")
+                if (resto >= 1) append(" Sobraron ${pesos(resto)}: los sumé a tu día.")
+            }
         } else if (l.nombre.isNotBlank() && repartirA(ctx).split(",").any { it.isNotBlank() && coincide(l.nombre, it) }) {
             /* 2) Alguien de "Repartir siempre" (ej.: Mariela): se reparte en los días que quedan */
             repartida = a.entradaRepartida(l.monto, nota)
@@ -164,24 +219,26 @@ object EntradasMP {
             texto = "La sumé a lo que tenés para hoy."
         }
         runCatching { kotlinx.coroutines.runBlocking { com.miplata.kotlin.widget.Widget.actualizar(ctx) } }
-        avisar(ctx, "✅ Anoté ${pesos(l.monto)}$de", texto, entrada, repartida, cobradas)
+        avisar(ctx, "✅ Anoté ${pesos(l.monto)}$de", texto, entrada, repartida, cobradas, Triple(parcialNuevo, parcialDe, parcialMonto))
     }
 
-    private fun avisar(ctx: Context, titulo: String, cuerpo: String, entrada: Long, repartida: Long, cobradas: List<Long>) {
+    private fun avisar(ctx: Context, titulo: String, cuerpo: String, entrada: Long, repartida: Long, cobradas: List<Long>,
+                       parcial: Triple<Long, Long, Double> = Triple(0L, 0L, 0.0)) {
         if (!AvisoReserva.hayPermiso(ctx)) return
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CANAL, "Plata que te entra (Mercado Pago)", NotificationManager.IMPORTANCE_LOW)
             .apply { description = "Te cuenta lo que Mi plata anotó solo cuando te entró plata a Mercado Pago" })
         val id = (System.currentTimeMillis() % 100_000).toInt() + 8000
         val deshacer = PendingIntent.getBroadcast(ctx, id, Intent(ctx, ReceptorEntradaMP::class.java).setAction(DESHACER)
-            .putExtra("id", id).putExtra("entrada", entrada).putExtra("repartida", repartida).putExtra("cobradas", cobradas.toLongArray()),
+            .putExtra("id", id).putExtra("entrada", entrada).putExtra("repartida", repartida).putExtra("cobradas", cobradas.toLongArray())
+            .putExtra("parcialNuevo", parcial.first).putExtra("parcialDe", parcial.second).putExtra("parcialMonto", parcial.third),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val abrir = PendingIntent.getActivity(ctx, id, Intent(ctx, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         nm.notify(id, NotificationCompat.Builder(ctx, CANAL).setSmallIcon(R.drawable.ic_noti)
             .setContentTitle(titulo).setContentText(cuerpo).setStyle(NotificationCompat.BigTextStyle().bigText(cuerpo))
             .setContentIntent(abrir).setAutoCancel(true)
-            .apply { if (entrada != 0L || repartida != 0L || cobradas.isNotEmpty()) addAction(0, "Deshacer", deshacer) }.build())
+            .apply { if (entrada != 0L || repartida != 0L || cobradas.isNotEmpty() || parcial.first != 0L) addAction(0, "Deshacer", deshacer) }.build())
     }
 }
 
@@ -194,7 +251,8 @@ class ReceptorEntradaMP : BroadcastReceiver() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             runCatching {
                 Almacen(ctx).deshacerEntradaMP(intent.getLongExtra("entrada", 0), intent.getLongExtra("repartida", 0),
-                    intent.getLongArrayExtra("cobradas")?.toList() ?: emptyList())
+                    intent.getLongArrayExtra("cobradas")?.toList() ?: emptyList(),
+                    intent.getLongExtra("parcialNuevo", 0), intent.getLongExtra("parcialDe", 0), intent.getDoubleExtra("parcialMonto", 0.0))
             }
             runCatching { com.miplata.kotlin.widget.Widget.actualizar(ctx) }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {

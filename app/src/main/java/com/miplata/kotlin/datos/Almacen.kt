@@ -613,8 +613,40 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         })
     }
 
+    /** Pago parcial por Mercado Pago de una deuda de "Me deben": la deuda se parte en dos, lo pagado queda cobrado
+        (dev = 2) y lo que falta sigue debiendo. El gasto total no cambia; Mercado Pago sube lo que te pagaron.
+        Devuelve el id de la parte cobrada (para poder deshacerlo). */
+    fun cobrarParcialMP(id: Long, monto: Double): Long {
+        var nuevo = 0L
+        cambiar {
+            val lista = spent().toMutableList()
+            val i = lista.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == id }
+            if (i < 0) return@cambiar
+            val o = lista[i] as JsonObject
+            val pago = com.miplata.kotlin.nucleo.redondear2(Math.min(monto, o["amt"].num()))
+            nuevo = nuevoId(crudo)
+            lista[i] = JsonObject(o + ("amt" to num(com.miplata.kotlin.nucleo.redondear2(o["amt"].num() - pago))))
+            lista += JsonObject(o + mapOf("id" to JsonPrimitive(nuevo), "amt" to num(pago), "dev" to JsonPrimitive(2),
+                "cob" to JsonPrimitive(Fechas.hoy()), "cobMed" to JsonPrimitive("mp"), "parteDe" to JsonPrimitive(id)))
+            this["spent"] = JsonArray(lista)
+        }
+        return nuevo
+    }
+
     /** Deshacer lo que se anotó solo: borra la entrada / el reparto, o vuelve las deudas a "Me deben". */
-    fun deshacerEntradaMP(entrada: Long, repartida: Long, cobradas: List<Long>) {
+    fun deshacerEntradaMP(entrada: Long, repartida: Long, cobradas: List<Long>,
+                          parcialNuevo: Long = 0L, parcialDe: Long = 0L, parcialMonto: Double = 0.0) {
+        /* pago parcial: se junta otra vez la deuda entera */
+        if (parcialNuevo != 0L) cambiar {
+            this["spent"] = JsonArray(spent().mapNotNull { e ->
+                val o = e as? JsonObject ?: return@mapNotNull e
+                when (o["id"]?.jsonPrimitive?.longOrNull) {
+                    parcialNuevo -> null
+                    parcialDe -> JsonObject(o + ("amt" to num(com.miplata.kotlin.nucleo.redondear2(o["amt"].num() + parcialMonto))))
+                    else -> o
+                }
+            })
+        }
         if (entrada != 0L) borrarMovimiento(entrada)
         if (repartida != 0L) cambiarTodo { o -> val l = lista(o, "ajustes")
             val i = l.indexOfFirst { (it as? JsonObject)?.get("id")?.jsonPrimitive?.longOrNull == repartida }
