@@ -30,7 +30,7 @@ import java.time.LocalTime
 
 @Composable
 fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Unit,
-                alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
+                alAbrirFondo: () -> Unit = {}, alAbrirCuentas: () -> Unit = {}, alYaPase: (Double) -> Unit = {}, alDejarEnDisponible: (Double) -> Unit = {}, alAbrirMP: () -> Unit = {},
                 alCobrar: (Deuda, Cobro) -> Unit = { _, _ -> }, alNoPagaron: (Deuda) -> Unit = {}, alDevolviFavor: (Deuda) -> Unit = {}, alAbrirPersona: (GrupoTaller) -> Unit = {}, alPeriodoNuevo: () -> Unit = {}, alIrAPlan: () -> Unit = {},
                 alOjo: () -> Unit = {}, alCompartir: () -> Unit = {}, alSalirDemo: () -> Unit = {}, alReproducirDemo: () -> Unit = {},
                 avisoCopia: (@Composable () -> Unit)? = null, alIA: () -> Unit = {},
@@ -202,6 +202,8 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                         }, fontSize = 14.sp, color = k.suave)
                         BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
                         Button(onClick = { alYaPase(conHoy) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
+                        /* Si no lo pasás porque lo vas a usar: se avisa y el cuadro se va (solo con lo de días ya cerrados) */
+                        if (anteriores >= 1) OutlinedButton(onClick = { alDejarEnDisponible(anteriores) }, Modifier.fillMaxWidth()) { Text("💙 Lo dejo en disponible de Mercado Pago") }
                     } else Text("Pasaste a la reserva ${dinero(-conHoy)} de más (o sacaste del fondo). Retirá esa plata de la reserva para que coincida.",
                         fontSize = 14.sp, color = k.naranja)
                 }

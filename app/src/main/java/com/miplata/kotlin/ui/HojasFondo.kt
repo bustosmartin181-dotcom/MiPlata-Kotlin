@@ -183,3 +183,14 @@ fun DialogoYaPase(pendiente: Double, alCerrar: () -> Unit, alListo: (Double) -> 
         confirmButton = { TextButton(onClick = { val n = aNumero(monto); if (n > 0) alListo(n) else alCerrar() }) { Text("Listo") } },
         dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
 }
+
+/** "Lo dejo en disponible de Mercado Pago": confirma antes de usar el colchón y muestra cuánto suma por día. */
+@Composable
+fun DialogoDejarEnDisponible(monto: Double, diasQueFaltan: Int, alCerrar: () -> Unit, alListo: (Double) -> Unit) {
+    val porDia = if (diasQueFaltan > 0) monto / diasQueFaltan else monto
+    AlertDialog(onDismissRequest = alCerrar, title = { Text("¿Dejar ${dinero(monto)} en tu disponible?") },
+        text = { Text("Esa plata ya está en tu Mercado Pago. Se usa del fondo y se reparte en los días que quedan: unos ${dinero(porDia)} más por día" +
+            (if (diasQueFaltan > 0) " durante $diasQueFaltan días." else ".") + " Mis cuentas no cambia.") },
+        confirmButton = { TextButton(onClick = { alListo(monto) }) { Text("Dejarla") } },
+        dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
+}

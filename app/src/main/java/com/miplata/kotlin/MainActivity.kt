@@ -103,6 +103,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     var errorPin by remember { mutableStateOf<String?>(null) }
     var irAPeriodoNuevo by remember { mutableStateOf(false) }
     var pendientePase by remember { mutableDoubleStateOf(0.0) }
+    var pendienteDejar by remember { mutableDoubleStateOf(0.0) }
     val taller = remember(vuelta) { com.miplata.kotlin.nucleo.Taller.de(almacen.crudo) }
     var tallerAlAbrir by remember { mutableStateOf(false) }
     var leyendoFoto by remember { mutableStateOf(false) }
@@ -383,7 +384,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 when (pestana) {
                     Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
-                        alYaPase = { pendientePase = it; hojaHoy = "pase" }, alAbrirMP = ::abrirMP,
+                        alYaPase = { pendientePase = it; hojaHoy = "pase" }, alDejarEnDisponible = { pendienteDejar = it; hojaHoy = "dejar" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d, c -> cobrarDeuda(d.id, d.tp, d.previo, d.monto, c) },
                         alDevolviFavor = { d -> almacen.cobrado(d.id, false, d.efectivo); vuelta++; aviso("Listo: se lo devolviste") },
                         alAbrirPersona = { personaAbierta = it.fecha to it.tp },
@@ -529,6 +530,8 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 alGuardar = { almacen.guardarTaller(it); vuelta++ },
                 alImportar = { importarTaller.launch(arrayOf("application/json", "text/plain", "*/*")) },
                 alFoto = { elegirFoto = true }, leyendoFoto = leyendoFoto, alPermisoAvisos = { asegurarNotis() })
+            "dejar" -> DialogoDejarEnDisponible(pendienteDejar, Nucleo.calcular(estado, Fechas.hoy()).faltan, { hojaHoy = "" }) {
+                almacen.dejarEnDisponible(it); vuelta++; hojaHoy = ""; aviso("Listo: ${pesos(it)} quedan en tu disponible, repartidos en los días que quedan") }
             "pase" -> DialogoYaPase(pendientePase, { hojaHoy = "" }) { almacen.sumarPasado(it); vuelta++; hojaHoy = ""; aviso("Anotado: pasaste ${pesos(it)} a tu reserva") }
         }
     }

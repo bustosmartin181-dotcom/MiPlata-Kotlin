@@ -117,6 +117,23 @@ class AlmacenTest {
         a.activarRendDisp(true); assertEquals(19.0, a.estado!!.rendTasa, 1e-9)
     }
 
+    /** "Lo dejo en disponible de Mercado Pago": reparte el colchón, no toca Mis cuentas y se puede deshacer sin mover plata. */
+    @Test fun dejarEnDisponibleNoTocaLasCuentas() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.activarFondo(true)
+        a.guardarCuentas(listOf(Almacen.CuentaEditable("Mercado Pago", 100000.0, true), Almacen.CuentaEditable("Reserva MP", 5000.0, true)))
+        val c0 = Nucleo.calcular(a.estado!!, hoy)
+        a.dejarEnDisponible(1200.0)
+        val c1 = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(1, a.estado!!.fondoUsos.size)
+        assertEquals("reparte", a.estado!!.fondoUsos[0].para)
+        assertEquals(100000.0, a.estado!!.cuentas[0].m, 1e-9); assertEquals(5000.0, a.estado!!.cuentas[1].m, 1e-9)
+        assertEquals(c0.fondo.total - 1200, c1.fondo.total, 1e-6)
+        a.quitarUsoFondo(0)
+        assertEquals(100000.0, a.estado!!.cuentas[0].m, 1e-9); assertEquals(5000.0, a.estado!!.cuentas[1].m, 1e-9)
+        assertEquals(c0.fondo.total, Nucleo.calcular(a.estado!!, hoy).fondo.total, 1e-6)
+    }
+
     @Test fun pinIgualQueLaAppOriginal() {
         // Valores calculados con el mismo código de la app web (crypto.subtle)
         assertEquals("585b70dd3e3f912b04898edebfed4ccb628c9831412f0f89dd6d0f7020959e0a", Seguridad.hashPin("1234", "a1b2c3d4e5f6a1b2c3d4e5f6"))

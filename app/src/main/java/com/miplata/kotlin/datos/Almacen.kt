@@ -440,8 +440,21 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         if (i !in l.indices) return@cambiarTodo o
         val uso = l.removeAt(i) as? JsonObject
         val monto = uso?.get("amt").num()
-        moverEnCuentas(JsonObject(o + mapOf("fondoUsos" to JsonArray(l),                   // se deshace: vuelve a la reserva
-            "resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + uso?.get("resBaja").num())))), monto)
+        val nuevo = JsonObject(o + mapOf("fondoUsos" to JsonArray(l),                   // se deshace: vuelve a la reserva
+            "resPasado" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(o["resPasado"].num() + uso?.get("resBaja").num()))))
+        /* Si la plata nunca salió de Mercado Pago ("Lo dejo en disponible"), tampoco hay que devolverla a la Reserva */
+        if (uso?.get("sinMover").verdadero()) nuevo else moverEnCuentas(nuevo, monto)
+    }
+
+    /** "Lo dejo en disponible de Mercado Pago": el colchón que no se pasó a la reserva se usa y se reparte en los días que quedan.
+        A diferencia de usarFondo, la plata nunca estuvo en la Reserva: no toca Mis cuentas ni "ya pasado". */
+    fun dejarEnDisponible(monto: Double) = cambiarTodo { o ->
+        if (monto <= 0) return@cambiarTodo o
+        val l = lista(o, "fondoUsos")
+        l += JsonObject(mapOf("id" to JsonPrimitive(nuevoId(o)), "date" to JsonPrimitive(Fechas.hoy()),
+            "amt" to com.miplata.kotlin.nucleo.num(monto), "note" to JsonPrimitive("Dejado en disponible de Mercado Pago"),
+            "para" to JsonPrimitive("reparte"), "resBaja" to com.miplata.kotlin.nucleo.num(0.0), "sinMover" to JsonPrimitive(true)))
+        JsonObject(o + ("fondoUsos" to JsonArray(l)))
     }
 
     /** "Ya lo pasé a la reserva": además, en Mis cuentas, la plata pasa de Mercado Pago a la Reserva. */
