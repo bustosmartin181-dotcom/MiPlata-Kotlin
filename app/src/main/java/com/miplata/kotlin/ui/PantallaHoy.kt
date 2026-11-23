@@ -158,7 +158,9 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                                 .then(if (luz) Modifier.border(3.dp, sobreHero, RoundedCornerShape(10.dp)).background(sobreHero.copy(alpha = 0.18f), RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp) else Modifier),
                                 color = sobreHero, fontSize = if (luz) 21.sp else 16.sp, fontWeight = if (luz) FontWeight.Bold else FontWeight.SemiBold)
                         }
-                        if (c.fondo.activo && c.fondo.hoySuma > 0)
+                        if (c.fondo.activo && S.sobraReparteDia > 0 && c.fondo.hoySuma < 1 && c.faltan > 1 && c.quedaHoy >= 1)
+                            Text("Lo que no gastes hoy se reparte: +${dinero(c.quedaHoy / (c.faltan - 1))} por día en los ${c.faltan - 1} días que quedan", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
+                        else if (c.fondo.activo && c.fondo.hoySuma > 0)
                             Text("Lo que no gastes hoy va a tu fondo: ${dinero(c.fondo.hoySuma)}", color = sobreHero.copy(alpha = 0.85f), fontSize = 13.sp)
                     }
                     Text("Faltan ${c.faltan} días (con hoy) · base del día ${dinero(c.baseHoy)}", fontSize = 13.sp, color = k.suave,

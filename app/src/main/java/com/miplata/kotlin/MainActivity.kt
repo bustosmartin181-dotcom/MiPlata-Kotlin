@@ -425,6 +425,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         aviso = { campo("aviso", num(it)) },
                         fondo = { on -> almacen.activarFondo(on); vuelta++; if (on) asegurarNotis() },
                         excesoAparte = { campo("fondoExceso", JsonPrimitive(if (it) "aparte" else "siguiente")) },
+                        sobraReparte = { d -> almacen.sobraSeReparte(d); vuelta++; aviso(if (d > 0) "Desde el día $d lo que te sobre se reparte en los días que quedan" else "Lo que te sobre vuelve a ir siempre al fondo") },
                         fondoPrev = { campo("fondoPrev", num(it)) },
                         avisoReserva = { on -> campo("resAviso", JsonPrimitive(on)); if (on) asegurarNotis() },
                         horaReserva = { campo("resHora", JsonPrimitive(it)); aviso("Te aviso todas las noches a las $it") },

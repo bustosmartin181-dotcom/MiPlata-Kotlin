@@ -97,6 +97,8 @@ data class Estado(
     val modoFondo: Boolean = false,
     val fondoDesde: String = "",
     val fondoExceso: String = "",
+    /** Desde qué día del mes lo que sobra se reparte en los días que quedan, en vez de ir al fondo (0 = nunca). */
+    val sobraReparteDia: Int = 0,
     val fondoUsos: List<UsoFondo> = emptyList(),
     val fondoPrev: Double = 0.0,
     val fondoRetirado: Double = 0.0,
@@ -183,6 +185,7 @@ data class Estado(
             modoFondo = o["modoFondo"].verdadero(),
             fondoDesde = o["fondoDesde"].texto() ?: "",
             fondoExceso = o["fondoExceso"].texto() ?: "",
+            sobraReparteDia = o["sobraReparteDia"].num().toInt(),
             fondoUsos = o.lista("fondoUsos").map {
                 UsoFondo(it["id"].num().toLong(), it["date"].texto() ?: "", it["amt"].num(), it["note"].texto() ?: "", it["para"].texto() ?: "hoy")
             },

@@ -134,6 +134,26 @@ class AlmacenTest {
         assertEquals(c0.fondo.total, Nucleo.calcular(a.estado!!, hoy).fondo.total, 1e-6)
     }
 
+    /** "A fin de mes, repartir lo que me sobra": antes del día elegido va al fondo; desde ese día pasa a los días que quedan. */
+    @Test fun sobranteSeReparteDesdeElDiaElegido() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.activarFondo(true)
+        a.cambiarCampo("fondoDesde", JsonPrimitive(Fechas.iso(Fechas.dia(hoy) - 5)))
+        val sin = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(5, sin.hoyIdx)
+        assertEquals(5 * sin.base, sin.fondo.total, 1e-6)                    // sin la opción: los 5 días cerrados van al fondo
+        val dia = java.time.LocalDate.parse(Fechas.iso(Fechas.dia(hoy) - 3)).dayOfMonth
+        a.sobraSeReparte(dia)
+        assertEquals(dia, a.estado!!.sobraReparteDia)
+        val con = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(2 * sin.base, con.fondo.total, 1e-6)                    // los 2 días de antes siguen yendo al fondo
+        assertEquals(0.0, con.fondo.hoySuma, 1e-6)                           // lo de hoy no va al fondo
+        assertEquals(con.disp - 2 * sin.base, con.filas!!.drop(5).sumOf { it.presupuesto }, 1e-6)   // el resto queda para los días que quedan
+        assertTrue(con.quedaHoy > sin.quedaHoy + 1)
+        a.sobraSeReparte(0)
+        assertEquals(5 * sin.base, Nucleo.calcular(a.estado!!, hoy).fondo.total, 1e-6)
+    }
+
     @Test fun pinIgualQueLaAppOriginal() {
         // Valores calculados con el mismo código de la app web (crypto.subtle)
         assertEquals("585b70dd3e3f912b04898edebfed4ccb628c9831412f0f89dd6d0f7020959e0a", Seguridad.hashPin("1234", "a1b2c3d4e5f6a1b2c3d4e5f6"))

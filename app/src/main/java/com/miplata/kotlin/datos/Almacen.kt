@@ -680,6 +680,8 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
     fun activarFondo(on: Boolean) = cambiarTodo { o ->
         JsonObject(o + mapOf("modoFondo" to JsonPrimitive(on)) + (if (on) mapOf("fondoDesde" to JsonPrimitive(Fechas.hoy())) else emptyMap()))
     }
+    /** Desde el día [dia] de cada mes, lo que sobra se reparte en los días que quedan en vez de ir al fondo (0 = nunca). */
+    fun sobraSeReparte(dia: Int) = cambiarTodo { o -> JsonObject(o + ("sobraReparteDia" to JsonPrimitive(dia.coerceIn(0, 31)))) }
     fun activarRendFondo(on: Boolean) = cambiarTodo { o ->
         var m = o + ("rendOn" to JsonPrimitive(on))
         if (on) { m = m + mapOf("rendDesde" to JsonPrimitive(Fechas.hoy()), "rendPrev" to JsonPrimitive(0)); if (o["rendTasa"].num() == 0.0) m = m + ("rendTasa" to JsonPrimitive(19)) }

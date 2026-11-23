@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -17,7 +18,7 @@ import com.miplata.kotlin.nucleo.Estado
 class AccionesAjustes(
     val importar: () -> Unit, val exportar: () -> Unit,
     val nombre: (String) -> Unit, val aviso: (Double) -> Unit,
-    val fondo: (Boolean) -> Unit, val excesoAparte: (Boolean) -> Unit, val fondoPrev: (Double) -> Unit,
+    val fondo: (Boolean) -> Unit, val excesoAparte: (Boolean) -> Unit, val sobraReparte: (Int) -> Unit = {}, val fondoPrev: (Double) -> Unit,
     val avisoReserva: (Boolean) -> Unit, val horaReserva: (String) -> Unit, val probarAviso: () -> Unit, val pasado: (Double) -> Unit,
     val rendDisp: (Boolean) -> Unit, val rendFondo: (Boolean) -> Unit, val tasa: (Double) -> Unit, val rendEnMP: (Boolean) -> Unit,
     val estadoAviso: () -> String,
@@ -113,6 +114,13 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             Subtitulo("Lo que no gastás cada día no pasa al día siguiente: se guarda en un fondo aparte. Cuenta desde el día que lo activás.")
             Interruptor("Activar el fondo de ahorro", S.modoFondo, a.fondo, demoClave = "aj.fondo.activar")
             if (S.modoFondo) {
+                Interruptor("A fin de mes, repartir lo que me sobra", S.sobraReparteDia > 0, { a.sobraReparte(if (it) 22 else 0) },
+                    "Prendido: hasta el día elegido lo que sobra va al fondo; desde ese día se suma a los días que quedan hasta el cobro, sin pasarlo a la reserva.")
+                if (S.sobraReparteDia > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Desde el día ${S.sobraReparteDia} de cada mes", Modifier.weight(1f), color = k.texto)
+                    TextButton(onClick = { a.sobraReparte(if (S.sobraReparteDia <= 1) 1 else S.sobraReparteDia - 1) }) { Text("−") }
+                    TextButton(onClick = { a.sobraReparte(if (S.sobraReparteDia >= 28) 28 else S.sobraReparteDia + 1) }) { Text("+") }
+                }
                 Interruptor("Si me paso, no descontarlo de ningún lado", S.fondoExceso == "aparte", a.excesoAparte,
                     "Apagado: lo que te pasás se descuenta del día siguiente")
                 CampoMonto(fondoPrev, { fondoPrev = it }, "Fondo que ya tenías juntado de antes")
