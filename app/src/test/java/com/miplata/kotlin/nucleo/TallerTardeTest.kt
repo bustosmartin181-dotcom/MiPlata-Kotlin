@@ -155,3 +155,23 @@ class TallerCompraSueltaTest {
         assertTrue(t.pendientesDe(hoy, hay).isEmpty())
     }
 }
+
+class TallerEjemploMartinTest {
+    private val hoy = "2026-11-24"
+    @Test fun cuatroTiposTresPersonas() {
+        val sq = "Salame y queso"; val ce = "Queso de cerdo"; val bl = "Queso blando"; val jq = "Jamón y queso"
+        var t = Taller(
+            muchachos = listOf(Muchacho("n", "Nazaret"), Muchacho("g", "Gustavo"), Muchacho("l", "Lautaro")),
+            precios = mapOf(sq to 0.0, ce to 0.0, bl to 0.0, jq to 0.0), horario = mapOf(hoy to "T"),
+            turnoCosa = mapOf(sq to "T", ce to "T", bl to "T", jq to "T"), porTotal = setOf(sq, ce, bl, jq))
+            .conCantidad(hoy, "n", sq, 2).conCantidad(hoy, "n", ce, 1)
+            .conCantidad(hoy, "g", sq, 1).conCantidad(hoy, "g", bl, 1)
+            .conCantidad(hoy, "l", jq, 1).conCantidad(hoy, "l", sq, 1)
+        t = t.conTotal(hoy, sq, 7000.0, 4).conTotal(hoy, ce, 1900.0, 1).conTotal(hoy, bl, 1700.0, 1).conTotal(hoy, jq, 1800.0, 1)
+        val p = t.pedidosDe(hoy)
+        assertEquals(5400.0, t.costoDe(hoy, p["n"]!!), 0.001)
+        assertEquals(3450.0, t.costoDe(hoy, p["g"]!!), 0.001)
+        assertEquals(3550.0, t.costoDe(hoy, p["l"]!!), 0.001)
+        assertEquals(12400.0, t.totalDe(hoy, p), 0.001)
+    }
+}
