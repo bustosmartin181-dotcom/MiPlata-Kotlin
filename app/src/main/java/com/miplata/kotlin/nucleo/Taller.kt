@@ -57,6 +57,10 @@ data class Taller(
     /** Las cosas (con su precio) del menú de ese turno. */
     fun menuDe(turno: String?): Map<String, Double> = precios.filterKeys { enMenu(it, turno) }
 
+    /** ¿Ya se pagó algo de los pedidos de ese día? Hace falta que haya una compra anotada Y que se haya marcado desde los pedidos:
+        una compra suelta (bananas, mandarinas) no cuenta como pago de los pedidos. */
+    fun hayCompraDe(fecha: String, hayMovimiento: Boolean): Boolean = hayMovimiento && compradas[fecha] != null
+
     /** Lo ya pagado ese día. Si hay una compra anotada de antes de existir el pago por partes, cuenta como todo pagado. */
     fun compradoDe(fecha: String, hayCompra: Boolean): Map<String, Map<String, Int>> =
         compradas[fecha] ?: if (hayCompra) pedidosDe(fecha) else emptyMap()

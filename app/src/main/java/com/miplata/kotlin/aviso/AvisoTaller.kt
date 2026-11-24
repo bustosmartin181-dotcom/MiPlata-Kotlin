@@ -88,7 +88,9 @@ object AvisoTaller {
             mostrar(ctx, "💸 Todavía te deben ${com.miplata.kotlin.ui.pesos(deben.sumOf { it.amt })}", "Del $comida de hoy: $quienes. Si ya te pagaron, tocá y marcalo.", abrirTaller = false)
             return
         }
-        if (S.hayCompraTaller(hoy)) return            // ya lo anotaste: no molesta
+        /* ya pagaste los pedidos de hoy: no molesta (una compra suelta, como unas bananas, no cuenta) */
+        val hay = t.hayCompraDe(hoy, S.hayCompraTaller(hoy))
+        if (hay && t.pendientesDe(hoy, hay).isEmpty()) return
         when (tipo) {
             "inicio" -> mostrar(ctx, if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda", "Tocá para tomar los pedidos de los muchachos.")
             "fin" -> mostrar(ctx, "¿Anotaste la compra del taller?", "Todavía no anotaste lo que pagaste del $comida de hoy. Tocá y poné \"Anotar y pagar con Mercado Pago\".")

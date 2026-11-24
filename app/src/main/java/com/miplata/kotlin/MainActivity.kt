@@ -119,7 +119,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         val hoy = Fechas.hoy()
         val taller = com.miplata.kotlin.nucleo.Taller.de(almacen.crudo)   // siempre lo último guardado (p. ej. recién deshecho)
         val todo = taller.listaCompra(hoy).keys
-        val hay = almacen.estado?.hayCompraTaller(hoy) == true
+        val hay = taller.hayCompraDe(hoy, almacen.estado?.hayCompraTaller(hoy) == true)
         val pend = cosas ?: taller.pendientesDe(hoy, hay)
         val dia = taller.pedidosSolo(hoy, pend, hay)
         cosasEnPago = dia
@@ -520,7 +520,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                 alMeDio = { id, c -> recibir(id, c, c.aFavor); vuelta++; aviso("Anotado lo que te entregó 💵") })
             "pedidos" -> HojaPedidos(taller, Fechas.hoy(), { hojaHoy = "" },
                 alGuardar = { almacen.guardarTaller(it); vuelta++ }, alPagar = { pagarTaller(it) },
-                hayCompra = estado.hayCompraTaller(Fechas.hoy()),
+                hayCompra = taller.hayCompraDe(Fechas.hoy(), estado.hayCompraTaller(Fechas.hoy())),
                 anotado = estado.spent.filter { it.date == Fechas.hoy() && it.esCompraDesayuno }.sumOf { it.amt },
                 favores = estado.favoresTaller(),
                 alMeDio = { id, c -> recibir(id, c, dejarAFavor = true); vuelta++; aviso("Anotado: te dio ${pesos(c.dado)}") },

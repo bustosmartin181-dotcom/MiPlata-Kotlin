@@ -131,3 +131,27 @@ class TallerTardeTest {
         assertEquals(0.0, Taller.parte(10000.0, 1, 0), 1e-9)
     }
 }
+
+class TallerCompraSueltaTest {
+    private val hoy = "2026-11-24"
+    private val salame = "Sándwich de salame y queso"
+    private fun base() = Taller(
+        muchachos = listOf(Muchacho("n", "Nazaret", "Naza")),
+        precios = mapOf(salame to 0.0), horario = mapOf(hoy to "T"),
+        turnoCosa = mapOf(salame to "T"), porTotal = setOf(salame),
+    ).conCantidad(hoy, "n", salame, 1)
+
+    @Test fun compraSueltaNoMarcaLosPedidosComoPagados() {
+        val t = base()
+        val hay = t.hayCompraDe(hoy, true)          // hay una compra anotada hoy (bananas) pero no se pagó desde los pedidos
+        assertFalse(hay)
+        assertEquals(setOf(salame), t.pendientesDe(hoy, hay))
+    }
+
+    @Test fun pagoDesdePedidosSiMarcaPagado() {
+        val t = base().let { it.conCompradas(hoy, it.pedidosDe(hoy)) }
+        val hay = t.hayCompraDe(hoy, true)
+        assertTrue(hay)
+        assertTrue(t.pendientesDe(hoy, hay).isEmpty())
+    }
+}
