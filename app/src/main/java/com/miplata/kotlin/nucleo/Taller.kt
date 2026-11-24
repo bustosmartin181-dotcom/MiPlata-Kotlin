@@ -15,6 +15,9 @@ data class Muchacho(val id: String, val nombre: String, val apodo: String = "", 
     val mostrar: String get() = if (apodo.isBlank()) nombre else "$nombre ($apodo)"
 }
 
+/** Lo que te cobraron en total por una cosa que se reparte (los sándwiches de la fiambrería), y cuántas unidades eran. */
+data class Cobrado(val total: Double, val unidades: Int)
+
 /** Un día del horario: M = turno mañana, T = turno tarde, F = franco. */
 data class Taller(
     val muchachos: List<Muchacho> = emptyList(),
@@ -40,7 +43,20 @@ data class Taller(
     val aliasCobro: String = ALIAS_COBRO,
     /** Lo ya pagado por día (quien → cosa → cantidad): se puede pagar por partes (las tortas en un negocio, la fruta en otro). */
     val compradas: Map<String, Map<String, Map<String, Int>>> = emptyMap(),
+    /** En qué turno se pide cada cosa del menú: "M" mañana, "T" tarde, "A" las dos. Sin marca = mañana (así quedó todo lo anterior). */
+    val turnoCosa: Map<String, String> = emptyMap(),
+    /** Cosas sin precio fijo: el negocio dice el total y se reparte según lo que pidió cada uno (los sándwiches de fiambre). */
+    val porTotal: Set<String> = emptySet(),
+    /** Lo que te cobraron en total por las cosas que se reparten: fecha → cosa → total y unidades. */
+    val totales: Map<String, Map<String, Cobrado>> = emptyMap(),
 ) {
+    /** ¿Esta cosa se pide en ese turno? Sin turno (franco o sin horario cargado) se ve todo el menú. */
+    fun enMenu(cosa: String, turno: String?): Boolean =
+        turno == null || (turnoCosa[cosa] ?: "M").let { it == "A" || it == turno }
+
+    /** Las cosas (con su precio) del menú de ese turno. */
+    fun menuDe(turno: String?): Map<String, Double> = precios.filterKeys { enMenu(it, turno) }
+
     /** Lo ya pagado ese día. Si hay una compra anotada de antes de existir el pago por partes, cuenta como todo pagado. */
     fun compradoDe(fecha: String, hayCompra: Boolean): Map<String, Map<String, Int>> =
         compradas[fecha] ?: if (hayCompra) pedidosDe(fecha) else emptyMap()
@@ -79,7 +95,10 @@ data class Taller(
         val anotado = pedidos[fecha] ?: emptyMap()
         val nada = sinFijo[fecha] ?: emptyList()
         val vigentes = activos.map { it.id }.toSet() + "yo"
+        val turno = turno(fecha)
+        /* lo de siempre solo aparece en el turno donde se pide (las tortitas de la mañana no salen a la tarde) */
         val deSiempre = fijos.filter { (q, p) -> q !in anotado && q !in nada && q in vigentes && p.isNotEmpty() }
+            .mapValues { (_, p) -> p.filterKeys { enMenu(it, turno) } }.filterValues { it.isNotEmpty() }
         return anotado + deSiempre
     }
 
@@ -100,6 +119,30 @@ data class Taller(
 
     /** Cuánto sale lo que pidió alguien. */
     fun costo(pedido: Map<String, Int>): Double = pedido.entries.sumOf { (precios[it.key] ?: 0.0) * it.value }
+
+    /** Lo que le toca a UNA persona por su pedido de ese día. Si te cobraron un total por una cosa que se reparte,
+        se divide por cantidad y se redondea para abajo al peso (lo que sobra queda en tu parte). Si no, precio × cantidad. */
+    fun costoDe(fecha: String, pedido: Map<String, Int>): Double = pedido.entries.sumOf { (cosa, n) ->
+        val c = totales[fecha]?.get(cosa)
+        if (cosa in porTotal && c != null) parte(c.total, n, c.unidades) else (precios[cosa] ?: 0.0) * n
+    }
+
+    /** Lo que vale esa cosa en esa cantidad: el total que te cobraron (si se reparte y ya lo pusiste) o precio × cantidad. */
+    fun costoCosa(fecha: String, cosa: String, n: Int): Double {
+        val c = totales[fecha]?.get(cosa)
+        return if (cosa in porTotal && c != null && c.unidades > 0) c.total * n / c.unidades else (precios[cosa] ?: 0.0) * n
+    }
+
+    /** Lo que se paga en total por estos pedidos (todas las personas juntas). Es lo que cobra el negocio, sin redondear. */
+    fun totalDe(fecha: String, pedidos: Map<String, Map<String, Int>>): Double =
+        pedidos.values.flatMap { it.keys }.toSet().sumOf { cosa -> costoCosa(fecha, cosa, pedidos.values.sumOf { it[cosa] ?: 0 }) }
+
+    /** Anota lo que te cobraron en total por una cosa que se reparte. El precio por unidad queda como estimado para la próxima vez. */
+    fun conTotal(fecha: String, cosa: String, total: Double, unidades: Int): Taller {
+        if (total <= 0 || unidades <= 0) return this
+        val dia = (totales[fecha] ?: emptyMap()) + (cosa to Cobrado(total, unidades))
+        return copy(totales = totales + (fecha to dia), precios = precios + (cosa to total / unidades))
+    }
 
     /** "1 Yogur, 2 Tortitas" */
     fun texto(pedido: Map<String, Int>): String = pedido.filter { it.value > 0 }.entries.joinToString(", ") { "${it.value} ${it.key}" }
@@ -122,6 +165,7 @@ data class Taller(
         val limite = runCatching { Fechas.iso(Fechas.dia(fecha) - 30) }.getOrDefault("")
         val todos = (pedidos + (fecha to dia)).filter { it.value.isNotEmpty() && it.key >= limite }
         return copy(pedidos = todos, tildes = tildes.filterKeys { it >= limite }, compradas = compradas.filterKeys { it >= limite },
+            totales = totales.filterKeys { it >= limite },
             sinFijo = (sinFijo + (fecha to nada)).filter { it.value.isNotEmpty() && it.key >= limite })
     }
 
@@ -151,6 +195,10 @@ data class Taller(
         "sinFijo" to JsonObject(sinFijo.mapValues { JsonArray(it.value.map(::JsonPrimitive)) }),
         "compradas" to JsonObject(compradas.mapValues { (_, dia) -> JsonObject(dia.mapValues { (_, p) ->
             JsonObject(p.mapValues { JsonPrimitive(it.value) }) }) }),
+        "turnos" to JsonObject(turnoCosa.mapValues { JsonPrimitive(it.value) }),
+        "porTotal" to JsonArray(porTotal.sorted().map(::JsonPrimitive)),
+        "totales" to JsonObject(totales.mapValues { (_, dia) -> JsonObject(dia.mapValues { (_, c) ->
+            JsonObject(mapOf("total" to JsonPrimitive(c.total), "unidades" to JsonPrimitive(c.unidades))) }) }),
     ))
 
     companion object {
@@ -190,14 +238,34 @@ data class Taller(
             return if (ok) a[0] to a[1] else def
         }
 
+        /** Los sándwiches de la fiambrería: arrancan en el menú de la tarde, sin precio fijo (se reparte el total que cobran). */
+        val SANDWICHES = listOf("Sándwich de queso blando", "Sándwich de salame y queso")
+
+        /** Lo que le toca a quien pidió [n] de [unidades] cuando el negocio cobró [total]: se redondea para abajo al peso. */
+        fun parte(total: Double, n: Int, unidades: Int): Double =
+            if (unidades <= 0 || n <= 0) 0.0 else Math.floor(total * n / unidades + 1e-9)
+
         fun de(crudo: JsonObject?): Taller {
             val o = crudo?.get("taller") as? JsonObject ?: return Taller()
+            var precios = (o["precios"] as? JsonObject)?.mapValues { it.value.num() } ?: emptyMap()
+            var turnoCosa = (o["turnos"] as? JsonObject)?.mapNotNull { (k, v) -> v.texto()?.takeIf { it == "M" || it == "T" || it == "A" }?.let { k to it } }?.toMap() ?: emptyMap()
+            var porTotal = (o["porTotal"] as? JsonArray)?.mapNotNull { it.texto() }?.toSet() ?: emptySet()
+            /* Primera vez con el menú por turno: lo que ya había queda como "Mañana" (sin marca) y se suman los sándwiches de la tarde */
+            if (o["turnos"] !is JsonObject) SANDWICHES.forEach { s ->
+                if (s !in precios) precios = precios + (s to 0.0)
+                if (s !in turnoCosa) turnoCosa = turnoCosa + (s to "T")
+                porTotal = porTotal + s
+            }
             return Taller(
                 muchachos = o.lista("muchachos").map { Muchacho(it["id"].texto() ?: "", it["nombre"].texto() ?: "", it["apodo"].texto() ?: "",
                     (it["activo"] as? JsonPrimitive)?.booleanOrNull != false, it["tel"].texto() ?: "") }.filter { it.nombre.isNotBlank() },
                 linkCobro = o["linkCobro"].texto()?.takeIf { it != LINK_VIEJO } ?: LINK_COBRO,
                 aliasCobro = o["aliasCobro"].texto() ?: ALIAS_COBRO,
-                precios = (o["precios"] as? JsonObject)?.mapValues { it.value.num() } ?: emptyMap(),
+                precios = precios, turnoCosa = turnoCosa, porTotal = porTotal,
+                totales = (o["totales"] as? JsonObject)?.mapValues { (_, dia) -> (dia as? JsonObject)?.mapNotNull { (cosa, c) ->
+                    val co = c as? JsonObject ?: return@mapNotNull null
+                    val t = co["total"].num(); val u = co["unidades"].num().toInt()
+                    if (t > 0 && u > 0) cosa to Cobrado(t, u) else null }?.toMap() ?: emptyMap() } ?: emptyMap(),
                 horario = (o["horario"] as? JsonObject)?.mapNotNull { (k, v) -> v.texto()?.let { k to it } }?.toMap() ?: emptyMap(),
                 manana = par(o["manana"], "09:20" to "10:10"),
                 tarde = par(o["tarde"], "17:20" to "18:00"),

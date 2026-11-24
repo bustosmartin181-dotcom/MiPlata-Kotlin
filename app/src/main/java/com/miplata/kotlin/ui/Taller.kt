@@ -55,11 +55,12 @@ fun PartesTaller(t: Taller, partes: SnapshotStateMap<String, String>, total: Dou
             OutlinedTextField(partes[m.id] ?: "", { partes[m.id] = it.filter { c -> c.isDigit() || c == ',' || c == '.' } },
                 Modifier.width(120.dp), prefix = { Text("$") }, singleLine = true, placeholder = { Text("0") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-            if (t.precios.isNotEmpty()) Box {
+            val deHoy = t.menuDe(t.turno(Fechas.hoy()))          // solo lo del turno de hoy (mañana o tarde)
+            if (deHoy.isNotEmpty()) Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.Add, "Sumar algo de la lista") }
                 DropdownMenu(menu, { menu = false }) {
-                    t.precios.toSortedMap().forEach { (cosa, precio) ->
-                        DropdownMenuItem(text = { Text("$cosa  ${pesos(precio)}") }, onClick = {
+                    deHoy.toSortedMap().forEach { (cosa, precio) ->
+                        DropdownMenuItem(text = { Text(if (cosa in t.porTotal) "$cosa  (se reparte el total)" else "$cosa  ${pesos(precio)}") }, onClick = {
                             partes[m.id] = textoMonto(aNumero(partes[m.id] ?: "") + precio); menu = false })
                     }
                 }
@@ -90,7 +91,7 @@ fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit,
             Text((if (pagado) "✅ " else "") + (if (turno == "M") "🥐 Hora del desayuno" else "☕ Hora de la merienda"), fontWeight = FontWeight.Bold, color = color)
             Text(if (pagado) "Compra anotada · la lista sigue acá" else if (parte) "Ya pagaste una parte · falta: " + pendientes.joinToString(", ")
                 else if (lista.isEmpty()) "Tomá los pedidos de los muchachos"
-                else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.pedidosDe(fecha).values.sumOf { t.costo(it) })}",
+                else "$cuantos pedidos · ${lista.values.sum()} cosas · ${pesos(t.totalDe(fecha, t.pedidosDe(fecha)))}",
                 fontSize = 13.sp, color = k.suave)
         }
         Button(onClick = alPedidos) { Text(if (pagado) "Ver lista" else if (lista.isEmpty()) "Pedidos" else "Ver") }
@@ -100,15 +101,18 @@ fun CartelTaller(turno: String, t: Taller, fecha: String, alPedidos: () -> Unit,
 /** Botón de pagar del desayuno: si tildaste algunas cosas, paga solo esas (una compra por negocio);
     si no tildaste nada, paga todo lo que falta. Lo ya pagado queda marcado y no se vuelve a cobrar. */
 @Composable
-private fun PagoTaller(t: Taller, fecha: String, hayCompra: Boolean, alPagar: (Set<String>) -> Unit, chico: Boolean = false) {
+private fun PagoTaller(t: Taller, fecha: String, hayCompra: Boolean, alPagar: (Set<String>) -> Unit,
+                       alGuardar: (Taller) -> Unit, chico: Boolean = false) {
     val k = LocalColores.current
     val compradas = t.compradoDe(fecha, hayCompra).values.flatMap { it.keys }.toSet()
     val pendientes = t.pendientesDe(fecha, hayCompra)
     val tildadas = (t.tildes[fecha] ?: emptyList()).toSet() intersect pendientes
     val cosas = if (tildadas.isNotEmpty()) tildadas else pendientes
-    val monto = t.pedidosSolo(fecha, cosas, hayCompra).values.sumOf { t.costo(it) }
+    val monto = t.totalDe(fecha, t.pedidosSolo(fecha, cosas, hayCompra))
+    var pidiendoTotal by remember { mutableStateOf<Set<String>?>(null) }      // cosas a pagar, cuando alguna se reparte el total
     if (compradas.isNotEmpty()) Text("✅ Ya pagaste: " + compradas.sorted().joinToString(", "), fontSize = 13.sp, color = k.verde)
-    Button(onClick = { alPagar(cosas) }, Modifier.fillMaxWidth().height(52.dp)) {
+    /* Si entre lo que pagás hay algo que se reparte (sándwiches), primero se pregunta cuánto te cobraron */
+    Button(onClick = { if (cosas.any { it in t.porTotal }) pidiendoTotal = cosas else alPagar(cosas) }, Modifier.fillMaxWidth().height(52.dp)) {
         Text(when {
             tildadas.isNotEmpty() && tildadas.size < pendientes.size -> "💳 Pagar lo tildado · ${pesos(monto)}"
             compradas.isNotEmpty() -> "💳 Pagar lo que falta · ${pesos(monto)}"
@@ -118,6 +122,41 @@ private fun PagoTaller(t: Taller, fecha: String, hayCompra: Boolean, alPagar: (S
     if (!chico) Subtitulo(if (tildadas.isNotEmpty() && tildadas.size < pendientes.size)
         "Se anota solo lo tildado (cada uno paga su parte de eso). Lo demás queda para la próxima compra."
         else "¿Comprás en distintos negocios? Tildá solo lo de este negocio y pagás eso; lo demás queda para después.")
+    pidiendoTotal?.let { cs ->
+        DialogoTotales(t, fecha, hayCompra, cs, alCerrar = { pidiendoTotal = null }) { nuevo ->
+            pidiendoTotal = null; alGuardar(nuevo); alPagar(cs)
+        }
+    }
+}
+
+/** "¿Cuánto te cobraron?": para cada cosa que se reparte (sándwiches), el total del negocio. La app lo divide por cantidad. */
+@Composable
+private fun DialogoTotales(t: Taller, fecha: String, hayCompra: Boolean, cosas: Set<String>, alCerrar: () -> Unit, alListo: (Taller) -> Unit) {
+    val k = LocalColores.current
+    val pend = t.pedidosSolo(fecha, cosas, hayCompra)                 // quién se lleva qué (solo lo que falta pagar)
+    val repartir = cosas.filter { it in t.porTotal }.sorted()
+    val escrito = remember { mutableStateMapOf<String, String>() }
+    fun nombre(id: String) = if (id == "yo") "Yo" else t.muchachos.firstOrNull { it.id == id }?.mostrar ?: id
+    AlertDialog(onDismissRequest = alCerrar, title = { Text("¿Cuánto te cobraron?") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Subtitulo("Poné el total que te dijo el negocio. La app lo divide según lo que pidió cada uno.")
+            repartir.forEach { cosa ->
+                val quienes = pend.mapNotNull { (q, p) -> p[cosa]?.takeIf { it > 0 }?.let { q to it } }
+                val unidades = quienes.sumOf { it.second }
+                val total = aNumero(escrito[cosa] ?: "")
+                CampoMonto(escrito[cosa] ?: "", { escrito[cosa] = it }, "$cosa: total ($unidades)")
+                if (total > 0) Text(quienes.joinToString("\n") { (q, n) -> "${nombre(q)} (${n}): ${pesos(Taller.parte(total, n, unidades))}" },
+                    fontSize = 13.sp, color = k.suave)
+            }
+        } },
+        confirmButton = { TextButton(enabled = repartir.all { aNumero(escrito[it] ?: "") > 0 }, onClick = {
+            var nuevo = t
+            repartir.forEach { cosa ->
+                nuevo = nuevo.conTotal(fecha, cosa, aNumero(escrito[cosa] ?: ""), pend.values.sumOf { it[cosa] ?: 0 })
+            }
+            alListo(nuevo)
+        }) { Text("Seguir") } },
+        dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } })
 }
 
 /** Ya anotaste la compra: en vez del botón de pagar, el aviso y la opción de deshacerla si fue sin querer. */
@@ -156,7 +195,8 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     var meDio by remember { mutableStateOf<Pair<String, String>?>(null) }      // (id, nombre) del que te da plata
     var origen by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }   // centro del botón, en la pantalla
     val vibrar = androidx.compose.ui.platform.LocalHapticFeedback.current
-    val titulo = (if (turno == "T") "☕ Merienda" else "🥐 Desayuno") + " · " + Fechas.diaYMes(fecha)
+    /* Sin turno cargado (franco o sin horario) no se asume desayuno: se llama simplemente "Pedidos" */
+    val titulo = when (turno) { "T" -> "☕ Merienda"; "M" -> "🥐 Desayuno"; else -> "🛒 Pedidos" } + " · " + Fechas.diaYMes(fecha)
     Hoja(alCerrar, titulo, accion = {
         BotonTotalPedidos(t.listaCompra(fecha).values.sum(), Modifier.onGloballyPositioned {
             origen = it.localToScreen(androidx.compose.ui.geometry.Offset(it.size.width / 2f, it.size.height / 2f)) }) {
@@ -171,11 +211,11 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                 val fijo = t.esFijo(id)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text((if (fijo) "🔁 " else "") + nombre, fontWeight = FontWeight.SemiBold, color = k.texto, modifier = Modifier.weight(1f))
-                    if (p.isNotEmpty()) Text(pesos(t.costo(p)), fontWeight = FontWeight.SemiBold, color = k.texto)
+                    if (p.isNotEmpty()) Text(pesos(t.costoDe(fecha, p)), fontWeight = FontWeight.SemiBold, color = k.texto)
                 }
                 if (p.isNotEmpty()) Text(t.texto(p), fontSize = 13.sp, color = k.suave)
                 val favor = favores[id] ?: 0.0
-                if (favor > 0.005) Text("🤝 Tiene ${pesos(favor)} a favor" + (if (p.isNotEmpty() && !hayCompra) " · paga ${pesos(Math.max(0.0, t.costo(p) - favor))}" else ""),
+                if (favor > 0.005) Text("🤝 Tiene ${pesos(favor)} a favor" + (if (p.isNotEmpty() && !hayCompra) " · paga ${pesos(Math.max(0.0, t.costoDe(fecha, p) - favor))}" else ""),
                     fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = k.verde)
                 /* "Siempre lo mismo": su pedido aparece solo todos los días */
                 if (p.isNotEmpty() || fijo) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
@@ -188,12 +228,20 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                 }
                 if (abierto == id) {
                     Spacer(Modifier.height(6.dp))
-                    t.precios.toSortedMap().forEach { (cosa, precio) ->
+                    /* Solo lo que se pide en este turno (la tarde tiene su propia lista), más lo que esta persona ya pidió hoy */
+                    (t.menuDe(turno).keys + p.keys).toSortedSet().forEach { cosa ->
+                        val precio = t.precios[cosa] ?: 0.0
                         val n = p[cosa] ?: 0
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(cosa, color = k.texto, fontSize = 14.sp)
-                                Text(if (precio > 0) pesos(precio) else "sin precio", color = if (precio > 0) k.suave else k.naranja, fontSize = 12.sp)
+                                val repartido = cosa in t.porTotal
+                                Text(when {
+                                    repartido && precio > 0 -> "se reparte el total · ≈ ${pesos(precio)} c/u"
+                                    repartido -> "se reparte el total"
+                                    precio > 0 -> pesos(precio)
+                                    else -> "sin precio"
+                                }, color = if (repartido || precio > 0) k.suave else k.naranja, fontSize = 12.sp)
                             }
                             IconButton(onClick = { alGuardar(t.conCantidad(fecha, id, cosa, n - 1)) }, enabled = n > 0) { Text("−", fontSize = 22.sp) }
                             Text("$n", fontWeight = FontWeight.Bold, color = k.texto, modifier = Modifier.width(24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -222,14 +270,14 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
                     Text("$n  $cosa", color = if (ok || ya) k.suave else k.texto, fontSize = 16.sp, modifier = Modifier.weight(1f),
                         textDecoration = if (ok || ya) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
                     if (ya) Text("✅ pagado", color = k.verde, fontSize = 13.sp)
-                    else Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                    else Text(pesos(t.costoCosa(fecha, cosa, n)), color = k.suave, fontSize = 14.sp)
                 }
             }
-            Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
+            Renglon("Total estimado", pesos(t.totalDe(fecha, dia)))
             if (hayCompra && t.pendientesDe(fecha, hayCompra).isEmpty())
-                YaAnotada(alDeshacer, anotado, dia.values.sumOf { t.costo(it) }, alRehacer = { alDeshacer(); alPagar(lista.keys) })
+                YaAnotada(alDeshacer, anotado, t.totalDe(fecha, dia), alRehacer = { alDeshacer(); alPagar(lista.keys) })
             else {
-                PagoTaller(t, fecha, hayCompra, alPagar)
+                PagoTaller(t, fecha, hayCompra, alPagar, alGuardar)
                 if (hayCompra) TextButton(onClick = alDeshacer) { Text("Deshacer lo ya pagado", color = k.rojo) }
             }
         }
@@ -239,7 +287,7 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     }
     meDio?.let { (id, nombre) ->
         val favor = favores[id] ?: 0.0
-        val total = Math.max(0.0, t.costo(dia[id] ?: emptyMap()) - favor)
+        val total = Math.max(0.0, t.costoDe(fecha, dia[id] ?: emptyMap()) - favor)
         DialogoCobro(nombre, total, alCerrar = { meDio = null }, puedeFavor = true, aFavorAntes = favor) { c ->
             meDio = null
             /* si le diste el vuelto, solo queda lo que cuesta su pedido; si no, todo lo que te dio */
@@ -249,20 +297,30 @@ fun HojaPedidos(t: Taller, fecha: String, alCerrar: () -> Unit, alGuardar: (Tall
     otraCosa?.let { quien ->
         var nombre by remember { mutableStateOf("") }; var precio by remember { mutableStateOf("") }
         var falta by remember { mutableStateOf(false) }
+        var repartir by remember { mutableStateOf(turno == "T") }       // a la tarde casi todo se reparte (fiambre, fruta)
         AlertDialog(onDismissRequest = { otraCosa = null }, title = { Text("Otra cosa") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(nombre, { nombre = it; falta = false }, label = { Text("¿Qué es?") }, placeholder = { Text("Ej: Tortas de hoja") }, singleLine = true,
                     isError = falta, supportingText = if (falta) ({ Text("Escribí qué es") }) else null)
-                CampoMonto(precio, { precio = it }, "Precio de una (si no lo sabés, dejalo vacío)")
-                Subtitulo("Queda guardada en la lista para la próxima. El precio lo podés poner o corregir después en Ajustes → Compras del taller.")
+                Interruptor("Se reparte el total", repartir, { repartir = it },
+                    "No sé el precio: cuando pague pongo lo que me cobraron y se divide según lo que pidió cada uno")
+                if (!repartir) CampoMonto(precio, { precio = it }, "Precio de una (si no lo sabés, dejalo vacío)")
+                Subtitulo("Queda guardada en la lista de " + (if (turno == "T") "la tarde" else if (turno == "M") "la mañana" else "hoy") +
+                    " para la próxima. Lo podés cambiar después en Ajustes → Compras del taller.")
             } },
             confirmButton = { TextButton(onClick = {
                 val n = nombre.trim().replaceFirstChar { it.uppercase() }
                 if (n.isEmpty()) falta = true
                 else {
                     /* si ya existía con precio y no escribiste uno nuevo, se conserva el que tenía */
-                    val p = aNumero(precio).takeIf { it > 0 } ?: t.precios[n] ?: 0.0
-                    alGuardar(t.copy(precios = t.precios + (n to p)).conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null
+                    val p = if (repartir) t.precios[n] ?: 0.0 else aNumero(precio).takeIf { it > 0 } ?: t.precios[n] ?: 0.0
+                    /* queda en el menú del turno de hoy; si ya estaba en el otro turno, pasa a "las dos" */
+                    val hoyEs = turno ?: "M"
+                    val marca = t.turnoCosa[n] ?: if (n in t.precios) "M" else hoyEs
+                    val nueva = if (marca == hoyEs) marca else "A"
+                    alGuardar(t.copy(precios = t.precios + (n to p), turnoCosa = t.turnoCosa + (n to nueva),
+                        porTotal = if (repartir) t.porTotal + n else t.porTotal - n)
+                        .conCantidad(fecha, quien, n, (dia[quien]?.get(n) ?: 0) + 1)); otraCosa = null
                 }
             }) { Text("Agregar") } },
             dismissButton = { TextButton(onClick = { otraCosa = null }) { Text("Cancelar") } })
@@ -358,17 +416,17 @@ private fun TotalPedidos(t: Taller, fecha: String, titulo: String, alGuardar: (T
                         Text(cosa, color = if (ok || ya) k.suave else k.texto, fontSize = 19.sp, modifier = Modifier.weight(1f),
                             textDecoration = if (ok || ya) androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
                         if (ya) Text("✅ pagado", color = k.verde, fontSize = 13.sp)
-                        else Text(pesos((t.precios[cosa] ?: 0.0) * n), color = k.suave, fontSize = 14.sp)
+                        else Text(pesos(t.costoCosa(fecha, cosa, n)), color = k.suave, fontSize = 14.sp)
                     }
                 }
             }
             HorizontalDivider(color = k.linea, modifier = Modifier.padding(vertical = 8.dp))
-            Renglon("Total estimado", pesos(dia.values.sumOf { t.costo(it) }))
+            Renglon("Total estimado", pesos(t.totalDe(fecha, dia)))
             Text("Tildá lo de este negocio y pagás solo eso; lo demás queda para la próxima compra.", fontSize = 12.sp, color = k.suave)
             Spacer(Modifier.height(10.dp))
             if (hayCompra && t.pendientesDe(fecha, hayCompra).isEmpty()) Text("✅ Todo pagado", fontWeight = FontWeight.Bold, color = k.verde,
                 modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            else PagoTaller(t, fecha, hayCompra, alPagar, chico = true)
+            else PagoTaller(t, fecha, hayCompra, alPagar, alGuardar, chico = true)
         }
     }
 }
@@ -412,22 +470,44 @@ fun HojaTaller(t: Taller, alCerrar: () -> Unit, alGuardar: (Taller) -> Unit, alI
         OutlinedButton(onClick = alImportar, Modifier.fillMaxWidth()) { Text("Traer de Compras del taller (.json)") }
         if (t.precios.isNotEmpty()) {
             HorizontalDivider(color = k.linea)
-            Text("Precios guardados", fontWeight = FontWeight.SemiBold, color = k.texto)
-            Text("Tocá uno para cambiarle el precio.", fontSize = 12.sp, color = k.suave)
+            Text("Menú y precios", fontWeight = FontWeight.SemiBold, color = k.texto)
+            Text("Tocá uno para cambiarle el precio o el turno (mañana, tarde o las dos).", fontSize = 12.sp, color = k.suave)
             t.precios.toSortedMap().forEach { (cosa, p) ->
+                val repartido = cosa in t.porTotal
+                val turnoTxt = when (t.turnoCosa[cosa] ?: "M") { "T" -> "☕ tarde"; "A" -> "🥐☕ las dos"; else -> "🥐 mañana" }
                 Row(Modifier.fillMaxWidth().clickable { cambiarPrecio = cosa }, verticalAlignment = Alignment.CenterVertically) {
-                    Text(cosa, color = k.texto, modifier = Modifier.weight(1f))
-                    Text(if (p > 0) pesos(p) else "sin precio", color = if (p > 0) k.texto else k.naranja)
-                    IconButton(onClick = { alGuardar(t.copy(precios = t.precios - cosa)) }) { Icon(Icons.Outlined.Close, "Quitar precio") }
+                    Column(Modifier.weight(1f)) {
+                        Text(cosa, color = k.texto)
+                        Text(turnoTxt + if (repartido) " · se reparte el total" else "", fontSize = 12.sp, color = k.suave)
+                    }
+                    Text(if (repartido) (if (p > 0) "≈ ${pesos(p)}" else "—") else if (p > 0) pesos(p) else "sin precio",
+                        color = if (repartido || p > 0) k.texto else k.naranja)
+                    IconButton(onClick = { alGuardar(t.copy(precios = t.precios - cosa, turnoCosa = t.turnoCosa - cosa, porTotal = t.porTotal - cosa)) }) {
+                        Icon(Icons.Outlined.Close, "Quitar de la lista") }
                 }
             }
         }
     }
     cambiarPrecio?.let { cosa ->
         var valor by remember(cosa) { mutableStateOf((t.precios[cosa] ?: 0.0).let { if (it > 0) textoMonto(it) else "" }) }
+        var marca by remember(cosa) { mutableStateOf(t.turnoCosa[cosa] ?: "M") }
+        var repartir by remember(cosa) { mutableStateOf(cosa in t.porTotal) }
         AlertDialog(onDismissRequest = { cambiarPrecio = null }, title = { Text(cosa) },
-            text = { CampoMonto(valor, { valor = it }, "Precio de una") },
-            confirmButton = { TextButton(onClick = { alGuardar(t.copy(precios = t.precios + (cosa to aNumero(valor)))); cambiarPrecio = null }) { Text("Guardar") } },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("¿En qué turno lo piden?", color = LocalColores.current.suave, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("M" to "Mañana", "T" to "Tarde", "A" to "Las dos").forEach { (v, txt) ->
+                        FilterChip(selected = marca == v, onClick = { marca = v }, label = { Text(txt, fontSize = 13.sp) })
+                    }
+                }
+                Interruptor("Se reparte el total", repartir, { repartir = it },
+                    "Sin precio fijo: al pagar ponés lo que te cobraron y se divide según lo que pidió cada uno")
+                CampoMonto(valor, { valor = it }, if (repartir) "Precio estimado de una (opcional)" else "Precio de una")
+            } },
+            confirmButton = { TextButton(onClick = {
+                alGuardar(t.copy(precios = t.precios + (cosa to aNumero(valor)), turnoCosa = t.turnoCosa + (cosa to marca),
+                    porTotal = if (repartir) t.porTotal + cosa else t.porTotal - cosa))
+                cambiarPrecio = null }) { Text("Guardar") } },
             dismissButton = { TextButton(onClick = { cambiarPrecio = null }) { Text("Cancelar") } })
     }
     if (nuevo || editando != null) DialogoMuchacho(editando, alCerrar = { nuevo = false; editando = null }) { m, borrar ->

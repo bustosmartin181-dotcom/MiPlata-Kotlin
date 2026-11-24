@@ -123,8 +123,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         val pend = cosas ?: taller.pendientesDe(hoy, hay)
         val dia = taller.pedidosSolo(hoy, pend, hay)
         cosasEnPago = dia
-        montoIni = dia.values.sumOf { taller.costo(it) }.let { if (it > 0) textoMonto(it) else "" }
-        partesIni = dia.filterKeys { it != "yo" }.mapValues { textoMonto(taller.costo(it.value)) }
+        /* El total es lo que cobró el negocio (si pusiste el total de los sándwiches, ese); la parte de cada uno sale de repartirlo.
+           Lo que sobra por redondear al peso queda en tu parte. */
+        montoIni = taller.totalDe(hoy, dia).let { if (it > 0) textoMonto(it) else "" }
+        partesIni = dia.filterKeys { it != "yo" }.mapValues { textoMonto(taller.costoDe(hoy, it.value)) }
         queLlevoIni = dia.filterKeys { it != "yo" }.mapValues { taller.texto(it.value) }
         notaIni = if (pend.size < todo.size || hay) dia.values.flatMap { it.keys }.toSortedSet().joinToString(", ") else ""
     }
