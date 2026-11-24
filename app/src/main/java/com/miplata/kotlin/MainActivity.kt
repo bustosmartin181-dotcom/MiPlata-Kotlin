@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.aviso.AvisoReserva
 import com.miplata.kotlin.datos.Almacen
+import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.nucleo.num
 import kotlinx.serialization.json.JsonPrimitive
@@ -425,7 +426,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
                         aviso = { campo("aviso", num(it)) },
                         fondo = { on -> almacen.activarFondo(on); vuelta++; if (on) asegurarNotis() },
                         excesoAparte = { campo("fondoExceso", JsonPrimitive(if (it) "aparte" else "siguiente")) },
-                        sobraReparte = { d -> almacen.sobraSeReparte(d); vuelta++; aviso(if (d > 0) "Desde el día $d lo que te sobre se reparte en los días que quedan" else "Lo que te sobre vuelve a ir siempre al fondo") },
+                        sobraReparte = { d -> almacen.sobraSeReparte(d); vuelta++; aviso(when { d == Estado.REPARTE_TODO -> "Todo el mes, lo que te sobre se reparte en los días que quedan"; d > 0 -> "Desde el día $d lo que te sobre se reparte en los días que quedan"; else -> "Reparto apagado: lo que te sobre vuelve a funcionar como antes" }) },
                         fondoPrev = { campo("fondoPrev", num(it)) },
                         avisoReserva = { on -> campo("resAviso", JsonPrimitive(on)); if (on) asegurarNotis() },
                         horaReserva = { campo("resHora", JsonPrimitive(it)); aviso("Te aviso todas las noches a las $it") },

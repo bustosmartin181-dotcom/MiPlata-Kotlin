@@ -109,18 +109,32 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 dismissButton = { TextButton(onClick = { eligiendoHoraRec = false }) { Text("Cancelar") } })
         }
 
+        Tarjeta {
+            Titulo("Repartir lo que me sobra")
+            Subtitulo("Lo que no gastás en el día no se junta en un solo día: se reparte en partes iguales en todos los días que quedan hasta el cobro. Si te pasás, se descuenta del día siguiente, como siempre.")
+            val rep = S.sobraReparteDia
+            Interruptor("Activar el reparto", rep > 0, { a.sobraReparte(if (it) 22 else 0) },
+                if (S.modoFondo) "Con el fondo prendido: antes del día elegido lo que sobra va al fondo; desde ese día se reparte." else null)
+            if (rep > 0) {
+                val todo = rep == Estado.REPARTE_TODO
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = todo, onClick = { a.sobraReparte(Estado.REPARTE_TODO) }, label = { Text("Todo el mes") })
+                    FilterChip(selected = !todo, onClick = { if (todo) a.sobraReparte(22) }, label = { Text("Desde un día") })
+                }
+                if (todo) Text("Desde el día del cobro hasta el próximo cobro.", fontSize = 13.sp, color = k.suave)
+                else Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Desde el día $rep de cada mes", Modifier.weight(1f), color = k.texto)
+                    TextButton(onClick = { a.sobraReparte(if (rep <= 1) 1 else rep - 1) }) { Text("−", fontSize = 20.sp) }
+                    TextButton(onClick = { a.sobraReparte(if (rep >= 31) 31 else rep + 1) }) { Text("+", fontSize = 20.sp) }
+                }
+            }
+        }
+
         Tarjeta(Modifier.demo("aj.fondo").luz("aj.fondo")) {
             Titulo("Fondo de ahorro")
             Subtitulo("Lo que no gastás cada día no pasa al día siguiente: se guarda en un fondo aparte. Cuenta desde el día que lo activás.")
             Interruptor("Activar el fondo de ahorro", S.modoFondo, a.fondo, demoClave = "aj.fondo.activar")
             if (S.modoFondo) {
-                Interruptor("A fin de mes, repartir lo que me sobra", S.sobraReparteDia > 0, { a.sobraReparte(if (it) 22 else 0) },
-                    "Prendido: hasta el día elegido lo que sobra va al fondo; desde ese día se suma a los días que quedan hasta el cobro, sin pasarlo a la reserva.")
-                if (S.sobraReparteDia > 0) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Desde el día ${S.sobraReparteDia} de cada mes", Modifier.weight(1f), color = k.texto)
-                    TextButton(onClick = { a.sobraReparte(if (S.sobraReparteDia <= 1) 1 else S.sobraReparteDia - 1) }) { Text("−") }
-                    TextButton(onClick = { a.sobraReparte(if (S.sobraReparteDia >= 28) 28 else S.sobraReparteDia + 1) }) { Text("+") }
-                }
                 Interruptor("Si me paso, no descontarlo de ningún lado", S.fondoExceso == "aparte", a.excesoAparte,
                     "Apagado: lo que te pasás se descuenta del día siguiente")
                 CampoMonto(fondoPrev, { fondoPrev = it }, "Fondo que ya tenías juntado de antes")

@@ -33,6 +33,8 @@ class Calculo(
     val recal: Recal?, val extra: (Int) -> Double, val presupuestoDia: (Int) -> Double, val rendDisp: Double,
     val baseHoy: Double, val baseManana: Double?, val manana: Double?, val gastoHoy: Double, val quedaHoy: Double,
     val filas: List<Fila>?, val fondo: Fondo, val faltan: Int, val saldo: Double, val gastadoAntesDeHoy: Double,
+    /** Hoy está dentro de "Repartir lo que me sobra": lo que no gastes se suma a los días que quedan */
+    val reparteHoy: Boolean = false,
 )
 
 private data class Descuento(val amt: Double, val desde: String?)
@@ -106,6 +108,23 @@ object Nucleo {
         val quedaHoy = acumulado - gastado(desde.toLong(), hoyIdx.toLong())
         val hayManana = hoyIdx < dias - 1
 
+        /* "Repartir lo que me sobra" (función aparte, con o sin fondo): desde el día elegido, lo que sobra de cada día
+           cerrado se suma en partes iguales a los días que quedan hasta el cobro (99 = desde el cobro, todo el mes).
+           Lo que te pasás se sigue descontando del día siguiente. */
+        val iniReparte = when (S.sobraReparteDia) {
+            Estado.REPARTE_TODO -> 0
+            in 1..31 -> {
+                val ini = java.time.LocalDate.ofEpochDay(inicio)
+                var objetivo = ini.withDayOfMonth(min(S.sobraReparteDia, ini.lengthOfMonth()))
+                if (objetivo.isBefore(ini)) objetivo = objetivo.plusMonths(1).let { it.withDayOfMonth(min(S.sobraReparteDia, it.lengthOfMonth())) }
+                val k = objetivo.toEpochDay() - inicio
+                if (k < dias) k.toInt() else -1
+            }
+            else -> -1
+        }
+        fun reparteDia(i: Int) = iniReparte >= 0 && i >= iniReparte && i < dias - 1
+        val reparteHoy = reparteDia(hoyIdx)
+
         /* MODO FONDO: lo que sobra de cada día va a un fondo aparte en vez de pasar al día siguiente */
         val modoFondo = S.modoFondo
         val regla = if (S.fondoExceso == "aparte") "aparte" else "siguiente"
@@ -130,16 +149,6 @@ object Nucleo {
             fun usosHastaDia(i: Int) = S.fondoUsos.filter { it.para != "cubre" && idxUso(it) <= i }.sumOf { it.amt }
             /* Con un objetivo por día más bajo que lo que te toca, esa diferencia también va al fondo (si no, queda suelta) */
             fun diferenciaObjetivo(i: Int) = if (recal != null && recal.obj && i >= recal.day!!) max(0.0, base + extra(i) - recal.base) else 0.0
-            /* "Lo que sobra se reparte": desde ese día, lo que sobra de cada día cerrado se suma en partes iguales
-               a los días que quedan, en vez de ir al fondo (el último día no tiene a dónde ir: va al fondo) */
-            val iniReparte = if (S.sobraReparteDia in 1..31) {
-                val ini = java.time.LocalDate.ofEpochDay(inicio)
-                var objetivo = ini.withDayOfMonth(min(S.sobraReparteDia, ini.lengthOfMonth()))
-                if (objetivo.isBefore(ini)) objetivo = objetivo.plusMonths(1).let { it.withDayOfMonth(min(S.sobraReparteDia, it.lengthOfMonth())) }
-                val k = objetivo.toEpochDay() - inicio
-                if (k < dias) k.toInt() else -1
-            } else -1
-            fun reparteDia(i: Int) = iniReparte >= 0 && i >= iniReparte && i < dias - 1
             val repartoSobra = HashMap<Int, Double>()
             val fs = mutableListOf<Fila>()
             var arrastre = 0.0
@@ -151,11 +160,11 @@ object Nucleo {
                 val gasto = gastado(i.toLong(), i.toLong())
                 val sobra = presupuesto - gasto
                 val previo = i < iniFondo
-                val reparte = !previo && reparteDia(i)
+                val reparte = reparteDia(i)
                 val aporte = if (previo) 0.0 else (if (reparte) 0.0 else if (regla == "fondo") sobra else max(0.0, sobra)) + diferenciaObjetivo(i)
                 if (reparte && i < hoyIdx && sobra > 0) { val parte = sobra / (dias - i - 1); for (j in i + 1 until dias) repartoSobra[j] = (repartoSobra[j] ?: 0.0) + parte }
                 fs += Fila(i, presupuesto, gasto, sobra, aporte)
-                arrastre = if (previo) sobra else if (regla == "siguiente") min(0.0, sobra) else 0.0
+                arrastre = if (reparte) (if (regla == "siguiente") min(0.0, sobra) else 0.0) else if (previo) sobra else if (regla == "siguiente") min(0.0, sobra) else 0.0
                 if (i < hoyIdx) sumarRendDisp(i, aportesAcum, usosHastaDia(i))
                 aportesAcum += aporte
             }
@@ -186,7 +195,6 @@ object Nucleo {
                 rendPend = pend
             }
             quedaHoyF = fs[hoyIdx].presupuesto - fs[hoyIdx].gasto
-            val reparteHoy = reparteDia(hoyIdx) && hoyIdx >= iniFondo
             mananaF = if (hayManana) presupuestoDia(hoyIdx + 1) + (extraReparte[hoyIdx + 1] ?: 0.0) + (repartoSobra[hoyIdx + 1] ?: 0.0) +
                 (if (reparteHoy) max(0.0, quedaHoyF) / (dias - hoyIdx - 1) else 0.0) + (if (regla == "siguiente") min(0.0, quedaHoyF) else 0.0) else null
             fondo = Fondo(
@@ -200,16 +208,41 @@ object Nucleo {
             )
         }
 
+        /* Sin fondo pero con "Repartir lo que me sobra": antes del día elegido todo pasa al día siguiente (como siempre);
+           desde ese día lo que sobra se reparte en los días que quedan */
+        if (!modoFondo && iniReparte >= 0) {
+            val reparto = HashMap<Int, Double>()
+            val fs = mutableListOf<Fila>()
+            var arrastre = 0.0
+            for (i in 0 until dias) {
+                if (recal != null && i == recal.day) arrastre = 0.0
+                val sin = presupuestoDia(i) + (reparto[i] ?: 0.0)
+                val presupuesto = if (i <= hoyIdx + 1) sin + arrastre else sin
+                val gasto = gastado(i.toLong(), i.toLong())
+                val sobra = presupuesto - gasto
+                val reparte = reparteDia(i)
+                if (reparte && i < hoyIdx && sobra > 0) { val parte = sobra / (dias - i - 1); for (j in i + 1 until dias) reparto[j] = (reparto[j] ?: 0.0) + parte }
+                fs += Fila(i, presupuesto, gasto, sobra, 0.0)
+                arrastre = if (reparte) min(0.0, sobra) else sobra
+            }
+            filas = fs
+            quedaHoyF = fs[hoyIdx].presupuesto - fs[hoyIdx].gasto
+            mananaF = if (hayManana) presupuestoDia(hoyIdx + 1) + (reparto[hoyIdx + 1] ?: 0.0) +
+                (if (reparteHoy) max(0.0, quedaHoyF) / (dias - hoyIdx - 1) + min(0.0, quedaHoyF) else quedaHoyF) else null
+        }
+        val usaFilas = modoFondo || iniReparte >= 0
+
         val saldo = disp - S.spent.filter { it.cuentaEnSaldo }.sumOf { it.amt }
         return Calculo(
             total = total, porPagar = porPagar, disp = disp, dias = dias, hoyIdx = hoyIdx, base = base, recal = recal,
             extra = extra, presupuestoDia = presupuestoDia, rendDisp = rendDisp,
             baseHoy = presupuestoDia(hoyIdx),
             baseManana = if (hayManana) presupuestoDia(hoyIdx + 1) else null,
-            manana = if (modoFondo) mananaF else (if (hayManana) presupuestoDia(hoyIdx + 1) + quedaHoy else null),
-            gastoHoy = gastoHoy, quedaHoy = if (modoFondo) quedaHoyF else quedaHoy, filas = filas, fondo = fondo,
+            manana = if (usaFilas) mananaF else (if (hayManana) presupuestoDia(hoyIdx + 1) + quedaHoy else null),
+            gastoHoy = gastoHoy, quedaHoy = if (usaFilas) quedaHoyF else quedaHoy, filas = filas, fondo = fondo,
             faltan = dias - hoyIdx, saldo = saldo,
             gastadoAntesDeHoy = gastado(-1_000_000_000L, (hoyIdx - 1).toLong()),
+            reparteHoy = reparteHoy,
         )
     }
 

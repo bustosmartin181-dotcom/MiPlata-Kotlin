@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.18" to listOf("🍞 \"Repartir lo que me sobra\" ahora es una función aparte (Ajustes), ya no está dentro del Fondo de ahorro: anda con el fondo prendido o apagado",
+        "📅 Elegís \"Todo el mes\" (desde el cobro) o \"Desde un día\" (por ejemplo, desde el 15 para llegar mejor a las fiestas)"),
     "11.17" to listOf("🎯 Mis planes: al empezar el período nuevo, los planes cumplidos se borran solos (te avisa cuáles se cumplieron)"),
     "11.16" to listOf("🔧 Arreglo: cuando Mercado Pago dice \"De Gustavo …\" (con D mayúscula), la app leía \"Mercado Pago\" como nombre",
         "🎂 Si te paga alguien que te debe (del taller o una deuda con su nombre en la nota, ej.: \"Tortas Gustavo Lemus\"), lo toma como pago de su pedido. Acepta una letra distinta (Lemus / Lemos)",

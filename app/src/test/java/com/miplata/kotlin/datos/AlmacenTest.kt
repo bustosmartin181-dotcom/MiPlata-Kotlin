@@ -1,5 +1,6 @@
 package com.miplata.kotlin.datos
 
+import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Fechas
 import com.miplata.kotlin.nucleo.Nucleo
 import com.miplata.kotlin.nucleo.hayCompraTaller
@@ -152,6 +153,44 @@ class AlmacenTest {
         assertTrue(con.quedaHoy > sin.quedaHoy + 1)
         a.sobraSeReparte(0)
         assertEquals(5 * sin.base, Nucleo.calcular(a.estado!!, hoy).fondo.total, 1e-6)
+    }
+
+    /** "Repartir lo que me sobra" sin fondo: antes del día elegido todo pasa al día siguiente; desde ese día se reparte. */
+    @Test fun repartoSinFondo() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        val sin = Nucleo.calcular(a.estado!!, hoy)
+        assertFalse(a.estado!!.modoFondo)
+        // sin reparto: lo que sobra de los días cerrados se junta todo en hoy, y mañana tiene hoy + base
+        a.sobraSeReparte(Estado.REPARTE_TODO)
+        assertEquals(Estado.REPARTE_TODO, a.estado!!.sobraReparteDia)
+        val con = Nucleo.calcular(a.estado!!, hoy)
+        assertTrue(con.reparteHoy)
+        if (con.hoyIdx > 0) assertTrue(con.quedaHoy < sin.quedaHoy - 1)   // ya no se junta todo en hoy
+        // nada se pierde: lo que queda de hoy en adelante es lo mismo que sin reparto
+        val restoSin = sin.quedaHoy + (sin.hoyIdx + 1 until sin.dias).sumOf { sin.presupuestoDia(it) }
+        val restoCon = con.quedaHoy + (con.hoyIdx + 1 until con.dias).sumOf { con.filas!![it].presupuesto }
+        assertEquals(restoSin, restoCon, 1e-6)
+        // mañana: base + lo repartido + su parte de lo que sobre hoy
+        if (con.faltan > 1) assertEquals(con.presupuestoDia(con.hoyIdx + 1) + repartidoA(con, con.hoyIdx + 1) + con.quedaHoy / (con.faltan - 1), con.manana!!, 1e-6)
+        a.sobraSeReparte(0)
+        assertEquals(sin.quedaHoy, Nucleo.calcular(a.estado!!, hoy).quedaHoy, 1e-6)
+    }
+
+    /** Si te pasás un día con el reparto prendido, se descuenta del día siguiente (no se reparte). */
+    @Test fun repartoSinFondoSiTePasas() {
+        val a = nuevo(); val hoy = Fechas.hoy()
+        a.sobraSeReparte(Estado.REPARTE_TODO)
+        val c0 = Nucleo.calcular(a.estado!!, hoy)
+        a.anotar(c0.quedaHoy + 3000.0, "grande", null, false, false)
+        val c1 = Nucleo.calcular(a.estado!!, hoy)
+        assertEquals(-3000.0, c1.quedaHoy, 1e-6)
+        if (c1.faltan > 1) assertEquals(c1.presupuestoDia(c1.hoyIdx + 1) + repartidoA(c1, c1.hoyIdx + 1) - 3000.0, c1.manana!!, 1e-6)
+    }
+
+    private fun repartidoA(c: com.miplata.kotlin.nucleo.Calculo, j: Int): Double {
+        var r = 0.0
+        for (i in 0 until c.hoyIdx) { val f = c.filas!![i]; if (f.sobra > 0) r += f.sobra / (c.dias - i - 1) }
+        return r
     }
 
     @Test fun pinIgualQueLaAppOriginal() {

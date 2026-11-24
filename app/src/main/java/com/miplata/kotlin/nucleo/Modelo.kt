@@ -131,6 +131,8 @@ data class Estado(
     val crudo: JsonObject = JsonObject(emptyMap()),
 ) {
     companion object {
+        /** sobraReparteDia = 99: repartir lo que sobra desde el cobro (todo el mes) */
+        const val REPARTE_TODO = 99
         private val CLAVES_ITEM = setOf("n", "a", "p", "d", "x", "f", "v", "q")
         private val CLAVES_MOV = setOf("id", "date", "amt", "note", "cat", "meta", "dev")
 
