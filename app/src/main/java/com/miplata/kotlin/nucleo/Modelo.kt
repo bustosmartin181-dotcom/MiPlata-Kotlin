@@ -7,7 +7,20 @@ import kotlinx.serialization.json.*
 
 data class Aumento(val amt: Double, val desde: String?)
 
-data class Cuotas(val actual: Int, val total: Int)
+/** Cuotas de un gasto importante. compra = lo que costó todo (0 si no se cargó). */
+data class Cuotas(val actual: Int, val total: Int, val compra: Double = 0.0)
+
+/** Cuentas de las cuotas (la ventanita "Es en cuotas"). */
+object CuentaCuotas {
+    /** Valor de cada cuota sin interés: el total dividido en partes iguales, redondeado. */
+    fun valor(compra: Double, cuotas: Int): Double =
+        if (compra <= 0 || cuotas < 1) 0.0 else Math.round(compra / cuotas).toDouble()
+    /** Cuánto falta pagar contando la cuota de este mes si todavía no está pagada. */
+    fun falta(valorCuota: Double, actual: Int, total: Int, pagadaEsta: Boolean): Double =
+        valorCuota * (maxOf(0, total - actual) + if (pagadaEsta) 0 else 1)
+    /** Cuotas pagadas hasta ahora (las anteriores + la de este mes si ya la pagaste). */
+    fun pagadas(actual: Int, pagadaEsta: Boolean): Int = (actual - 1).coerceAtLeast(0) + if (pagadaEsta) 1 else 0
+}
 
 data class Item(
     val n: String = "",
@@ -150,7 +163,7 @@ data class Estado(
                     x = i.lista("x").map { Aumento(it["amt"].num(), it["desde"].texto()?.takeIf { s -> s.isNotEmpty() }) },
                     f = (i["f"] as? JsonPrimitive)?.booleanOrNull,
                     v = (i["v"] as? JsonPrimitive)?.booleanOrNull,
-                    q = (i["q"] as? JsonObject)?.let { Cuotas(it["actual"].num().toInt(), it["total"].num().toInt()) },
+                    q = (i["q"] as? JsonObject)?.let { Cuotas(it["actual"].num().toInt(), it["total"].num().toInt(), it["compra"].num()) },
                     extra = JsonObject(i.filterKeys { it !in CLAVES_ITEM }),
                 )
             },

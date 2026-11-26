@@ -50,6 +50,8 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
     var conCuotas by remember { mutableStateOf(item.q != null && item.q.total > 1) }
     var cuotaActual by remember { mutableStateOf((item.q?.actual ?: 1).toString()) }
     var cuotaTotal by remember { mutableStateOf((item.q?.total ?: 12).toString()) }
+    var compra by remember { mutableStateOf(item.q?.compra ?: 0.0) }
+    var ventanaCuotas by remember { mutableStateOf(false) }
     var prox by remember { mutableStateOf(item.extra["prox"]?.let { if (it is JsonPrimitive && it.isString && it.content == "") "" else textoMonto(it.num()) } ?: "") }
     var alias by remember { mutableStateOf(item.extra["mp"].texto() ?: "") }
     var codigo by remember { mutableStateOf(item.extra["cod"].texto() ?: "") }
@@ -66,10 +68,23 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
             Interruptor("El monto cambia cada mes", variable, { variable = it }, "Ej: luz o gas: el próximo período arranca vacío")
             CampoMonto(prox, { prox = it }, "Monto para el próximo período (opcional)")
         }
-        Interruptor("Es en cuotas", conCuotas, { conCuotas = it })
-        if (conCuotas) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedTextField(cuotaActual, { cuotaActual = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text("Cuota") }, singleLine = true)
-            OutlinedTextField(cuotaTotal, { cuotaTotal = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text("de") }, singleLine = true)
+        Interruptor("Es en cuotas", conCuotas, { on ->
+            if (on) ventanaCuotas = true      // se activa recién cuando apretás OK en la ventanita
+            else conCuotas = false
+        })
+        if (conCuotas) {
+            val total = cuotaTotal.toIntOrNull() ?: 0
+            val actual = cuotaActual.toIntOrNull() ?: 1
+            val valor = aNumero(monto)
+            OutlinedCard(onClick = { ventanaCuotas = true }, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("🧾 Cuota $actual de $total · ${pesos(valor)} c/u", color = k.texto, fontWeight = FontWeight.SemiBold)
+                    if (compra > 0) Text("Total de la compra: ${pesos(compra)}", fontSize = 13.sp, color = k.suave)
+                    Text("Pagadas ${CuentaCuotas.pagadas(actual, pagado)} de $total · Te falta ${pesos(CuentaCuotas.falta(valor, actual, total, pagado))}",
+                        fontSize = 13.sp, color = k.verde)
+                    Text("Tocá para cambiar", fontSize = 12.sp, color = k.suave)
+                }
+            }
         }
         OutlinedTextField(alias, { alias = it }, Modifier.fillMaxWidth(), label = { Text("Alias o CVU para transferir (opcional)") }, singleLine = true)
         OutlinedTextField(codigo, { codigo = it }, Modifier.fillMaxWidth(), label = { Text("Código de pago de la factura (opcional)") }, singleLine = true)
@@ -85,7 +100,10 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
             val total = cuotaTotal.toIntOrNull() ?: 0
             campos["q"] = if (conCuotas && total > 1) {
                 val actual = (cuotaActual.toIntOrNull() ?: 1).coerceIn(1, total)
-                JsonObject(mapOf("actual" to JsonPrimitive(actual), "total" to JsonPrimitive(total)))
+                JsonObject(buildMap {
+                    put("actual", JsonPrimitive(actual)); put("total", JsonPrimitive(total))
+                    if (compra > 0) put("compra", num(compra))
+                })
             } else null
             alGuardar(nombre.trim(), aNumero(monto), campos)
         }, Modifier.fillMaxWidth().height(52.dp)) { Text("Guardar") }
@@ -93,11 +111,62 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
             Text(if (esNuevo) "Descartar" else "Quitar este gasto")
         }
     }
+    if (ventanaCuotas) VentanaCuotas(
+        compraInicial = compra, cantidadInicial = if (conCuotas) cuotaTotal.toIntOrNull() ?: 0 else 0,
+        actualInicial = if (conCuotas) cuotaActual.toIntOrNull() ?: 1 else 1, valorInicial = if (conCuotas) aNumero(monto) else 0.0,
+        alCancelar = { ventanaCuotas = false },
+        alAceptar = { c, cant, act, valor ->
+            compra = c; cuotaTotal = cant.toString(); cuotaActual = act.toString(); monto = textoMonto(valor)
+            conCuotas = true; ventanaCuotas = false
+        })
     if (confirmarQuitar) AlertDialog(onDismissRequest = { confirmarQuitar = false },
         title = { Text("¿Quitar \"${nombre.ifBlank { "este gasto" }}\"?") },
         text = { Text("Se saca de la lista y la plata vuelve a tu disponible.") },
         confirmButton = { TextButton(onClick = { confirmarQuitar = false; alQuitar() }) { Text("Quitar") } },
         dismissButton = { TextButton(onClick = { confirmarQuitar = false }) { Text("Cancelar") } })
+}
+
+/** Ventanita de cuotas: total de la compra, cantidad, cuál pagás ahora y valor de cada una.
+    El valor se calcula solo (total ÷ cuotas) pero se puede cambiar si tiene interés. */
+@Composable
+fun VentanaCuotas(compraInicial: Double, cantidadInicial: Int, actualInicial: Int, valorInicial: Double,
+                  alCancelar: () -> Unit, alAceptar: (compra: Double, cantidad: Int, actual: Int, valor: Double) -> Unit) {
+    val k = LocalColores.current
+    var compra by remember { mutableStateOf(textoMonto(compraInicial)) }
+    var cantidad by remember { mutableStateOf(if (cantidadInicial > 1) cantidadInicial.toString() else "") }
+    var actual by remember { mutableStateOf(actualInicial.coerceAtLeast(1).toString()) }
+    var valor by remember { mutableStateOf(textoMonto(valorInicial)) }
+    var valorTocado by remember { mutableStateOf(valorInicial > 0 && valorInicial != CuentaCuotas.valor(compraInicial, cantidadInicial)) }
+    fun recalcular() { if (!valorTocado) valor = textoMonto(CuentaCuotas.valor(aNumero(compra), cantidad.toIntOrNull() ?: 0)) }
+    val cant = cantidad.toIntOrNull() ?: 0
+    val act = actual.toIntOrNull() ?: 0
+    val v = aNumero(valor)
+    val error = when {
+        cant < 2 -> "Poné de cuántas cuotas es (2 o más)."
+        act < 1 || act > cant -> "La cuota que pagás ahora tiene que ser entre 1 y $cant."
+        v <= 0 -> "Falta el valor de cada cuota."
+        else -> null
+    }
+    AlertDialog(onDismissRequest = alCancelar,
+        title = { Text("Compra en cuotas") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CampoMonto(compra, { compra = it; recalcular() }, "Total de la compra")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(cantidad, { cantidad = it.filter(Char::isDigit).take(3); recalcular() }, Modifier.weight(1f),
+                        label = { Text("Cuotas") }, singleLine = true)
+                    OutlinedTextField(actual, { actual = it.filter(Char::isDigit).take(3) }, Modifier.weight(1f),
+                        label = { Text("Pagás la") }, singleLine = true)
+                }
+                CampoMonto(valor, { valor = it; valorTocado = true }, "Valor de cada cuota")
+                Text(if (valorTocado) "Lo cambiaste a mano (por ejemplo, si tiene interés)." else "Se calcula solo. Si tiene interés, cambialo.",
+                    fontSize = 12.sp, color = k.suave)
+                if (error == null) Text("Este mes se reparte solo ${pesos(v)} entre los días que faltan.", fontSize = 13.sp, color = k.verde)
+                else Text(error, fontSize = 13.sp, color = k.rojo)
+            }
+        },
+        confirmButton = { TextButton(onClick = { alAceptar(aNumero(compra), cant, act, v) }, enabled = error == null) { Text("OK") } },
+        dismissButton = { TextButton(onClick = alCancelar) { Text("Cancelar") } })
 }
 
 /** Editar los ingresos (el total pasa a ser el sueldo del período). */
