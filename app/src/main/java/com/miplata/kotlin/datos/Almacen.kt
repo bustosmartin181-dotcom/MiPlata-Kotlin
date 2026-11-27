@@ -16,6 +16,8 @@ const val MEDIO_MP = "mp"
 /* Guarda los datos en un archivo JSON con el MISMO formato que las copias de Mi plata.
    Los cambios se hacen sobre el JSON completo, así nunca se pierde ningún dato que
    esta versión todavía no use (cuotas, IPC, alias de MP, copias, cierres…). */
+const val APARTE = "Sale de tu plata aparte"
+
 class Almacen(private val carpeta: File, private val ctx: Context? = null) {
     constructor(context: Context) : this(context.filesDir, context.applicationContext)
     private val archivo = File(carpeta, "estado.json")
@@ -340,7 +342,7 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         JsonObject(o + ("items" to JsonArray(items)))
     }
 
-    fun cambiarMontoItem(k: Int, monto: Double) = cambiarTodo { sincronizarVacaciones(com.miplata.kotlin.nucleo.Periodo.cambiarMonto(it, k, monto, Fechas.hoy())) }
+    fun cambiarMontoItem(k: Int, monto: Double) = cambiarTodo { sincronizarAparte(com.miplata.kotlin.nucleo.Periodo.cambiarMonto(it, k, monto, Fechas.hoy())) }
 
     /** Gasto importante nuevo: con el período empezado se descuenta desde hoy (como la app original). */
     /* ---------- Mis planes ---------- */
@@ -400,51 +402,114 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
 
     fun quitarItem(k: Int) = cambiarTodo { o ->
         val items = (o["items"] as? JsonArray)?.toMutableList() ?: return@cambiarTodo o
+        val vac = (items.getOrNull(k) as? JsonObject)?.get("vac")?.num()?.toLong()
         if (k in items.indices) items.removeAt(k)
-        sincronizarVacaciones(JsonObject(o + ("items" to JsonArray(items))))
+        var o2 = JsonObject(o + ("items" to JsonArray(items)))
+        if (vac != null && o[com.miplata.kotlin.nucleo.Aguinaldo.CLAVE] != null) {   // borraste el gasto: la plata vuelve a su parte del aguinaldo
+            val a = com.miplata.kotlin.nucleo.Aguinaldo.desde(o)
+            o2 = JsonObject(o2 + (com.miplata.kotlin.nucleo.Aguinaldo.CLAVE to a.copy(usos = a.usos.filter { it.vac != vac }).aJson()))
+        }
+        sincronizarAparte(o2)
     }
 
-    /* ---------- Vacaciones (la ventanita dentro de Mi plata) ---------- */
+    /* ---------- Vacaciones y Mi aguinaldo (ventanitas dentro de Mi plata) ---------- */
 
     /** Guarda la simulación tal cual: no toca ningún número. */
     fun guardarVacaciones(v: com.miplata.kotlin.nucleo.Vacaciones) = cambiarCampo(com.miplata.kotlin.nucleo.Vacaciones.CLAVE, v.aJson())
 
     /** Carga las vacaciones como UN gasto importante del período (no se repite el mes que viene).
-        Si se pagan con plata aparte (aguinaldo/ahorro), esa plata entra junto con el gasto
-        y el límite de cada día queda igual. Devuelve el índice del gasto. */
+        Si se pagan con plata aparte (aguinaldo/ahorro), esa plata entra junto con el gasto y el límite
+        de cada día queda igual; si hay aguinaldo cargado con una parte "Vacaciones", se descuenta de ahí. */
     fun cargarVacaciones(v: com.miplata.kotlin.nucleo.Vacaciones): Int {
         guardarVacaciones(v)
+        val agui = com.miplata.kotlin.nucleo.Aguinaldo.desde(crudo)
+        val parte = agui.parteVacaciones?.takeIf { v.aparte && agui.cobrado > 0 }
+        return gastoAparte(com.miplata.kotlin.nucleo.Vacaciones.NOMBRE_GASTO, v.total, v.aparte, parte,
+            mapOf("vacDias" to JsonPrimitive(v.dias)))
+    }
+
+    /** Un gasto importante que no se repite. aparte = entra también la plata aparte (el día no cambia).
+        parteAgui = de qué parte del aguinaldo sale (queda anotado como uso). */
+    private fun gastoAparte(nombre: String, monto: Double, aparte: Boolean, parteAgui: String?, mas: Map<String, JsonElement> = emptyMap()): Int {
         val k = agregarItem()
         cambiarTodo { o ->
             val items = (o["items"] as? JsonArray)?.toMutableList() ?: return@cambiarTodo o
             val it = (items.getOrNull(k) as? JsonObject)?.toMutableMap() ?: return@cambiarTodo o
-            it["n"] = JsonPrimitive(com.miplata.kotlin.nucleo.Vacaciones.NOMBRE_GASTO)
-            it["a"] = com.miplata.kotlin.nucleo.num(v.total)
-            it["f"] = JsonPrimitive(false)
-            it["vacDias"] = JsonPrimitive(v.dias)
-            if (v.aparte) it["vac"] = JsonPrimitive(nuevoId(o))
+            it["n"] = JsonPrimitive(nombre); it["a"] = com.miplata.kotlin.nucleo.num(monto); it["f"] = JsonPrimitive(false)
+            it.putAll(mas)
+            var o2 = o
+            if (aparte) {
+                val id = nuevoId(o); it["vac"] = JsonPrimitive(id)
+                if (parteAgui != null) o2 = conUsoAgui(o, com.miplata.kotlin.nucleo.UsoAgui(id, parteAgui, nombre, monto, Fechas.hoy(), "gasto", id))
+            }
             items[k] = JsonObject(it)
-            sincronizarVacaciones(JsonObject(o + ("items" to JsonArray(items))))
+            sincronizarAparte(JsonObject(o2 + ("items" to JsonArray(items))))
         }
         return k
     }
 
-    /** La plata aparte de las vacaciones sigue siempre al gasto, pedazo por pedazo (mismo monto y mismo día
-        desde el que cuenta): si cambia el monto, cambia igual; si se borra el gasto, se va. Así tu día no se mueve. */
-    private fun sincronizarVacaciones(o: JsonObject): JsonObject {
+    private fun conUsoAgui(o: JsonObject, u: com.miplata.kotlin.nucleo.UsoAgui): JsonObject {
+        val a = com.miplata.kotlin.nucleo.Aguinaldo.desde(o)
+        return JsonObject(o + (com.miplata.kotlin.nucleo.Aguinaldo.CLAVE to a.copy(usos = a.usos + u).aJson()))
+    }
+
+    /** Mi aguinaldo: cuánto cobraste y cómo lo repartís. No toca tu día. */
+    fun guardarAguinaldo(cobrado: Double, partes: List<com.miplata.kotlin.nucleo.ParteAgui>) = cambiarTodo { o ->
+        val a = com.miplata.kotlin.nucleo.Aguinaldo.desde(o)
+        JsonObject(o + (com.miplata.kotlin.nucleo.Aguinaldo.CLAVE to a.copy(cobrado = cobrado, partes = partes).aJson()))
+    }
+
+    /** Usar plata de una parte del aguinaldo: como = "gasto" (gasto importante del mes, tu día no cambia)
+        o "dias" (se suma y se reparte entre hoy y los días que quedan). */
+    fun usarAguinaldo(parte: String, nombre: String, monto: Double, como: String) {
+        if (monto <= 0) return
+        val n = nombre.ifBlank { parte }
+        if (como == "gasto") { gastoAparte("💰 $n", monto, true, parte); return }
+        cambiarTodo { o ->
+            val id = nuevoId(o); val hoy = Fechas.hoy()
+            val l = lista(o, "ajustes")
+            l += JsonObject(mapOf("id" to JsonPrimitive(id), "date" to JsonPrimitive(hoy), "desde" to JsonPrimitive(hoy),
+                "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(monto)),
+                "note" to JsonPrimitive("$APARTE (aguinaldo): $n"), "agu" to JsonPrimitive(id)))
+            conUsoAgui(JsonObject(o + ("ajustes" to JsonArray(l))), com.miplata.kotlin.nucleo.UsoAgui(id, parte, n, monto, hoy, "dias"))
+        }
+    }
+
+    /** Deshacer un uso del aguinaldo: la plata vuelve a su parte y se va el gasto o lo repartido. */
+    fun deshacerUsoAguinaldo(id: Long) = cambiarTodo { o ->
+        val a = com.miplata.kotlin.nucleo.Aguinaldo.desde(o)
+        val u = a.usos.firstOrNull { it.id == id } ?: return@cambiarTodo o
+        val items = (o["items"] as? JsonArray).orEmpty().filter { e -> u.vac == null || (e as? JsonObject)?.get("vac")?.num()?.toLong() != u.vac }
+        val aj = lista(o, "ajustes").filter { e -> (e as? JsonObject)?.get("agu")?.num()?.toLong() != id }
+        sincronizarAparte(JsonObject(o + mapOf("items" to JsonArray(items), "ajustes" to JsonArray(aj),
+            com.miplata.kotlin.nucleo.Aguinaldo.CLAVE to a.copy(usos = a.usos.filter { it.id != id }).aJson())))
+    }
+
+    /** La plata aparte sigue siempre a su gasto, pedazo por pedazo (mismo monto y mismo día desde el que cuenta):
+        si cambia el monto, cambia igual; si se borra el gasto, se va (y vuelve a su parte del aguinaldo). Así tu día no se mueve. */
+    private fun sincronizarAparte(o: JsonObject): JsonObject {
         val sinVac = lista(o, "ajustes").filter { (it as? JsonObject)?.get("vac") == null }.toMutableList()
-        (o["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.filter { it["vac"] != null }.forEach { item ->
+        val conVac = (o["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.filter { it["vac"] != null }
+        conVac.forEach { item ->
             val id = item["vac"].num().toLong()
             val d = item["d"]?.takeIf { (it as? JsonPrimitive)?.content?.isNotEmpty() == true } ?: JsonNull
             val x = item["x"].let { (it as? JsonArray).orEmpty().mapNotNull { e -> e as? JsonObject } }
             val base = item["a"].num() - x.sumOf { it["amt"].num() }
             fun pedazo(n: Int, amt: Double, desde: JsonElement) = JsonObject(mapOf("id" to JsonPrimitive(id + n),
                 "date" to JsonPrimitive(Fechas.hoy()), "desde" to desde, "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(amt)),
-                "note" to JsonPrimitive("Vacaciones: sale de tu plata aparte"), "vac" to JsonPrimitive(id)))
+                "note" to JsonPrimitive("$APARTE: ${item["n"].texto() ?: ""}"), "vac" to JsonPrimitive(id)))
             sinVac += pedazo(0, base, d)
             x.forEachIndexed { i, e -> sinVac += pedazo(i + 1, e["amt"].num(), e["desde"] ?: JsonNull) }
         }
-        return JsonObject(o + ("ajustes" to JsonArray(sinVac)))
+        var r = JsonObject(o + ("ajustes" to JsonArray(sinVac)))
+        if (o[com.miplata.kotlin.nucleo.Aguinaldo.CLAVE] != null) {
+            val montos = conVac.associate { it["vac"].num().toLong() to it["a"].num() }
+            val a = com.miplata.kotlin.nucleo.Aguinaldo.desde(o)
+            /* solo actualiza el monto: si el gasto ya no está porque empezó otro período, la plata ya se usó y no vuelve */
+            val usos = a.usos.map { u -> u.vac?.let { montos[it] }?.let { u.copy(amt = it) } ?: u }
+            r = JsonObject(r + (com.miplata.kotlin.nucleo.Aguinaldo.CLAVE to a.copy(usos = usos).aJson()))
+        }
+        return r
     }
 
     /** Ingresos: cambia la lista y el sueldo pasa a ser la suma (como la app original). */

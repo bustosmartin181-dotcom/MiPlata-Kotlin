@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.miplata.kotlin.nucleo.Aguinaldo
 import com.miplata.kotlin.nucleo.Estado
 import com.miplata.kotlin.nucleo.Rubro
 import com.miplata.kotlin.nucleo.Vacaciones
@@ -101,6 +102,12 @@ fun HojaVacaciones(S: Estado, alCerrar: () -> Unit, alGuardar: (Vacaciones) -> U
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(selected = aparte, onClick = { aparte = true }, label = { Text("Aguinaldo / ahorro") })
             FilterChip(selected = !aparte, onClick = { aparte = false }, label = { Text("Del sueldo del mes") })
+        }
+        val agui = Aguinaldo.desde(S.crudo); val parteV = agui.parteVacaciones
+        if (aparte && agui.cobrado > 0 && parteV != null) {
+            val queda = agui.quedaDe(parteV)
+            Text("En tu aguinaldo, la parte \"$parteV\" tiene ${dinero(queda)}" + if (v.total > queda) " · te faltan ${dinero(v.total - queda)}" else " · te sobran ${dinero(queda - v.total)}",
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (v.total > queda) k.rojo else k.verde)
         }
         Text(if (aparte) "Entra como gasto importante junto con esa plata aparte: tu límite de cada día no cambia."
              else "Entra como gasto importante y se reparte en los días que quedan: tu límite de cada día baja ≈ ${dinero(v.total / diasQueQuedan(S))}.",

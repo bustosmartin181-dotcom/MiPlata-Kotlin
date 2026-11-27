@@ -47,8 +47,8 @@ object Bloques {
             "frase" to "Frase del día"),
         chicos = setOf("saldo", "dias", "cuentas"), fijos = setOf("hoy"))
     val PLAN = ConfigBloques("plan",
-        listOf("resumen", "ingresos", "pagar", "planes", "vacaciones", "cuotas", "metas", "proximos", "cobraste"),
-        mapOf("resumen" to "Resumen del período", "ingresos" to "Ingresos", "pagar" to "Pagar al cobrar", "planes" to "Mis planes", "vacaciones" to "Vacaciones",
+        listOf("resumen", "ingresos", "pagar", "planes", "aguinaldo", "vacaciones", "cuotas", "metas", "proximos", "cobraste"),
+        mapOf("resumen" to "Resumen del período", "ingresos" to "Ingresos", "pagar" to "Pagar al cobrar", "planes" to "Mis planes", "aguinaldo" to "Mi aguinaldo", "vacaciones" to "Vacaciones",
             "cuotas" to "Cuotas", "metas" to "Metas de ahorro", "proximos" to "Para el próximo período", "cobraste" to "¿Cobraste?"),
         fijos = setOf("resumen"))
     val DIAS = ConfigBloques("dias", listOf("objetivo", "lista"),

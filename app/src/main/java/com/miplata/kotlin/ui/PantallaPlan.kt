@@ -28,6 +28,7 @@ private sealed interface HojaPlan {
     data class Detalle(val k: Int) : HojaPlan
     data class IPC(val k: Int) : HojaPlan
     data object Vacas : HojaPlan
+    data object Agui : HojaPlan
 }
 
 @Composable
@@ -75,7 +76,8 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             FilledTonalButton(onClick = { hoja = HojaPlan.Nuevo }) { Text("Período nuevo") }
         }
 
-        BloquesPantalla(Bloques.PLAN, ordenando && !Demo.corriendo, alTerminar = { ordenando = false }) { id ->
+        BloquesPantalla(Bloques.PLAN, ordenando && !Demo.corriendo, alTerminar = { ordenando = false },
+            hay = { id -> id != "aguinaldo" || Aguinaldo.seMuestra(S.crudo, Fechas.hoy()) }) { id ->
             when (id) {
                 "resumen" -> {
                 Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {
@@ -113,6 +115,7 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
                         if (v) pagandoPlan = p
                         else { almacen.marcarPlanPagado(p.id, false); alCambiar(); avisoPendiente(p.pMed, p.pMonto) } })
                 }
+                "aguinaldo" -> TarjetaAguinaldo(S) { hoja = HojaPlan.Agui }
                 "vacaciones" -> TarjetaVacaciones(S) { hoja = HojaPlan.Vacas }
                 "cuotas" -> TarjetaCuotas(S)
                 "metas" -> {
@@ -190,6 +193,11 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             alGuardar = { almacen.guardarVacaciones(it); alCambiar(); hoja = null; aviso("Simulación guardada 🏖️") },
             alCargar = { almacen.cargarVacaciones(it); alCambiar(); hoja = null
                 aviso("Vacaciones cargadas: ${dinero(it.total)}" + if (it.aparte) " · tu día no cambia" else " · se reparten en los días que quedan") })
+        HojaPlan.Agui -> HojaAguinaldo(S, { hoja = null },
+            alGuardar = { t, p -> almacen.guardarAguinaldo(t, p); alCambiar(); aviso("Aguinaldo guardado 💰") },
+            alUsar = { parte, n, m, como -> almacen.usarAguinaldo(parte, n, m, como); alCambiar()
+                aviso("Usaste ${dinero(m)} de $parte" + if (como == "gasto") " · tu día no cambia" else " · se reparte en tus días") },
+            alDeshacer = { almacen.deshacerUsoAguinaldo(it); alCambiar(); aviso("Deshecho: la plata volvió a su parte") })
         null -> {}
     }
 }
