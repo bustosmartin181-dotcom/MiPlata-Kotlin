@@ -56,4 +56,35 @@ class VacacionesTest {
         assertTrue(a.estado!!.ajustes.isEmpty())
         assertTrue(hoyDe(a).quedaHoy < antes - 1000)
     }
+
+    @Test fun calculadoraDeNafta() {
+        val auto = Viaje(Viaje.AUTO, kmIda = 350.0, kmPorLitro = 12.5, precioLitro = 1500.0, idaYVuelta = true, peajes = 4000.0)
+        assertEquals(700.0, auto.km, 1e-9); assertEquals(56.0, auto.litros, 1e-9)
+        assertEquals(88000.0, auto.costoAuto, 1e-9)                 // 56 L × $1.500 + $4.000
+        val v = Vacaciones(4, listOf(Rubro("Viaje", 0.0, false, auto), Rubro("Comida", 10000.0, true)), 0, true)
+        assertEquals(128000.0, v.total, 1e-9)
+        // en avión vale el monto de los pasajes
+        val avion = v.copy(rubros = listOf(Rubro("Viaje", 300000.0, false, Viaje(Viaje.AVION)), Rubro("Comida", 10000.0, true)))
+        assertEquals(340000.0, avion.total, 1e-9)
+        // solo ida
+        assertEquals(44000.0, auto.copy(idaYVuelta = false, peajes = 2000.0).costoAuto, 1e-9)
+        // se guarda y se lee igual
+        val a = nuevo(); a.guardarVacaciones(v)
+        assertEquals(v, Vacaciones.desde(a.estado!!.crudo))
+    }
+
+    @Test fun kmPorLitroConComaOPunto() {
+        assertEquals(12.5, com.miplata.kotlin.ui.aDecimal("12,5"), 1e-9)
+        assertEquals(12.5, com.miplata.kotlin.ui.aDecimal("12.5"), 1e-9)
+        assertEquals(14.0, com.miplata.kotlin.ui.aDecimal("14"), 1e-9)
+    }
+
+    @Test fun simulacionViejaReconoceElViaje() {
+        val a = nuevo()
+        a.cambiarCampo("vacaciones", kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"dias":4,"imp":10,"aparte":true,"rubros":[{"n":"Viaje (ida y vuelta)","m":50000,"d":false},{"n":"Comida","m":1000,"d":true}]}""") as kotlinx.serialization.json.JsonObject)
+        val v = Vacaciones.desde(a.estado!!.crudo)
+        assertEquals(Viaje.AVION, v.rubros[0].viaje?.medio); assertNull(v.rubros[1].viaje)
+        assertEquals(50000.0, v.totalRubro(v.rubros[0]), 1e-9)
+    }
 }

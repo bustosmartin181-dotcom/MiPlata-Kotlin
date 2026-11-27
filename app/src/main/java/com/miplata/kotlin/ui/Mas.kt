@@ -67,7 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
-    "11.27" to listOf("🏖️ Vacaciones (en Plan): una ventanita para simular los gastos del viaje (días, viaje, alojamiento, comida, salidas, imprevistos)",
+    "11.27" to listOf("🚗✈️ Vacaciones: en el Viaje elegís Auto o Avión. Con avión ponés los pasajes; con auto se abre la calculadora de nafta (km, km por litro, precio del litro y peajes)",
+        "🏖️ Vacaciones (en Plan): una ventanita para simular los gastos del viaje (días, viaje, alojamiento, comida, salidas, imprevistos)",
         "✅ Con \"Cargar\" entra como UN solo gasto importante del período. Si lo pagás con aguinaldo o ahorro, tu límite de cada día no cambia",
         "💰 Mi aguinaldo (en Plan, aparece en diciembre, enero, junio y julio): cargás lo que cobraste, lo repartís en partes y usás cada parte como gasto del mes o sumándola a tus días. Las vacaciones se descuentan de la parte \"Vacaciones\""),
     "11.18" to listOf("🍞 \"Repartir lo que me sobra\" ahora es una función aparte (Ajustes), ya no está dentro del Fondo de ahorro: anda con el fondo prendido o apagado",
