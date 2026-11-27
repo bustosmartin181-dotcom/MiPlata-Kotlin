@@ -67,6 +67,8 @@ fun TarjetaCierres(copias: List<String>, alRestaurar: (Int) -> Unit) {
 
 /* ---------- Novedades por versión ---------- */
 val NOVEDADES = listOf(
+    "11.27" to listOf("🏖️ Vacaciones (en Plan): una ventanita para simular los gastos del viaje (días, viaje, alojamiento, comida, salidas, imprevistos)",
+        "✅ Con \"Cargar\" entra como UN solo gasto importante del período. Si lo pagás con aguinaldo o ahorro, tu límite de cada día no cambia"),
     "11.18" to listOf("🍞 \"Repartir lo que me sobra\" ahora es una función aparte (Ajustes), ya no está dentro del Fondo de ahorro: anda con el fondo prendido o apagado",
         "📅 Elegís \"Todo el mes\" (desde el cobro) o \"Desde un día\" (por ejemplo, desde el 15 para llegar mejor a las fiestas)"),
     "11.17" to listOf("🎯 Mis planes: al empezar el período nuevo, los planes cumplidos se borran solos (te avisa cuáles se cumplieron)"),

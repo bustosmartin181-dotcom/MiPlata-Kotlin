@@ -155,10 +155,11 @@ fun HojaCuentas(S: Estado, c: Calculo, alCerrar: () -> Unit, alGuardar: (List<Al
                 Modifier.fillMaxWidth()) { Text(if (d < 0) "Anotar ${dinero(-d)} como gasto que me olvidé" else "Anotar ${dinero(d)} como entrada que faltaba") }
             OutlinedButton(onClick = { confirmar = d }, Modifier.fillMaxWidth()) { Text("Ajustar la app con las cuentas") }
         }
-        if (S.ajustes.isNotEmpty()) {
+        if (S.ajustes.any { !it.note.startsWith("Vacaciones:") }) {
             HorizontalDivider(color = k.linea)
             Text("Recomposiciones (se reparten desde el día siguiente)", fontWeight = FontWeight.SemiBold, color = k.texto)
             S.ajustes.forEachIndexed { i, a ->
+                if (a.note.startsWith("Vacaciones:")) return@forEachIndexed   // va pegada al gasto Vacaciones: no se quita sola
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${a.date?.let { Fechas.diaYMes(it) } ?: ""} ${a.note}", Modifier.weight(1f), color = k.texto)
                     Text(dinero(a.amt), fontWeight = FontWeight.SemiBold, color = k.texto)

@@ -340,7 +340,7 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
         JsonObject(o + ("items" to JsonArray(items)))
     }
 
-    fun cambiarMontoItem(k: Int, monto: Double) = cambiarTodo { com.miplata.kotlin.nucleo.Periodo.cambiarMonto(it, k, monto, Fechas.hoy()) }
+    fun cambiarMontoItem(k: Int, monto: Double) = cambiarTodo { sincronizarVacaciones(com.miplata.kotlin.nucleo.Periodo.cambiarMonto(it, k, monto, Fechas.hoy())) }
 
     /** Gasto importante nuevo: con el período empezado se descuenta desde hoy (como la app original). */
     /* ---------- Mis planes ---------- */
@@ -401,7 +401,50 @@ class Almacen(private val carpeta: File, private val ctx: Context? = null) {
     fun quitarItem(k: Int) = cambiarTodo { o ->
         val items = (o["items"] as? JsonArray)?.toMutableList() ?: return@cambiarTodo o
         if (k in items.indices) items.removeAt(k)
-        JsonObject(o + ("items" to JsonArray(items)))
+        sincronizarVacaciones(JsonObject(o + ("items" to JsonArray(items))))
+    }
+
+    /* ---------- Vacaciones (la ventanita dentro de Mi plata) ---------- */
+
+    /** Guarda la simulación tal cual: no toca ningún número. */
+    fun guardarVacaciones(v: com.miplata.kotlin.nucleo.Vacaciones) = cambiarCampo(com.miplata.kotlin.nucleo.Vacaciones.CLAVE, v.aJson())
+
+    /** Carga las vacaciones como UN gasto importante del período (no se repite el mes que viene).
+        Si se pagan con plata aparte (aguinaldo/ahorro), esa plata entra junto con el gasto
+        y el límite de cada día queda igual. Devuelve el índice del gasto. */
+    fun cargarVacaciones(v: com.miplata.kotlin.nucleo.Vacaciones): Int {
+        guardarVacaciones(v)
+        val k = agregarItem()
+        cambiarTodo { o ->
+            val items = (o["items"] as? JsonArray)?.toMutableList() ?: return@cambiarTodo o
+            val it = (items.getOrNull(k) as? JsonObject)?.toMutableMap() ?: return@cambiarTodo o
+            it["n"] = JsonPrimitive(com.miplata.kotlin.nucleo.Vacaciones.NOMBRE_GASTO)
+            it["a"] = com.miplata.kotlin.nucleo.num(v.total)
+            it["f"] = JsonPrimitive(false)
+            it["vacDias"] = JsonPrimitive(v.dias)
+            if (v.aparte) it["vac"] = JsonPrimitive(nuevoId(o))
+            items[k] = JsonObject(it)
+            sincronizarVacaciones(JsonObject(o + ("items" to JsonArray(items))))
+        }
+        return k
+    }
+
+    /** La plata aparte de las vacaciones sigue siempre al gasto, pedazo por pedazo (mismo monto y mismo día
+        desde el que cuenta): si cambia el monto, cambia igual; si se borra el gasto, se va. Así tu día no se mueve. */
+    private fun sincronizarVacaciones(o: JsonObject): JsonObject {
+        val sinVac = lista(o, "ajustes").filter { (it as? JsonObject)?.get("vac") == null }.toMutableList()
+        (o["items"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }.filter { it["vac"] != null }.forEach { item ->
+            val id = item["vac"].num().toLong()
+            val d = item["d"]?.takeIf { (it as? JsonPrimitive)?.content?.isNotEmpty() == true } ?: JsonNull
+            val x = item["x"].let { (it as? JsonArray).orEmpty().mapNotNull { e -> e as? JsonObject } }
+            val base = item["a"].num() - x.sumOf { it["amt"].num() }
+            fun pedazo(n: Int, amt: Double, desde: JsonElement) = JsonObject(mapOf("id" to JsonPrimitive(id + n),
+                "date" to JsonPrimitive(Fechas.hoy()), "desde" to desde, "amt" to com.miplata.kotlin.nucleo.num(com.miplata.kotlin.nucleo.redondear2(amt)),
+                "note" to JsonPrimitive("Vacaciones: sale de tu plata aparte"), "vac" to JsonPrimitive(id)))
+            sinVac += pedazo(0, base, d)
+            x.forEachIndexed { i, e -> sinVac += pedazo(i + 1, e["amt"].num(), e["desde"] ?: JsonNull) }
+        }
+        return JsonObject(o + ("ajustes" to JsonArray(sinVac)))
     }
 
     /** Ingresos: cambia la lista y el sueldo pasa a ser la suma (como la app original). */

@@ -27,6 +27,7 @@ private sealed interface HojaPlan {
     data class UnPlan(val p: Plan?) : HojaPlan
     data class Detalle(val k: Int) : HojaPlan
     data class IPC(val k: Int) : HojaPlan
+    data object Vacas : HojaPlan
 }
 
 @Composable
@@ -112,6 +113,7 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
                         if (v) pagandoPlan = p
                         else { almacen.marcarPlanPagado(p.id, false); alCambiar(); avisoPendiente(p.pMed, p.pMonto) } })
                 }
+                "vacaciones" -> TarjetaVacaciones(S) { hoja = HojaPlan.Vacas }
                 "cuotas" -> TarjetaCuotas(S)
                 "metas" -> {
                 TarjetaMetas(S) { hoja = HojaPlan.UnaMeta(it) }
@@ -184,6 +186,10 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
         is HojaPlan.UnPlan -> HojaPlanEditar(h.p, { hoja = null },
             alGuardar = { n, t, m -> almacen.guardarPlan(h.p?.id, n, t, m); alCambiar(); hoja = null; aviso("Plan guardado") },
             alBorrar = { h.p?.let { almacen.borrarPlan(it.id) }; alCambiar(); hoja = null; aviso("Plan borrado") })
+        HojaPlan.Vacas -> HojaVacaciones(S, { hoja = null },
+            alGuardar = { almacen.guardarVacaciones(it); alCambiar(); hoja = null; aviso("Simulación guardada 🏖️") },
+            alCargar = { almacen.cargarVacaciones(it); alCambiar(); hoja = null
+                aviso("Vacaciones cargadas: ${dinero(it.total)}" + if (it.aparte) " · tu día no cambia" else " · se reparten en los días que quedan") })
         null -> {}
     }
 }
