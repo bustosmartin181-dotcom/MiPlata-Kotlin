@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Versión pública: sin leer notificaciones de Mercado Pago (a la gente le da desconfianza ese permiso) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <service android:name=".aviso.EscuchaMP" tools:node="remove" />
+        <receiver android:name=".aviso.ReceptorEntradaMP" tools:node="remove" />
+    </application>
+</manifest>

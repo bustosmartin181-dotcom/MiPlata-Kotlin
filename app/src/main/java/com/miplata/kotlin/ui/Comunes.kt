@@ -33,7 +33,8 @@ object Bordes {
 object Estilo {
     val OPCIONES = listOf("original" to "Original", "moderno" to "Moderno", "oneui" to "One UI", "neobanco" to "Neobanco")
     var actual by mutableStateOf("moderno")
-    fun cargar(ctx: android.content.Context) { actual = ctx.getSharedPreferences("apariencia", 0).getString("estilo", "moderno") ?: "moderno" }
+    /* La versión pública va siempre con el diseño "moderno" (sin selector de estilos) */
+    fun cargar(ctx: android.content.Context) { actual = if (com.miplata.kotlin.Edicion.publica) "moderno" else ctx.getSharedPreferences("apariencia", 0).getString("estilo", "moderno") ?: "moderno" }
     fun guardar(ctx: android.content.Context, e: String) { actual = e; ctx.getSharedPreferences("apariencia", 0).edit().putString("estilo", e).apply() }
     val original get() = actual == "original"
     val oneUi get() = actual == "oneui"

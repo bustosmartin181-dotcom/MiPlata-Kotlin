@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
         almacen = Almacen(applicationContext)
         com.miplata.kotlin.ui.Bordes.cargar(applicationContext)
         com.miplata.kotlin.ui.Estilo.cargar(applicationContext)
+        Extras.cargar(applicationContext)
         bloqueada.value = pidePin()
         almacen.estado?.let { apariencia.value = it.color to it.tema }
         val version = packageManager.getPackageInfo(packageName, 0).versionName ?: ""
@@ -133,7 +134,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     /** El + abre en modo Taller solo si es la hora de comprar para los muchachos */
     fun abrirAnotar(dictar: Boolean = false) {
         editando = null; conDictado = dictar
-        tallerAlAbrir = !dictar && taller.enVentana(Fechas.hoy(), horaAhora()) && almacen.estado?.demo != true
+        tallerAlAbrir = Edicion.personal && !dictar && taller.enVentana(Fechas.hoy(), horaAhora()) && almacen.estado?.demo != true
         if (tallerAlAbrir) prepararPago() else { montoIni = ""; partesIni = emptyMap(); queLlevoIni = emptyMap(); notaIni = ""; cosasEnPago = null }
         hojaAbierta = true
     }
@@ -177,10 +178,10 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
 
     /* Cada vez que cambian los datos se reprograma el aviso de la noche */
     LaunchedEffect(vuelta) {
-        if (runCatching { almacen.aplicarRendimientos() }.getOrDefault(false)) { vuelta++; return@LaunchedEffect }   // rendimientos a Mis cuentas
+        if (Edicion.personal && runCatching { almacen.aplicarRendimientos() }.getOrDefault(false)) { vuelta++; return@LaunchedEffect }   // rendimientos a Mis cuentas
         runCatching { AvisoReserva.programar(ctx) }
         runCatching { AvisoReserva.programarRecordatorio(ctx) }
-        runCatching { com.miplata.kotlin.aviso.AvisoTaller.programar(ctx) }
+        if (Edicion.personal) runCatching { com.miplata.kotlin.aviso.AvisoTaller.programar(ctx) }
         com.miplata.kotlin.widget.Widget.actualizar(ctx)
         /* la copia automática ya la escribe el Almacén cada vez que guarda un cambio */
     }
@@ -229,7 +230,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     LaunchedEffect(Unit) {
         val pm = ctx.getSharedPreferences("migraciones", android.content.Context.MODE_PRIVATE)
         val e = estado
-        if (!pm.getBoolean("tasa_hist_1", false) && e != null) {
+        if (Edicion.personal && !pm.getBoolean("tasa_hist_1", false) && e != null) {
             if (e.rendTasas.isEmpty() && Math.abs(e.rendTasa - 18.9) < 0.01 && Fechas.hoy() <= "2026-11-23")
                 campo("rendTasas", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonObject(mapOf(
                     "d" to kotlinx.serialization.json.JsonPrimitive("2026-11-20"), "t" to com.miplata.kotlin.nucleo.num(18.9), "a" to com.miplata.kotlin.nucleo.num(19.8))))))
@@ -239,7 +240,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
     /* Tasa de Mercado Pago automática (Mercado Fondo, datos de la CNV): si cambió, se actualiza sola */
     LaunchedEffect(Unit) {
         val e = estado
-        if (e != null && (e.rendOn || e.rendDispOn) && e.rendTasaAuto && TasaMP.toca(ctx)) {
+        if (Edicion.personal && e != null && (e.rendOn || e.rendDispOn) && e.rendTasaAuto && TasaMP.toca(ctx)) {
             val d = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { TasaMP.bajar(ctx) }
             if (d != null && Math.abs(d.tasa - e.rendTasa) >= 0.05) {
                 almacen.cambiarTasa(d.tasa); vuelta++
@@ -358,7 +359,7 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         confirmButton = { TextButton(onClick = { elegirFoto = false; runCatching { sacarFoto.launch(uriFoto) }.onFailure { aviso("No pude abrir la cámara") } }) { Text("📷 Sacar foto") } },
         dismissButton = { TextButton(onClick = { elegirFoto = false; galeria.launch("image/*") }) { Text("🖼️ De la galería") } })
     /* Se tocó el aviso del taller */
-    LaunchedEffect(pedidoTaller.value) { if (pedidoTaller.value && estado != null) { pedidoTaller.value = false; pestana = Pestana.HOY; abrirTaller() } }
+    LaunchedEffect(pedidoTaller.value) { if (Edicion.personal && pedidoTaller.value && estado != null) { pedidoTaller.value = false; pestana = Pestana.HOY; abrirTaller() } }
 
     if (bloqueada.value && estado != null) {
         PantallaBloqueo(errorPin) { pin ->
@@ -381,11 +382,14 @@ fun App(almacen: Almacen, version: String, bloqueada: MutableState<Boolean>, ped
         Box(Modifier.padding(relleno).fillMaxSize()) {
             if (estado == null || Demo.bienvenida) Bienvenida(abrirImportar) { n, sueldo, ini, fin, gastos ->
                 if (Demo.corriendo) { almacen.entrarDemo(estadoDemo(almacen.crudo)); Demo.bienvenida = false; pestana = Pestana.HOY; vuelta++ }
-                else { almacen.empezarDeCero(n, sueldo, ini, fin, gastos); vuelta++; aviso("¡Bienvenido a Mi plata!") } }
+                else { almacen.empezarDeCero(n, sueldo, ini, fin, gastos)
+                    /* En la versión pública lo que sobra se reparte en todos los días que quedan (la regla principal) */
+                    if (Edicion.publica) almacen.sobraSeReparte(Estado.REPARTE_TODO)
+                    vuelta++; aviso("¡Bienvenido a Mi plata!") } }
             else {
                 val tocar: (Movimiento) -> Unit = { editando = it; conDictado = false; hojaAbierta = true }
                 when (pestana) {
-                    Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { "Martín" }, tocar,
+                    Pestana.HOY -> PantallaHoy(estado, nombre.ifEmpty { if (Edicion.publica) "" else "Martín" }, tocar,
                         alAbrirFondo = { hojaHoy = "fondo" }, alAbrirCuentas = { hojaHoy = "cuentas" },
                         alYaPase = { pendientePase = it; hojaHoy = "pase" }, alDejarEnDisponible = { pendienteDejar = it; hojaHoy = "dejar" }, alAbrirMP = ::abrirMP,
                         alCobrar = { d, c -> cobrarDeuda(d.id, d.tp, d.previo, d.monto, c) },

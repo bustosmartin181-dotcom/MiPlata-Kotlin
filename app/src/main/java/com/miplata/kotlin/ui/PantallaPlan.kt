@@ -74,7 +74,9 @@ fun PantallaPlan(S: Estado, almacen: Almacen, alCambiar: () -> Unit, aviso: (Str
             FilledTonalButton(onClick = { hoja = HojaPlan.Nuevo }) { Text("Período nuevo") }
         }
 
-        BloquesPantalla(Bloques.PLAN, ordenando && !Demo.corriendo, alTerminar = { ordenando = false }) { id ->
+        /* Versión pública: "Mis planes" y "Metas de ahorro" aparecen con las herramientas extra (o si ya cargaste alguno) */
+        BloquesPantalla(Bloques.PLAN, ordenando && !Demo.corriendo, alTerminar = { ordenando = false },
+            hay = { id -> when (id) { "planes" -> com.miplata.kotlin.Extras.on || S.planes.isNotEmpty(); "metas" -> com.miplata.kotlin.Extras.on || S.metas.isNotEmpty(); else -> true } }) { id ->
             when (id) {
                 "resumen" -> {
                 Tarjeta(Modifier.clickable { hoja = HojaPlan.Actual }) {

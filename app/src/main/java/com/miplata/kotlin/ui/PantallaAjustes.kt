@@ -13,6 +13,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.Estado
+import com.miplata.kotlin.Edicion
+import com.miplata.kotlin.Extras
 
 /** Lo que Ajustes necesita poder hacer. */
 class AccionesAjustes(
@@ -67,6 +69,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 }
             }
             val ctxB = androidx.compose.ui.platform.LocalContext.current
+            if (Edicion.personal) {
             Text("Estilo visual", color = k.suave, fontSize = 13.sp)
             /* De a dos por fila: con cuatro estilos en una sola fila no entran los nombres en el teléfono */
             Estilo.OPCIONES.chunked(2).forEach { fila ->
@@ -82,13 +85,14 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 "neobanco" -> "Estilo banco digital: verde menta, letra Plus Jakarta Sans y tarjetas con borde finito. En oscuro, negro con verde neón. Va siempre en verde menta: el Color de abajo se usa en los otros estilos."
                 else -> "El rediseño: sombras suaves, más aire entre bloques y barra con puntas redondeadas."
             }, fontSize = 12.sp, color = k.suave)
+            }
             Text("Color", color = k.suave, fontSize = 13.sp)
             SelectorColor(S.color, a.color)
             Interruptor("Línea de color en el borde de los bloques", Bordes.activos, { Bordes.guardar(ctxB, it) },
                 "Para ver bien dónde empieza y termina cada bloque")
         }
 
-        Tarjeta {
+        if (Edicion.personal) Tarjeta {
             Titulo("🔧 Compras del taller")
             Subtitulo("Los muchachos, los precios y tu horario. A la hora del desayuno o la merienda la app se pone en modo Taller sola.")
             Button(onClick = a.abrirTaller, Modifier.fillMaxWidth()) { Text("Abrir Compras del taller") }
@@ -107,6 +111,13 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             AlertDialog(onDismissRequest = { eligiendoHoraRec = false }, title = { Text("Hora del recordatorio") }, text = { TimePicker(est) },
                 confirmButton = { TextButton(onClick = { a.horaRecordatorio("%02d:%02d".format(est.hour, est.minute)); eligiendoHoraRec = false }) { Text("Listo") } },
                 dismissButton = { TextButton(onClick = { eligiendoHoraRec = false }) { Text("Cancelar") } })
+        }
+
+        if (Edicion.publica) Tarjeta {
+            val ctxX = androidx.compose.ui.platform.LocalContext.current
+            Titulo("🧰 Herramientas extra")
+            Subtitulo("Para cuando ya le agarraste la mano a lo básico: fondo de ahorro, \"Me lo devuelven\" (compraste para otros y te deben) y Mis planes (gastos grandes que tenés en mente).")
+            Interruptor("Mostrar las herramientas extra", Extras.on, { Extras.guardar(ctxX, it) })
         }
 
         Tarjeta {
@@ -130,7 +141,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
         }
 
-        Tarjeta(Modifier.demo("aj.fondo").luz("aj.fondo")) {
+        if (Extras.on || S.modoFondo) Tarjeta(Modifier.demo("aj.fondo").luz("aj.fondo")) {
             Titulo("Fondo de ahorro")
             Subtitulo("Lo que no gastás cada día no pasa al día siguiente: se guarda en un fondo aparte. Cuenta desde el día que lo activás.")
             Interruptor("Activar el fondo de ahorro", S.modoFondo, a.fondo, demoClave = "aj.fondo.activar")
@@ -150,7 +161,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
         }
 
-        Tarjeta {
+        if (Edicion.personal) Tarjeta {
             Titulo("Rendimiento de Mercado Pago")
             Subtitulo("Tu plata va sumando lo que rendiría con la tasa que pongas. Se acredita en días hábiles (lo del fin de semana llega el lunes) y respeta los feriados. Es una estimación.")
             Interruptor("Sumar rendimiento a mi dinero disponible", S.rendDispOn, a.rendDisp)
@@ -166,7 +177,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
                 "Así el rendimiento del fondo cuenta al comparar con tus cuentas")
         }
 
-        Tarjeta {
+        if (Edicion.personal) Tarjeta {
             val ctxE = androidx.compose.ui.platform.LocalContext.current
             var activaE by remember { mutableStateOf(com.miplata.kotlin.aviso.EntradasMP.activa(ctxE)) }
             /* se revisa solo, por si volvés de darle el permiso */
@@ -226,11 +237,11 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             }
         }
 
-        TarjetaIA(a.abrirWebIA, a.avisar)
+        if (Edicion.personal) TarjetaIA(a.abrirWebIA, a.avisar)
 
         TarjetaCierres(a.copias, a.restaurarCierre)
 
-        Tarjeta {
+        if (Edicion.personal) Tarjeta {
             Titulo("Modo demo")
             Subtitulo(if (S.demo) "Estás viendo datos de ejemplo. Tus datos reales están guardados aparte." else "Muestra datos de ejemplo para grabar un video o sacar capturas sin mostrar tu plata. Tus datos quedan guardados aparte.")
             if (S.demo) {
@@ -244,7 +255,7 @@ fun PantallaAjustes(S: Estado, version: String, a: AccionesAjustes) {
             else OutlinedButton(onClick = { a.demo(true) }, Modifier.fillMaxWidth()) { Text("Activar modo demo") }
         }
 
-        TarjetaNovedades()
+        if (Edicion.personal) TarjetaNovedades()
 
         TarjetaColabora(a.copiarAlias, a.abrirMP)
 

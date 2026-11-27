@@ -110,7 +110,7 @@ fun Bienvenida(alImportar: () -> Unit, alEmpezar: (nombre: String, sueldo: Doubl
                         }
                     }
                     Aparece(8, Modifier.fillMaxWidth()) {
-                        Text("Si hoy gastás menos, lo que sobra pasa a mañana. Si te pasás, mañana tenés un poco menos.", color = k.suave)
+                        Text(if (com.miplata.kotlin.Edicion.publica) "Si hoy gastás menos, lo que sobra se reparte en todos los días que quedan. Si te pasás, mañana tenés un poco menos." else "Si hoy gastás menos, lo que sobra pasa a mañana. Si te pasás, mañana tenés un poco menos.", color = k.suave)
                     }
                 }
                 2 -> {
@@ -183,7 +183,7 @@ fun Bienvenida(alImportar: () -> Unit, alEmpezar: (nombre: String, sueldo: Doubl
                         }
                     }
                     Aparece(5, Modifier.fillMaxWidth()) {
-                        Text("Lo que no gastes hoy, pasa a mañana.", Modifier.fillMaxWidth().padding(top = 8.dp), color = k.texto, textAlign = TextAlign.Center)
+                        Text(if (com.miplata.kotlin.Edicion.publica) "Lo que no gastes hoy se reparte en los días que quedan." else "Lo que no gastes hoy, pasa a mañana.", Modifier.fillMaxWidth().padding(top = 8.dp), color = k.texto, textAlign = TextAlign.Center)
                     }
                 }
             }

@@ -88,7 +88,7 @@ fun HojaGasto(item: Item, esNuevo: Boolean, alCerrar: () -> Unit,
         }
         OutlinedTextField(alias, { alias = it }, Modifier.fillMaxWidth(), label = { Text("Alias o CVU para transferir (opcional)") }, singleLine = true)
         OutlinedTextField(codigo, { codigo = it }, Modifier.fillMaxWidth(), label = { Text("Código de pago de la factura (opcional)") }, singleLine = true)
-        Text("Al tocar \"Pagar en Mercado Pago\" se copia el alias (o el código) para que lo pegues en la app de MP.", fontSize = 12.sp, color = k.suave)
+        if (com.miplata.kotlin.Edicion.personal) Text("Al tocar \"Pagar en Mercado Pago\" se copia el alias (o el código) para que lo pegues en la app de MP.", fontSize = 12.sp, color = k.suave)
         Button(onClick = {
             val campos = mutableMapOf<String, JsonElement?>(
                 "n" to JsonPrimitive(nombre.trim()), "p" to JsonPrimitive(pagado),

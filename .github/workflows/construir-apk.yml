@@ -24,10 +24,10 @@ jobs:
       - name: Preparar Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Probar el motor de cálculo contra la app original
+      - name: Probar el motor de cálculo (las dos versiones)
         run: |
           chmod +x gradlew
-          ./gradlew :app:testDebugUnitTest
+          ./gradlew :app:testPersonalDebugUnitTest :app:testPublicaDebugUnitTest
 
       - name: Preparar la clave de firma fija
         env:
@@ -38,24 +38,37 @@ jobs:
           echo "$CLAVE_B64" | base64 -d > "$RUNNER_TEMP/miplata.keystore"
           echo "MIPLATA_KEYSTORE=$RUNNER_TEMP/miplata.keystore" >> "$GITHUB_ENV"
 
-      - name: Construir el APK
+      - name: Construir los APK (personal y pública)
         env:
           MIPLATA_CLAVE: ${{ secrets.MIPLATA_CLAVE }}
-        run: ./gradlew :app:assembleRelease
+        run: ./gradlew :app:assemblePersonalRelease :app:assemblePublicaRelease
 
-      - name: Ponerle nombre con la versión
-        run: cp app/build/outputs/apk/release/app-release.apk "MiPlata-10.0.${{ github.run_number }}.apk"
+      - name: Ponerles nombre con la versión
+        run: |
+          cp app/build/outputs/apk/personal/release/app-personal-release.apk "MiPlata-10.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/publica/release/app-publica-release.apk "MiPlata-Publica-1.0.${{ github.run_number }}.apk"
 
-      - name: Subir el APK
+      - name: Subir el APK personal
         uses: actions/upload-artifact@v4
         with:
           name: MiPlata-APK
-          path: MiPlata-*.apk
+          path: MiPlata-10.0.*.apk
 
-      - name: Publicar el APK como versión descargable
+      - name: Subir el APK público
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiPlata-Publica-APK
+          path: MiPlata-Publica-*.apk
+
+      - name: Publicar los APK como versión descargable
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v10.0.${{ github.run_number }}
           name: Mi plata 10.0.${{ github.run_number }}
-          body: APK firmado con la clave fija; se instala encima de la versión anterior.
-          files: MiPlata-*.apk
+          body: |
+            MiPlata-10.0.x.apk: tu versión personal (se instala encima de la anterior).
+            MiPlata-Publica-1.0.x.apk: la versión para la gente (es otra app: se instala aparte).
+          files: |
+            MiPlata-10.0.*.apk
+            MiPlata-Publica-*.apk

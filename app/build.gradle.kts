@@ -20,6 +20,23 @@ android {
         versionName = "10.0.$numero"
     }
 
+    /* Dos versiones desde el mismo código:
+       personal = la de Martín (se instala encima de la de siempre, mismo applicationId)
+       publica  = la de la gente (otra app aparte: se puede tener instalada junto a la personal) */
+    flavorDimensions += "edicion"
+    productFlavors {
+        create("personal") {
+            dimension = "edicion"
+            buildConfigField("boolean", "PUBLICA", "false")
+        }
+        create("publica") {
+            dimension = "edicion"
+            applicationId = "com.miplata.publica"   // (com.miplata.app ya lo usó el repo viejo MiPlata-Android)
+            versionName = "1.0.$numero"
+            buildConfigField("boolean", "PUBLICA", "true")
+        }
+    }
+
     // Siempre la misma clave: así cada APK nuevo se instala ENCIMA del anterior, sin desinstalar.
     // La clave NO está en el repo: GitHub Actions la arma desde los secretos MIPLATA_KEYSTORE y MIPLATA_CLAVE.
     val rutaClave = System.getenv("MIPLATA_KEYSTORE")
@@ -51,7 +68,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     // El lector de texto de la foto (ML Kit) necesita sus modelos sin comprimir dentro del APK
     androidResources { noCompress += listOf("tflite", "binarypb", "fb", "bincfg", "pb", "conv_model", "lstm_model") }
     testOptions { unitTests.isReturnDefaultValues = true }

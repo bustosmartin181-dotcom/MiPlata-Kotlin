@@ -144,19 +144,32 @@ fun AccesosRapidos(alAnotar: () -> Unit, alDictar: () -> Unit, alMP: () -> Unit,
                    alCobrar: () -> Unit = {}) {
     val k = LocalColores.current
     Tarjeta {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Atajo("Anotar", Icons.Outlined.Add, k.verde, k.sobreVerde, alAnotar)
-            Atajo("Dictar", Icons.Outlined.Mic, k.verdeClaro, k.verde, alDictar)
-            Atajo("Mercado\nPago", Icons.Outlined.AccountBalanceWallet, Color(0xFF00A6E8), Color.White, alMP)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Atajo("Mis\nplanes", Icons.Outlined.Flag, k.verdeClaro, k.verde, alPlanes)
-            Atajo("Preguntale\na tu plata", Icons.Outlined.AutoAwesome, k.verdeClaro, k.verde, alIA)
-            Atajo("Compartir\nresumen", Icons.Outlined.Share, k.verdeClaro, k.verde, alCompartir)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Atajo("Cobrar", Icons.Outlined.Paid, Color(0xFF25D366), Color.White, alCobrar)
-            Spacer(Modifier.width(92.dp)); Spacer(Modifier.width(92.dp))
+        /* Versión pública: solo Anotar, Dictar, Compartir (y Mis planes si prendiste las herramientas extra) */
+        if (com.miplata.kotlin.Edicion.publica) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Atajo("Anotar", Icons.Outlined.Add, k.verde, k.sobreVerde, alAnotar)
+                Atajo("Dictar", Icons.Outlined.Mic, k.verdeClaro, k.verde, alDictar)
+                Atajo("Compartir\nresumen", Icons.Outlined.Share, k.verdeClaro, k.verde, alCompartir)
+            }
+            if (com.miplata.kotlin.Extras.on) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Atajo("Mis\nplanes", Icons.Outlined.Flag, k.verdeClaro, k.verde, alPlanes)
+                Spacer(Modifier.width(92.dp)); Spacer(Modifier.width(92.dp))
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Atajo("Anotar", Icons.Outlined.Add, k.verde, k.sobreVerde, alAnotar)
+                Atajo("Dictar", Icons.Outlined.Mic, k.verdeClaro, k.verde, alDictar)
+                Atajo("Mercado\nPago", Icons.Outlined.AccountBalanceWallet, Color(0xFF00A6E8), Color.White, alMP)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Atajo("Mis\nplanes", Icons.Outlined.Flag, k.verdeClaro, k.verde, alPlanes)
+                Atajo("Preguntale\na tu plata", Icons.Outlined.AutoAwesome, k.verdeClaro, k.verde, alIA)
+                Atajo("Compartir\nresumen", Icons.Outlined.Share, k.verdeClaro, k.verde, alCompartir)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Atajo("Cobrar", Icons.Outlined.Paid, Color(0xFF25D366), Color.White, alCobrar)
+                Spacer(Modifier.width(92.dp)); Spacer(Modifier.width(92.dp))
+            }
         }
     }
 }

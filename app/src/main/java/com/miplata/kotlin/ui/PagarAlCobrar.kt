@@ -96,7 +96,7 @@ fun TarjetaPagarAlCobrar(S: Estado, alPagado: (Int, Boolean) -> Unit, alDetalles
                     OutlinedButton(onClick = { alIPC(i) }, Modifier.demo("plan.ipc.$i", accion = { alIPC(i) }), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (toca) k.naranja else k.verde)) {
                         Text(if (toca) "⚠️ Toca actualizar" else "Calcular actualización", fontSize = 13.sp) }
                 }
-                if (!it.p && it.a > 0) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth()) { alPagarMP(i) }
+                if (!it.p && it.a > 0 && com.miplata.kotlin.Edicion.personal) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth()) { alPagarMP(i) }
                 OutlinedButton(onClick = { alDetalles(i) }, Modifier.fillMaxWidth()) { Text("Detalles") }
             }
         }
@@ -134,7 +134,7 @@ fun TarjetaCuotas(S: Estado) {
 fun HojaDetalleGasto(it: Item, alCerrar: () -> Unit, alPagarMP: () -> Unit, alPagado: (Boolean) -> Unit, alEditar: () -> Unit, alCopiar: (String, String) -> Unit) {
     val k = LocalColores.current
     Hoja(alCerrar, "") {
-        Box(Modifier.background(MercadoPago.AZUL.copy(alpha = 0.12f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+        if (com.miplata.kotlin.Edicion.personal) Box(Modifier.background(MercadoPago.AZUL.copy(alpha = 0.12f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp)) {
             Text("● MERCADO PAGO", color = MercadoPago.AZUL, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
         Text(it.n.ifBlank { "Gasto" }, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = k.texto)
@@ -154,13 +154,13 @@ fun HojaDetalleGasto(it: Item, alCerrar: () -> Unit, alPagarMP: () -> Unit, alPa
         }
         it.extra["cod"].texto()?.let { Dato("Código de barras / factura", it) }
         it.extra["mp"].texto()?.let { Dato("Alias / CVU / CBU", it) }
-        if (!it.p) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth(), alPagarMP)
+        if (!it.p && com.miplata.kotlin.Edicion.personal) BotonMP("Pagar en Mercado Pago ↗", Modifier.fillMaxWidth(), alPagarMP)
         OutlinedButton(onClick = { alPagado(!it.p) }, Modifier.fillMaxWidth()) { Text(if (it.p) "↩️ Marcar como pendiente" else "✅ Marcar como pagado") }
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = alEditar) { Text("✏️ Editar datos") }
             Text("🛡️ Seguro: no se conecta a tu cuenta", fontSize = 13.sp, color = k.suave)
         }
-        Text("Para buscar facturas de luz, gas o internet con tu DNI o número de cliente, usá \"Pagar servicios\" adentro de Mercado Pago.",
+        if (com.miplata.kotlin.Edicion.personal) Text("Para buscar facturas de luz, gas o internet con tu DNI o número de cliente, usá \"Pagar servicios\" adentro de Mercado Pago.",
             fontSize = 12.sp, color = k.suave)
     }
 }

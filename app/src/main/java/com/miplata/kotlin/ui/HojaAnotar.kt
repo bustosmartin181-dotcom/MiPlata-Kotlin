@@ -196,7 +196,7 @@ fun HojaAnotar(
                             modifier = Modifier.demo("an.cat.$cat", accion = { categoria = cat }))
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (com.miplata.kotlin.Extras.on || devuelven) Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(devuelven, { devuelven = it }, Modifier.demo("an.devuelven", accion = { devuelven = true }))
                     Column {
                         Text("Me lo devuelven", color = k.texto)
@@ -207,7 +207,7 @@ fun HojaAnotar(
             /* Con qué pagaste (o en qué te entró): así el efectivo no se mezcla con Mercado Pago */
             /* (al corregir algo que te deben no se muestra: eso se cobra con "Me lo pagaron") */
             /* (algo nuevo: se pregunta en la ventanita al tocar Anotar) */
-            if (editando != null && editando.dev == 0) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (editando != null && editando.dev == 0 && com.miplata.kotlin.Edicion.personal) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (entrada) "Entró en:" else if (devuelven) "En el negocio pagué con:" else "Pagué con:", color = k.suave, modifier = Modifier.align(Alignment.CenterVertically))
                 FilterChip(selected = !efectivo, onClick = { efectivo = false }, label = { Text("📲 Mercado Pago") })
                 FilterChip(selected = efectivo, onClick = { efectivo = true }, label = { Text("💵 Efectivo") })
@@ -231,7 +231,8 @@ fun HojaAnotar(
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             /* Un solo botón: todo gasto nuevo (también la compra del taller) se anota y abre Mercado Pago para pagarlo.
                Excepciones: entradas, cambios y la demo. */
-            val principal: () -> Unit = { if (editando == null && !Demo.corriendo) { if (validar()) preguntandoMedio = true } else guardarClick() }
+            /* La versión pública no pregunta "¿Transferencia o efectivo?": anota y listo */
+            val principal: () -> Unit = { if (editando == null && !Demo.corriendo && com.miplata.kotlin.Edicion.personal) { if (validar()) preguntandoMedio = true } else guardarClick() }
             Button(onClick = principal, modifier = Modifier.fillMaxWidth().height(54.dp).demo("an.guardar", guardarClick)) {
                 Text(when { editando != null -> "Guardar cambios"; entrada -> "Anotar entrada"
                     modoTaller -> "Anotar compra del taller"; else -> "Anotar gasto" }, fontSize = 17.sp)

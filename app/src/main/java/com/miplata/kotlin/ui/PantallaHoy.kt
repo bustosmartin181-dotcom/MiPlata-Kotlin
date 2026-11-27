@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.miplata.kotlin.nucleo.*
+import com.miplata.kotlin.Edicion
+import com.miplata.kotlin.Extras
 import java.time.LocalTime
 
 @Composable
@@ -54,13 +56,13 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         verticalArrangement = Arrangement.spacedBy(Estilo.separacion)) {
         Row(Modifier.demo("hoy.arriba"), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                TituloPantalla("${saludoSegunHora(LocalTime.now().hour)}, $nombre")
+                TituloPantalla(saludoSegunHora(LocalTime.now().hour) + if (nombre.isNotBlank()) ", $nombre" else "")
                 Text(fraseDeEstado(c, clase), fontSize = 14.sp, color = k.suave)
             }
             if (S.ocultar) IconButton(onClick = alOjo) { Icon(if (Privacidad.oculto) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
                 contentDescription = if (Privacidad.oculto) "Mostrar montos" else "Ocultar montos", tint = k.suave) }
             IconButton(onClick = alEditarBloques) { Icon(Icons.Outlined.Edit, contentDescription = "Ordenar bloques", tint = if (editandoBloques) k.verde else k.suave) }
-            IconButton(onClick = alIA) { Text("✨", fontSize = 20.sp) }
+            if (Edicion.personal) IconButton(onClick = alIA) { Text("✨", fontSize = 20.sp) }
             IconButton(onClick = alCompartir) { Icon(Icons.Outlined.Share, contentDescription = "Compartir resumen", tint = k.suave) }
             if (racha.racha > 0) Row(
                 Modifier.background(k.verdeClaro, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp),
@@ -128,7 +130,8 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
         val esDeNoche = ahora >= LocalTime.of(hAviso.coerceIn(0, 23), mAviso.coerceIn(0, 59)).minusHours(2) && ahora.hour >= 12
         val conHoy = anteriores + (if (esDeNoche) c.fondo.hoySuma else 0.0)
         val hayBloque: (String) -> Boolean = { id -> when (id) {
-            "medeben" -> debo.isNotEmpty()
+            "medeben" -> debo.isNotEmpty() && Extras.on
+            "cuentas" -> Edicion.personal          // la pública no compara con Mercado Pago
             "fondo" -> c.fondo.activo
             "reserva" -> c.fondo.activo && (conHoy >= 1 || conHoy <= -1)
             else -> true } }
@@ -169,7 +172,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                 /* Dos números de un vistazo */
                 "saldo" -> if (c.fondo.activo)
                     Mini("Disponible", dinero(c.fondo.disponible), Modifier.fillMaxWidth().clickable(onClick = alAbrirCuentas))
-                else Mini("Saldo del período", dinero(c.saldo), Modifier.fillMaxWidth().demo("hoy.minis").luz("hoy.minis").clickable(onClick = alAbrirCuentas),
+                else Mini("Saldo del período", dinero(c.saldo), Modifier.fillMaxWidth().demo("hoy.minis").luz("hoy.minis").clickable(enabled = Edicion.personal, onClick = alAbrirCuentas),
                     extra = if (S.rendDispOn && S.rendTasa > 0) "↑ Rinde ${formatoTasa(S.rendTasa)}%" else null)
                 "dias" -> if (c.fondo.activo)
                     Mini("Fondo de ahorro", dinero(c.fondo.total + if (c.fondo.rendEnMP) c.fondo.rend else 0.0),
@@ -202,7 +205,7 @@ fun PantallaHoy(S: Estado, nombre: String, alTocarMovimiento: (Movimiento) -> Un
                             anteriores <= -1 -> "Ya pasaste una parte de lo de hoy. Te falta esto."
                             else -> "Es lo que te sobra hoy. Pasalo a la noche, cuando ya no vayas a gastar."
                         }, fontSize = 14.sp, color = k.suave)
-                        BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
+                        if (Edicion.personal) BotonMP("💙 Abrir Mercado Pago", Modifier.fillMaxWidth(), alAbrirMP)
                         Button(onClick = { alYaPase(conHoy) }, Modifier.fillMaxWidth()) { Text("✅ Ya lo pasé") }
                         /* Si no lo pasás porque lo vas a usar: se avisa y el cuadro se va (solo con lo de días ya cerrados) */
                         if (anteriores >= 1) OutlinedButton(onClick = { alDejarEnDisponible(anteriores) }, Modifier.fillMaxWidth()) { Text("💙 Lo dejo en disponible de Mercado Pago") }
